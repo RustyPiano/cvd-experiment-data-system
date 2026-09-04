@@ -295,6 +295,10 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
         "",
         "",
+        "class RequiredDurationParametersPayload(V2PayloadBase):",
+        "    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "",
+        "",
         "class MeltSolidifyParametersPayload(OptionalDurationParametersPayload):",
         "    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)]",
         "",
@@ -407,8 +411,31 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "]",
         "",
         "",
-        "class CleaningPretreatmentPayload(V2PayloadBase):",
-        "    type: Literal['acetone_clean', 'isopropanol_clean', 'nitrogen_dry']",
+        "class SolventCleaningParametersPayload(V2PayloadBase):",
+        "    solvent: Literal['acetone', 'deionized_water', 'ethanol', 'isopropanol', 'methanol', 'other']",
+        "    solvent_other: NonBlankStr | None = None",
+        "    cleaning_method: Literal['not_recorded', 'other', 'rinse', 'soak', 'ultrasonic', 'wipe']",
+        "    cleaning_method_other: NonBlankStr | None = None",
+        "    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _conditional_details(self) -> Self:",
+        "        if (self.solvent == 'other') != bool((self.solvent_other or '').strip()):",
+        '            raise ValueError("solvent_other is required only for other solvent")',
+        "        if (self.cleaning_method == 'other') != bool((self.cleaning_method_other or '').strip()):",
+        '            raise ValueError("cleaning_method_other is required only for other cleaning method")',
+        "        if self.cleaning_method in {'ultrasonic', 'soak'} and self.duration_min is None:",
+        '            raise ValueError("duration_min is required for ultrasonic cleaning or soaking")',
+        "        return self",
+        "",
+        "",
+        "class SolventCleaningPretreatmentPayload(V2PayloadBase):",
+        "    type: Literal['solvent_cleaning']",
+        "    parameters: SolventCleaningParametersPayload",
+        "",
+        "",
+        "class DryingPretreatmentPayload(V2PayloadBase):",
+        "    type: Literal['nitrogen_dry']",
         "    parameters: OptionalDurationParametersPayload",
         "",
         "",
@@ -429,13 +456,9 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    parameters: PlasmaTreatmentParametersPayload",
         "",
         "",
-        "class HydrophilicTreatmentParametersPayload(OptionalDurationParametersPayload):",
-        "    method: str | None = None",
-        "",
-        "",
-        "class HydrophilicPretreatmentPayload(V2PayloadBase):",
-        "    type: Literal['hydrophilic_treatment']",
-        "    parameters: HydrophilicTreatmentParametersPayload",
+        "class UvOzonePretreatmentPayload(V2PayloadBase):",
+        "    type: Literal['uv_ozone_treatment']",
+        "    parameters: RequiredDurationParametersPayload",
         "",
         "",
         "class OtherPretreatmentPayload(V2PayloadBase):",
@@ -445,10 +468,11 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "",
         "SubstratePretreatmentPayload = Annotated[",
-        "    CleaningPretreatmentPayload",
+        "    SolventCleaningPretreatmentPayload",
+        "    | DryingPretreatmentPayload",
         "    | AnnealPretreatmentPayload",
         "    | PlasmaPretreatmentPayload",
-        "    | HydrophilicPretreatmentPayload",
+        "    | UvOzonePretreatmentPayload",
         "    | OtherPretreatmentPayload,",
         "    Field(discriminator='type'),",
         "]",
@@ -566,17 +590,34 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    length_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
         "    width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
         "    thickness_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
-        "    placement: Literal['face_up', 'face_down', 'face_to_face', 'tilted', 'upright', 'other']",
-        "    tilt_angle_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0, lt=90)] | None = None",
+        "    placement: Literal['face_up', 'face_down', 'tilted', 'upright', 'other']",
+        "    tilt_angle_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=-90, lt=90, json_schema_extra={'not': {'const': 0}})] | None = None",
+        "    tilt_azimuth_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, lt=360)] | None = None",
+        "    upright_growth_face_direction: Literal['downstream', 'upstream', 'tube_left', 'tube_right'] | None = None",
         "    placement_other: str | None = None",
         "",
         '    @model_validator(mode="after")',
         "    def _placement_details(self) -> Self:",
-        "        if (self.placement == 'tilted') != (self.tilt_angle_deg is not None):",
-        '            raise ValueError("tilt_angle_deg is required only for tilted placement")',
+        "        if self.length_mm < self.width_mm:",
+        '            raise ValueError("length_mm must be greater than or equal to width_mm")',
+        "        tilted = self.tilt_angle_deg is not None and self.tilt_azimuth_deg is not None",
+        "        if (self.placement == 'tilted') != tilted:",
+        '            raise ValueError("tilt_angle_deg and tilt_azimuth_deg are required only for tilted placement")',
+        "        if self.placement == 'tilted' and self.tilt_angle_deg == 0:",
+        '            raise ValueError("tilt_angle_deg must be non-zero")',
+        "        if self.placement != 'tilted' and (self.tilt_angle_deg is not None or self.tilt_azimuth_deg is not None):",
+        '            raise ValueError("tilt angles apply only to tilted placement")',
+        "        if (self.placement == 'upright') != (self.upright_growth_face_direction is not None):",
+        '            raise ValueError("upright_growth_face_direction is required only for upright placement")',
         "        if (self.placement == 'other') != bool((self.placement_other or '').strip()):",
         '            raise ValueError("placement_other is required only for other placement")',
         "        return self",
+        "",
+        "",
+        "class SubstratePlacementRelationPayload(V2PayloadBase):",
+        "    piece_a_label: NonBlankStr",
+        "    piece_b_label: NonBlankStr",
+        "    gap_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)] | None = None",
         "",
         "",
         "class SourcePositionPayload(V2PayloadBase):",
@@ -743,7 +784,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "",
         "class ActualFieldPayload(V2PayloadBase):",
-        "    field_type: Literal['plasma', 'light', 'electric_field']",
+        "    field_type: Literal['plasma', 'light', 'electric_field', 'other']",
         "    start_min: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]",
         "    end_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
         "    parameters: Annotated[list[NamedParameterPayload], Field(min_length=1)]",
@@ -756,6 +797,8 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         '    @model_validator(mode="after")',
         "    def _typed_parameters(self) -> Self:",
+        "        if self.field_type == 'other':",
+        "            return self",
         "        aliases = {",
         "            'plasma': {",
         "                'powerw': 'power_W', 'power': 'power_W', 'plasmapower': 'power_W',",
@@ -960,6 +1003,8 @@ def _render_module_model(
     if module_key in ARRAY_MODULE_KEYS:
         item_class = ITEM_CLASS_NAMES[module_key]
         model_class = MODULE_CLASS_NAMES[module_key]
+        item_fields = [field for field in fields if field.get("scope") != "module"]
+        module_fields = [field for field in fields if field.get("scope") == "module"]
         legacy_lines = (
             [
                 "    role: Literal['additive', 'dopant_source', 'main_precursor', 'other'] | None = Field(default=None, exclude=True)",
@@ -972,13 +1017,39 @@ def _render_module_model(
             "",
             f"class {item_class}(V2PayloadBase):",
             *legacy_lines,
-            *_render_field_lines(doc, fields, indent="    "),
-            *_render_field_validators(fields, indent="    "),
-            *_render_condition_validator(doc, fields, indent="    "),
+            *_render_field_lines(doc, item_fields, indent="    "),
+            *_render_field_validators(item_fields, indent="    "),
+            *_render_condition_validator(doc, item_fields, indent="    "),
             "",
             "",
             f"class {model_class}(V2PayloadBase):",
             f"    items: list[{item_class}] = Field(default_factory=list)",
+            *_render_field_lines(doc, module_fields, indent="    "),
+            *_render_field_validators(module_fields, indent="    "),
+            *_render_condition_validator(doc, module_fields, indent="    "),
+            *(
+                [
+                    "",
+                    '    @model_validator(mode="after")',
+                    "    def _placement_relations(self) -> Self:",
+                    "        labels = [item.piece_label for item in self.items]",
+                    "        if len(labels) != len(set(labels)):",
+                    '            raise ValueError("substrate piece_label values must be unique")',
+                    "        pairs: set[tuple[str, str]] = set()",
+                    "        for relation in self.placement_relations or []:",
+                    "            if relation.piece_a_label not in labels or relation.piece_b_label not in labels:",
+                    '                raise ValueError("placement relation must reference substrate piece labels")',
+                    "            if relation.piece_a_label == relation.piece_b_label:",
+                    '                raise ValueError("placement relation must reference two different pieces")',
+                    "            pair = tuple(sorted((relation.piece_a_label, relation.piece_b_label)))",
+                    "            if pair in pairs:",
+                    '                raise ValueError("placement relation pair is duplicated")',
+                    "            pairs.add(pair)",
+                    "        return self",
+                ]
+                if module_key == "substrates"
+                else []
+            ),
             "",
         ]
 
@@ -1118,7 +1189,7 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "list[dict[str, Any]]"
     if key == "heating_zone_ref":
         return "NonBlankStr"
-    if key == "channels":
+    if key in {"channels", "cooling_sequence"}:
         return "list[dict[str, Any]]"
     if key in {"lot_ref", "target_lot_ref"}:
         return "MaterialLotReferencePayload"
@@ -1140,6 +1211,8 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "SourceContainerPayload"
     if key == "size_placement":
         return "SubstrateSizePlacementPayload"
+    if key == "placement_relations":
+        return "list[SubstratePlacementRelationPayload]"
     if key in {"surface_roughness", "substrate_surface_roughness"}:
         return "SurfaceRoughnessPayload"
     if key == "source_position":
@@ -1214,6 +1287,7 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         "引用",
         "实体版本引用",
         "物料化学式",
+        "年月或日期",
     }:
         return "str"
     raise ValueError(f"Unsupported input type {input_type!r} for field {key!r}")
@@ -1287,6 +1361,7 @@ def _controlled_options(doc: dict[str, Any], field: dict[str, Any]) -> list[str]
 
 def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> list[str]:
     lines: list[str] = []
+    keys = {field["key"] for field in fields}
     if any(field["key"] == "chemical_formula" for field in fields):
         lines.extend(
             [
@@ -1299,7 +1374,44 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f"{indent}    return _validate_formula(value)",
             ]
         )
-    keys = {field["key"] for field in fields}
+    if "production_date" in keys:
+        lines.extend(
+            [
+                "",
+                f'{indent}@field_validator("production_date")',
+                f"{indent}@classmethod",
+                f"{indent}def _production_date(cls, value: str | None) -> str | None:",
+                f"{indent}    if value in (None, ''):",
+                f"{indent}        return None",
+                f"{indent}    if not isinstance(value, str):",
+                f'{indent}        raise ValueError("invalid production date")',
+                f"{indent}    try:",
+                f"{indent}        date.fromisoformat(value + '-01' if len(value) == 7 else value)",
+                f"{indent}    except ValueError as exc:",
+                f'{indent}        raise ValueError("invalid production date") from exc',
+                f"{indent}    if len(value) not in {{7, 10}}:",
+                f'{indent}        raise ValueError("invalid production date precision")',
+                f"{indent}    return value",
+            ]
+        )
+    if {"lot_category", "batch_number", "batch_number_availability"} <= keys:
+        lines.extend(
+            [
+                "",
+                f'{indent}@model_validator(mode="after")',
+                f"{indent}def _batch_number_policy(self) -> Self:",
+                f"{indent}    has_batch_number = bool((self.batch_number or '').strip())",
+                f"{indent}    if self.lot_category != 'substrate' and not has_batch_number:",
+                f'{indent}        raise ValueError("batch_number is required for chemical and gas-cylinder lots")',
+                f"{indent}    if self.lot_category == 'substrate':",
+                f"{indent}        expected = 'batch_number_reported' if has_batch_number else 'batch_number_not_provided'",
+                f"{indent}        if self.batch_number_availability != expected:",
+                f'{indent}            raise ValueError("batch_number must match batch_number_availability")',
+                f"{indent}        if expected == 'batch_number_not_provided' and self.production_date is None:",
+                f'{indent}            raise ValueError("production_date is required when a substrate lot number is not provided")',
+                f"{indent}    return self",
+            ]
+        )
     miscut_pair = next(
         (
             (angle_key, direction_key)
@@ -1428,16 +1540,9 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f"{indent}    return self",
             ]
         )
-    if "process_roles" in keys:
+    if "substrate_source_ids" in keys:
         lines.extend(
             [
-                "",
-                f'{indent}@field_validator("process_roles")',
-                f"{indent}@classmethod",
-                f"{indent}def _unique_process_roles(cls, value: list[str] | None) -> list[str] | None:",
-                f"{indent}    if value is not None and len(value) != len(set(value)):",
-                f'{indent}        raise ValueError("process_roles must be unique")',
-                f"{indent}    return value",
                 "",
                 f'{indent}@field_validator("substrate_source_ids")',
                 f"{indent}@classmethod",

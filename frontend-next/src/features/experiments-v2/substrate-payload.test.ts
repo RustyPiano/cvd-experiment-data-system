@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildSubstratesPayload, substratesFromPayload } from './field-logic'
+import {
+  buildSubstratesPayload,
+  substratePlacementRelationsFromPayload,
+  substratesFromPayload,
+} from './field-logic'
 
 describe('active substrate payload', () => {
   it('round-trips the current fields and preserves the stable piece id', () => {
@@ -20,6 +24,8 @@ describe('active substrate payload', () => {
             thickness_mm: null,
             placement: 'face_up',
             tilt_angle_deg: null,
+            tilt_azimuth_deg: null,
+            upright_growth_face_direction: null,
             placement_other: null,
           },
           pretreatment_steps: [],
@@ -32,10 +38,14 @@ describe('active substrate payload', () => {
           note: null,
         },
       ],
+      placement_relations: [],
     }
 
-    expect(buildSubstratesPayload(substratesFromPayload(payload))).toEqual(
-      payload,
-    )
+    expect(
+      buildSubstratesPayload(
+        substratesFromPayload(payload),
+        substratePlacementRelationsFromPayload(payload),
+      ),
+    ).toEqual(payload)
   })
 })

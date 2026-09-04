@@ -73,6 +73,7 @@ interface RawField {
   placeholder_en?: string
   help?: string
   help_en?: string
+  scope?: 'module'
   ui?: { visibility_gated?: boolean }
   validation?: RawValidation
 }
@@ -188,6 +189,7 @@ interface FieldMetadata {
   placeholderEn: string
   helpZh: string | null
   helpEn: string | null
+  moduleLevel?: true
   visibilityGated?: true
 }
 
@@ -236,6 +238,7 @@ function toFieldMetadata(
         : defaults.input_placeholder_en),
     helpZh: dashToNull(field.help),
     helpEn: dashToNull(field.help_en),
+    ...(field.scope === 'module' ? { moduleLevel: true as const } : {}),
     ...(field.ui?.visibility_gated ? { visibilityGated: true as const } : {}),
   }
 }
@@ -392,6 +395,8 @@ export interface FieldMetadata {
   /** 可选的字段级帮助文本，两种语言须成对 */
   helpZh: string | null
   helpEn: string | null
+  /** 数组模块顶层字段，不属于单个条目 */
+  moduleLevel?: true
   /** 条件不成立时隐藏，而非仅切换必填状态 */
   visibilityGated?: true
 }
@@ -409,6 +414,12 @@ export interface StageType {
 }
 
 export interface CharacterizationConditionField {
+  when?: Record<string, string[]>
+  signed?: boolean
+  section?: "results"
+  legacy_only?: boolean
+  placeholder_zh?: string
+  placeholder_en?: string
   key: string
   label_zh: string
   label_en: string
@@ -429,6 +440,9 @@ export interface CharacterizationConditionField {
 }
 
 export interface CharacterizationProfile {
+  common_condition_keys?: string[]
+  legacy_only?: boolean
+  property_conditions?: Record<string, Record<string, string[]>>
   label_zh: string
   label_en: string
   instrument_required: boolean
@@ -442,12 +456,18 @@ export interface CharacterizationProfile {
   allowed_property_codes: string[]
   default_property_codes: string[]
   allowed_assertion_types: string[]
+  peak_position_units?: string[]
+  property_modes?: Record<string, string[]>
+  legacy_property_codes?: string[]
+  legacy_assertion_types?: string[]
 }
 
 export interface CharacterizationProperty {
+  legacy_only?: boolean
   label_zh: string
   label_en: string
   value_type: 'numeric' | 'text' | 'structured'
+  structured_schema?: Record<string, unknown>
   validation: FieldValidation
   unit: string
 }

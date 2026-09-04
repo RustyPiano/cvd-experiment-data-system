@@ -12,9 +12,11 @@ import {
   SimpleSourceLoadsEditor,
   SimpleSubstratesEditor,
   SimpleTargetEditor,
+  simpleSubstrateRelationsAreValid,
   simpleSubstrateIsValid,
   sourceLoadIngredientsAreValid,
   sourcePreparationStepsAreValid,
+  sourceSolutionMode,
 } from './simple-preparation-editors'
 import type {
   SimpleChannel,
@@ -132,14 +134,20 @@ describe('simple target phase editing', () => {
     }
     render(<Wrapper />)
 
+    expect(screen.getByText(/目标材料体系/)).toBeInTheDocument()
+    expect(
+      screen.getByRole('combobox', { name: '目标材料体系' }),
+    ).toBeInTheDocument()
     expect(screen.queryByText('补充目标信息')).not.toBeInTheDocument()
-    expect(screen.getByText('目标原子层数')).toBeInTheDocument()
-    expect(screen.getByText('目标几何形态')).toBeInTheDocument()
+    expect(screen.getByText('目标层数')).toBeInTheDocument()
+    expect(screen.getByText('目标产物形态')).toBeInTheDocument()
     expect(screen.queryByText('目标覆盖状态')).not.toBeInTheDocument()
-    expect(screen.getByText('实验目标（选填）')).toBeInTheDocument()
+    expect(screen.queryByText('目标平面轮廓')).not.toBeInTheDocument()
+    expect(screen.queryByText('目标生长取向')).not.toBeInTheDocument()
+    expect(screen.getByText('实验目标')).toBeInTheDocument()
     expect(screen.getByText('补充说明')).toBeInTheDocument()
     expect(document.querySelectorAll('.text-destructive')).toHaveLength(2)
-    expect(screen.getByText('目标晶体结构（选填）')).toBeInTheDocument()
+    expect(screen.getByText('目标晶体结构')).toBeInTheDocument()
     expect(document.querySelector('details')).toBeNull()
 
     fireEvent.change(screen.getByPlaceholderText('例如 MoS2'), {
@@ -147,7 +155,7 @@ describe('simple target phase editing', () => {
     })
 
     expect(
-      screen.getByText('原体相与新化学式不匹配，已清除，请重新选择。'),
+      screen.getByText('化学式已变更，原晶体结构选择已清除，请重新选择。'),
     ).toBeInTheDocument()
   })
 
@@ -179,14 +187,14 @@ describe('simple target phase editing', () => {
       </I18nextProvider>,
     )
 
-    expect(screen.getAllByText('端元材料化学式')).toHaveLength(2)
+    expect(screen.getAllByText('材料化学式')).toHaveLength(2)
     expect(screen.getAllByText('目标摩尔分数')).toHaveLength(2)
     expect(screen.getByText('Mo₀.₅W₀.₅S₂')).toBeInTheDocument()
     expect(screen.queryByText('被取代元素')).not.toBeInTheDocument()
     expect(screen.queryByText('取代元素')).not.toBeInTheDocument()
   })
 
-  it('shows coverage only for sheets and clears it for other forms', async () => {
+  it('shows planar outline only for discrete planar crystals and clears it for other forms', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     const target: SimpleTarget = {
@@ -199,8 +207,8 @@ describe('simple target phase editing', () => {
         },
       ],
       composition_relations: [],
-      dimensional_form: 'sheet',
-      coverage_state: 'continuous',
+      dimensional_form: 'discrete_planar_crystal',
+      in_plane_outline: 'triangle',
     }
     render(
       <I18nextProvider i18n={i18n}>
@@ -212,14 +220,15 @@ describe('simple target phase editing', () => {
       </I18nextProvider>,
     )
 
-    expect(screen.getByText('目标覆盖状态')).toBeInTheDocument()
-    await user.click(screen.getByRole('combobox', { name: '目标几何形态' }))
-    await user.click(screen.getByRole('option', { name: '纳米管' }))
+    expect(screen.getByText('目标平面轮廓')).toBeInTheDocument()
+    expect(screen.queryByText('目标覆盖状态')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('combobox', { name: '目标产物形态' }))
+    await user.click(screen.getByRole('option', { name: '管状' }))
 
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         dimensional_form: 'tube',
-        coverage_state: undefined,
+        in_plane_outline: undefined,
       }),
     )
   })
@@ -254,6 +263,7 @@ describe('simple target phase editing', () => {
       </I18nextProvider>,
     )
 
+    expect(screen.getByText('目标层数')).toBeInTheDocument()
     await user.click(screen.getByRole('combobox', { name: '目标位点' }))
 
     expect(screen.getByText('取代位点')).toBeInTheDocument()
@@ -334,7 +344,7 @@ describe('simple precursor position editing', () => {
     )
     expect(screen.getByText('请选择所在温区。')).toBeInTheDocument()
     expect(
-      screen.getByText('请填写相对于所选温区热电偶的位置。'),
+      screen.getByText('请填写相对于所选温区测温点的位置。'),
     ).toBeInTheDocument()
     expect(screen.getByPlaceholderText('例如 -20')).toHaveAttribute(
       'aria-invalid',
@@ -482,7 +492,6 @@ describe('simple precursor position editing', () => {
         {
           material_lot_id: '',
           material_lot_version: 0,
-          process_roles: [],
         },
       ],
     })
@@ -515,10 +524,99 @@ describe('simple precursor position editing', () => {
       {
         material_lot_id: '',
         material_lot_version: 0,
-        process_roles: [],
       },
     ])
     expect(sourceLoadIngredientsAreValid(load.ingredients)).toBe(false)
+  })
+
+  it('records drop volume and switches immersion to concentration and time without amount', async () => {
+    const user = userEvent.setup()
+    const initial: SimpleSourceLoad = {
+      load_key: 'coating',
+      loading_method: 'substrate_surface',
+      preparation_steps: [],
+      position_program: [],
+      ingredients: [{ material_lot_id: 'lot', material_lot_version: 1 }],
+    }
+    function Wrapper() {
+      const [loads, setLoads] = useState([initial])
+      return (
+        <I18nextProvider i18n={i18n}>
+          <SimpleSourceLoadsEditor
+            loads={loads}
+            zoneCount={1}
+            disabled={false}
+            showErrors
+            onChange={setLoads}
+          />
+          <output data-testid="coating-loads">{JSON.stringify(loads)}</output>
+        </I18nextProvider>
+      )
+    }
+    render(<Wrapper />)
+    await user.click(screen.getByRole('button', { name: '新增处理步骤' }))
+    await user.click(screen.getByRole('combobox', { name: /^处理方式/ }))
+    expect(
+      screen.queryByRole('option', { name: '研磨' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: '混合' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: '预退火' }),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: '滴涂' }))
+    await user.type(screen.getByRole('textbox', { name: /^溶剂/ }), '水')
+    expect(screen.getByText('滴加体积')).toBeInTheDocument()
+    await user.type(screen.getByLabelText(/^溶液浓度/), '0.1')
+    await user.click(screen.getByRole('combobox', { name: /^浓度单位/ }))
+    await user.click(screen.getByRole('option', { name: 'mol/L' }))
+    await user.type(screen.getByRole('spinbutton', { name: '' }), '20')
+    await user.type(screen.getByLabelText(/^单位/), 'μL')
+    let load = JSON.parse(
+      screen.getByTestId('coating-loads').textContent ?? '',
+    )[0] as SimpleSourceLoad
+    expect(
+      sourceLoadIngredientsAreValid(load.ingredients, true, true, true, true),
+    ).toBe(true)
+    expect(load.ingredients[0].amount).toBe(20)
+    await user.click(screen.getByRole('combobox', { name: /^处理方式/ }))
+    await user.click(screen.getByRole('option', { name: '浸渍' }))
+    await user.type(screen.getByRole('textbox', { name: /^溶剂/ }), '水')
+    await user.type(screen.getByLabelText(/^浸渍时长/), '5')
+    expect(screen.queryByText('滴加体积')).not.toBeInTheDocument()
+    expect(screen.queryByText('用量')).not.toBeInTheDocument()
+    load = JSON.parse(
+      screen.getByTestId('coating-loads').textContent ?? '',
+    )[0] as SimpleSourceLoad
+    expect(load.ingredients[0].amount).toBeUndefined()
+    expect(sourceSolutionMode(load.preparation_steps).immersionOnly).toBe(true)
+    expect(
+      sourcePreparationStepsAreValid(
+        load.preparation_steps,
+        'substrate_surface',
+      ),
+    ).toBe(true)
+    expect(sourcePreparationStepsAreValid(load.preparation_steps, 'boat')).toBe(
+      false,
+    )
+    expect(
+      sourceLoadIngredientsAreValid(load.ingredients, true, false, true),
+    ).toBe(true)
+    expect(
+      sourceLoadIngredientsAreValid(
+        [
+          {
+            ...load.ingredients[0],
+            concentration_value: undefined,
+            concentration_unit: undefined,
+          },
+        ],
+        true,
+        false,
+        true,
+      ),
+    ).toBe(false)
   })
 
   it('expands and stores the selected precursor treatment parameters', async () => {
@@ -555,7 +653,7 @@ describe('simple precursor position editing', () => {
     render(<Wrapper />)
 
     await user.click(screen.getByRole('button', { name: '新增处理步骤' }))
-    await user.click(screen.getByRole('combobox', { name: /^操作类型/ }))
+    await user.click(screen.getByRole('combobox', { name: /^处理方式/ }))
     await user.click(screen.getByRole('option', { name: '旋涂' }))
     await user.type(screen.getByLabelText(/^转速 \(rpm\)/), '3000')
     await user.type(screen.getByLabelText(/^时长 \(s\)/), '60')
@@ -611,10 +709,10 @@ describe('simple precursor position editing', () => {
 
     expect(
       screen.getByText(
-        '相对于所选温区的热电偶位置：以热电偶为 0 mm；沿气流方向，上游填负值，下游填正值。',
+        '相对于所选温区的测温点位置：以测温点为 0 mm；沿气流方向，上游填负值，下游填正值。',
       ),
     ).toBeInTheDocument()
-    expect(screen.getByText('热电偶相对位置（mm）')).toBeInTheDocument()
+    expect(screen.getByText('相对测温点位置（mm）')).toBeInTheDocument()
     const position = screen.getByPlaceholderText('例如 -20')
     expect(position).toBeDisabled()
 
@@ -659,12 +757,12 @@ describe('simple precursor position editing', () => {
 
     expect(
       screen.getByText(
-        '此记录使用旧装置原点参照；请按当前规则重新确认温区和相对热电偶位置。',
+        '此记录使用旧装置原点参照；请按当前规则重新确认温区和相对测温点位置。',
       ),
     ).toBeInTheDocument()
   })
 
-  it('binds a surface load by stable substrate id and stores optional process roles', async () => {
+  it('binds a surface load without presenting inferred process roles', async () => {
     const user = userEvent.setup()
     const initial: SimpleSourceLoad = {
       load_key: 'load_surface',
@@ -708,22 +806,18 @@ describe('simple precursor position editing', () => {
     }
     render(<Wrapper />)
 
-    expect(screen.getByText('历史作用分类：金属源')).toBeInTheDocument()
-    expect(screen.getByText('温区 2，相对热电偶 15 mm')).toBeInTheDocument()
+    expect(screen.queryByText(/历史作用分类/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/工艺作用/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('checkbox', { name: '促进反应或成核' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('温区 2，相对测温点 15 mm')).toBeInTheDocument()
     await user.click(screen.getByRole('checkbox', { name: /衬底片 1/ }))
-    await user.click(screen.getByRole('checkbox', { name: '促进反应或成核' }))
-    await user.click(screen.getByRole('checkbox', { name: '其他' }))
-    await user.type(screen.getByLabelText(/^其他工艺作用/), '表面活性剂')
 
     const load = JSON.parse(
       screen.getByTestId('loads').textContent ?? '',
     )[0] as SimpleSourceLoad
     expect(load.substrate_source_ids).toEqual(['stable-substrate-id'])
-    expect(load.ingredients[0].process_roles).toEqual([
-      'reaction_or_nucleation_promoter',
-      'other',
-    ])
-    expect(load.ingredients[0].process_role_other).toBe('表面活性剂')
   })
 
   it('rejects a surface binding whose substrate was deleted', () => {
@@ -831,9 +925,11 @@ describe('simple substrate validation', () => {
       <I18nextProvider i18n={i18n}>
         <SimpleSubstratesEditor
           substrates={[]}
+          placementRelations={[]}
           zoneCount={1}
           disabled={false}
           onChange={onChange}
+          onPlacementRelationsChange={vi.fn()}
         />
       </I18nextProvider>,
     )
@@ -861,6 +957,28 @@ describe('simple substrate validation', () => {
     }),
   }
 
+  it('区分尚未选择批次与已选批次未记录晶向', () => {
+    const props = {
+      placementRelations: [],
+      zoneCount: 1,
+      disabled: false,
+      onChange: vi.fn(),
+      onPlacementRelationsChange: vi.fn(),
+    }
+    const { rerender } = render(
+      <SimpleSubstratesEditor
+        {...props}
+        substrates={[{ ...substrate, lot_ref: '' }]}
+      />,
+    )
+    expect(screen.queryByText('批次未记录')).not.toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument()
+    rerender(<SimpleSubstratesEditor {...props} substrates={[substrate]} />)
+    expect(screen.getByText('批次未记录')).toBeInTheDocument()
+    expect(screen.queryByText('衬底处理（推荐填写）')).not.toBeInTheDocument()
+    expect(screen.getByText('衬底处理')).toBeInTheDocument()
+  })
+
   it('allows omitted thickness and rejects invalid placement details', () => {
     expect(simpleSubstrateIsValid(substrate, 2)).toBe(true)
     expect(
@@ -882,6 +1000,19 @@ describe('simple substrate validation', () => {
         {
           ...substrate,
           size_placement: JSON.stringify({
+            length_mm: 5,
+            width_mm: 10,
+            placement: 'face_up',
+          }),
+        },
+        2,
+      ),
+    ).toBe(false)
+    expect(
+      simpleSubstrateIsValid(
+        {
+          ...substrate,
+          size_placement: JSON.stringify({
             length_mm: 10,
             width_mm: 10,
             placement: 'other',
@@ -892,7 +1023,7 @@ describe('simple substrate validation', () => {
     ).toBe(false)
   })
 
-  it('requires a thermocouple reference and rejects a 90 degree tilt', () => {
+  it('requires a thermocouple reference and rejects invalid tilt boundaries', () => {
     expect(
       simpleSubstrateIsValid(
         {
@@ -911,12 +1042,98 @@ describe('simple substrate validation', () => {
             length_mm: 10,
             width_mm: 10,
             placement: 'tilted',
-            tilt_angle_deg: 90,
+            tilt_angle_deg: 0,
+            tilt_azimuth_deg: 0,
           }),
         },
         2,
       ),
     ).toBe(false)
+    expect(
+      simpleSubstrateIsValid(
+        {
+          ...substrate,
+          size_placement: JSON.stringify({
+            length_mm: 10,
+            width_mm: 10,
+            placement: 'tilted',
+            tilt_angle_deg: 90,
+            tilt_azimuth_deg: 0,
+          }),
+        },
+        2,
+      ),
+    ).toBe(false)
+  })
+
+  it('requires two tilt angles, an upright direction, and valid piece relations', () => {
+    expect(
+      simpleSubstrateIsValid(
+        {
+          ...substrate,
+          size_placement: JSON.stringify({
+            length_mm: 10,
+            width_mm: 5,
+            placement: 'tilted',
+            tilt_angle_deg: -15,
+            tilt_azimuth_deg: 180,
+          }),
+        },
+        2,
+      ),
+    ).toBe(true)
+    expect(
+      simpleSubstrateIsValid(
+        {
+          ...substrate,
+          size_placement: JSON.stringify({
+            length_mm: 10,
+            width_mm: 5,
+            placement: 'upright',
+          }),
+        },
+        2,
+      ),
+    ).toBe(false)
+    const pieces = [
+      { ...substrate, piece_label: 'S1' },
+      { ...substrate, piece_label: 'S2' },
+    ]
+    expect(
+      simpleSubstrateRelationsAreValid(pieces, [
+        { piece_a_label: 'S1', piece_b_label: 'S2', gap_mm: 0 },
+      ]),
+    ).toBe(true)
+    expect(
+      simpleSubstrateRelationsAreValid(pieces, [
+        { piece_a_label: 'S1', piece_b_label: 'S1' },
+      ]),
+    ).toBe(false)
+  })
+
+  it('adds a face-to-face relation with the only two pieces preselected', async () => {
+    const user = userEvent.setup()
+    const onPlacementRelationsChange = vi.fn()
+    render(
+      <I18nextProvider i18n={i18n}>
+        <SimpleSubstratesEditor
+          substrates={[
+            { ...substrate, piece_label: 'S1' },
+            { ...substrate, piece_label: 'S2' },
+          ]}
+          placementRelations={[]}
+          zoneCount={2}
+          disabled={false}
+          onChange={vi.fn()}
+          onPlacementRelationsChange={onPlacementRelationsChange}
+        />
+      </I18nextProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '添加一组' }))
+    expect(onPlacementRelationsChange).toHaveBeenCalledWith([
+      { piece_a_label: 'S1', piece_b_label: 'S2' },
+    ])
   })
 
   it('keeps ordered pretreatment steps and clears position when copying', async () => {
@@ -927,7 +1144,14 @@ describe('simple substrate validation', () => {
       piece_label: 'S1',
       crystal_orientation: '110；single_side_polished',
       pretreatment_steps: JSON.stringify([
-        { type: 'acetone_clean', parameters: { duration_min: 5 } },
+        {
+          type: 'solvent_cleaning',
+          parameters: {
+            solvent: 'acetone',
+            cleaning_method: 'ultrasonic',
+            duration_min: 5,
+          },
+        },
         { type: 'nitrogen_dry', parameters: {} },
       ]),
     }
@@ -936,9 +1160,11 @@ describe('simple substrate validation', () => {
       <I18nextProvider i18n={i18n}>
         <SimpleSubstratesEditor
           substrates={[item]}
+          placementRelations={[]}
           zoneCount={2}
           disabled={false}
           onChange={onChange}
+          onPlacementRelationsChange={vi.fn()}
         />
       </I18nextProvider>,
     )
@@ -987,6 +1213,9 @@ describe('simple growth preparation editing', () => {
           />
           <output data-testid="anomaly-state">{String(confirmed)}</output>
           <output data-testid="anomaly-count">{events.length}</output>
+          <output data-testid="anomaly-types">
+            {events[0]?.observed_deviations.join(',')}
+          </output>
         </I18nextProvider>
       )
     }
@@ -1002,15 +1231,40 @@ describe('simple growth preparation editing', () => {
     expect(screen.getByTestId('anomaly-state')).toHaveTextContent('true')
     expect(screen.getByTestId('anomaly-count')).toHaveTextContent('1')
 
+    await user.click(screen.getByRole('combobox', { name: '异常类型' }))
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual([
+      '供电中断',
+      '供水中断',
+      '供气中断',
+      '管路堵塞',
+      '压力突变',
+      '设备报警',
+      '信号异常',
+      '计划变更',
+      '其他',
+    ])
+    await user.click(screen.getByRole('option', { name: '计划变更' }))
+    expect(screen.getByTestId('anomaly-types')).toHaveTextContent(
+      'plan_changed',
+    )
+    expect(screen.getByText('采取的处理')).toBeInTheDocument()
+    expect(screen.getByText('处理结果')).toBeInTheDocument()
+
     await user.click(checkbox)
 
     expect(screen.getByTestId('anomaly-state')).toHaveTextContent('false')
     expect(screen.getByTestId('anomaly-count')).toHaveTextContent('0')
   })
 
-  it('分开填写初始温度与温度步骤，并只在可判断时显示操作', async () => {
+  it('分开填写初始设定温度与温度步骤，并只在可判断时显示操作', async () => {
     const user = userEvent.setup()
     function Wrapper() {
+      const [settings, setSettings] = useState<SimpleProcessSettings>({
+        pressure_regime: 'atmospheric',
+        cooling_method: 'furnace_cooling',
+      })
       const [channels, setChannels] = useState<SimpleChannel[]>([
         {
           channel_key: 'temperature-zone-1',
@@ -1030,10 +1284,7 @@ describe('simple growth preparation editing', () => {
           <SimpleGrowthEditor
             segments={[]}
             channels={channels}
-            settings={{
-              pressure_regime: 'atmospheric',
-              cooling_method: 'furnace_cooling',
-            }}
+            settings={settings}
             events={[]}
             processEventsConfirmed={false}
             runId="run-1"
@@ -1043,7 +1294,7 @@ describe('simple growth preparation editing', () => {
             zoneCount={1}
             disabled={false}
             onTimelineChange={(_, nextChannels) => setChannels(nextChannels)}
-            onSettingsChange={vi.fn()}
+            onSettingsChange={setSettings}
             onEventsChange={vi.fn()}
           />
           <output data-testid="growth-channels">
@@ -1054,11 +1305,18 @@ describe('simple growth preparation editing', () => {
     }
     render(<Wrapper />)
 
-    expect(screen.getByLabelText(/初始温度/)).toHaveValue(20)
-    expect(screen.queryByText('待判断')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/初始设定温度/)).toHaveValue(20)
     expect(
-      screen.getByText('尚未添加气体；至少添加一种本炉实际使用的气体。'),
+      screen.getByText(
+        '每个温区上传一个 CSV：time_s 为距实验开始的秒数，value 为温度（℃）。',
+      ),
     ).toBeInTheDocument()
+    expect(screen.queryByText(/先填写初始/)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('combobox', { name: '降温方式' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('待判断')).not.toBeInTheDocument()
+    expect(screen.getByText('尚未添加气体')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '添加温度步骤' }))
 
@@ -1068,10 +1326,14 @@ describe('simple growth preparation editing', () => {
       screen.getByLabelText('温区 1 第 1 步持续时间（min）'),
       '30',
     )
-    await user.type(screen.getByLabelText('温区 1 第 1 步目标温度（℃）'), '750')
+    await user.type(
+      screen.getByLabelText('温区 1 第 1 步终点设定温度（℃）'),
+      '750',
+    )
     expect(screen.getByText('升温')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '添加一种气体' }))
+    await user.type(screen.getByLabelText(/^过程总时长/), '100')
+    await user.click(screen.getByRole('button', { name: '添加气体' }))
     const channels = JSON.parse(
       screen.getByTestId('growth-channels').textContent ?? '[]',
     ) as SimpleChannel[]
@@ -1080,7 +1342,7 @@ describe('simple growth preparation editing', () => {
     ).toEqual([
       {
         start_s: 0,
-        end_s: 1800,
+        end_s: 6000,
         value: '',
         timing_preset: 'whole_process',
       },
@@ -1088,7 +1350,41 @@ describe('simple growth preparation editing', () => {
     expect(screen.getByText('流量测量方式')).toBeInTheDocument()
     expect(
       screen.getByRole('combobox', { name: '供气使用时段' }),
-    ).toHaveTextContent('全程')
+    ).toHaveTextContent('全程（0–100 min）')
+    await user.click(screen.getByRole('combobox', { name: '气体种类' }))
+    await user.click(screen.getByRole('option', { name: '预混气' }))
+    await user.click(screen.getByRole('combobox', { name: '流量测量方式' }))
+    await user.click(
+      screen.getByRole('option', { name: '浮子流量计（转子流量计）' }),
+    )
+    await user.click(screen.getByRole('combobox', { name: '流量单位' }))
+    await user.click(screen.getByRole('option', { name: /^L\/min$/ }))
+    await user.type(screen.getByLabelText('预混气总流量读数（L/min）'), '1')
+    const raw = JSON.parse(
+      screen.getByTestId('growth-channels').textContent ?? '[]',
+    ) as SimpleChannel[]
+    expect(
+      raw.find((channel) => channel.channel_type === 'flow'),
+    ).toMatchObject({
+      gas_species_code: 'premixed',
+      measurement_source: 'rotameter',
+      source_type: 'measured',
+      unit: 'L/min',
+      series: [{ value: 1, end_s: 6000 }],
+    })
+    await user.clear(screen.getByLabelText(/^过程总时长/))
+    await user.type(screen.getByLabelText(/^过程总时长/), '120')
+    expect(
+      screen.getByRole('combobox', { name: '供气使用时段' }),
+    ).toHaveTextContent('全程（0–120 min）')
+    await user.click(screen.getByRole('combobox', { name: '降温方式' }))
+    await user.click(screen.getByRole('option', { name: '分段降温' }))
+    await user.click(screen.getByRole('combobox', { name: '第 1 段降温方式' }))
+    await user.click(screen.getByRole('option', { name: '程序降温' }))
+    await user.click(screen.getByRole('combobox', { name: '第 2 段降温方式' }))
+    await user.click(screen.getByRole('option', { name: '随炉冷却' }))
+    expect(screen.getByText('降温步骤填写在温度程序中。')).toBeInTheDocument()
+    expect(screen.queryByText('降温速率（℃/min）')).not.toBeInTheDocument()
   })
 
   it('references one premixed cylinder instead of repeating its composition', async () => {
@@ -1143,6 +1439,46 @@ describe('simple growth preparation editing', () => {
       }),
     ])
     expect(settings.preparation_operations?.[0].gases).toBeUndefined()
+    expect(screen.getByLabelText(/^置换方式/)).toHaveTextContent('请选择')
+    await user.click(screen.getByLabelText(/^置换方式/))
+    await user.click(screen.getByRole('option', { name: '连续通气' }))
+    expect(screen.queryByText('循环次数')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('流量（sccm）'), '100')
+    await user.type(screen.getByLabelText('准备操作 1 持续时间（min）'), '5')
+    let operation = JSON.parse(screen.getByTestId('settings').textContent ?? '')
+      .preparation_operations[0]
+    expect(operation).toMatchObject({
+      exchange_mode: 'continuous_flow',
+      duration_min: 5,
+      gas_sources: [expect.objectContaining({ flow_sccm: 100 })],
+    })
+    expect(operation.cycle_count).toBeUndefined()
+    await user.click(screen.getByLabelText(/^置换方式/))
+    await user.click(screen.getByRole('option', { name: '抽空—回填' }))
+    expect(screen.queryByLabelText('流量（sccm）')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('准备操作 1 循环次数'), '3')
+    await user.type(screen.getByLabelText('抽空终点绝对压力（Pa）'), '10')
+    await user.type(screen.getByLabelText('回填终点绝对压力（Pa）'), '100000')
+    operation = JSON.parse(screen.getByTestId('settings').textContent ?? '')
+      .preparation_operations[0]
+    expect(operation).toMatchObject({
+      exchange_mode: 'evacuation_backfill',
+      cycle_count: 3,
+      target_absolute_pressure_Pa: 10,
+      backfill_absolute_pressure_Pa: 100000,
+    })
+    expect(operation.duration_min).toBeUndefined()
+    expect(operation.gas_sources[0].flow_sccm).toBeUndefined()
+    await user.click(screen.getByRole('combobox', { name: '准备操作 1 类型' }))
+    expect(
+      screen.queryByRole('option', { name: '检漏' }),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: '抽真空' }))
+    operation = JSON.parse(screen.getByTestId('settings').textContent ?? '')
+      .preparation_operations[0]
+    expect(operation.exchange_mode).toBeUndefined()
+    expect(operation.backfill_absolute_pressure_Pa).toBeUndefined()
+    expect(operation.gas_sources).toBeUndefined()
   })
 
   it('records pump-down pressure without forcing a duration', async () => {
@@ -1176,12 +1512,8 @@ describe('simple growth preparation editing', () => {
     render(<Wrapper />)
 
     await user.click(screen.getByRole('button', { name: '添加实验前准备' }))
-    expect(
-      screen.getByText(
-        '优先填写实际达到的终点绝对压力；没有压力读数时，持续时间必填。',
-      ),
-    ).toBeInTheDocument()
-    await user.type(screen.getByLabelText('抽至绝对压力（Pa，优先填写）'), '10')
+    expect(screen.getByText('无压力读数时，填写持续时间。')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('终点绝对压力（Pa）'), '10')
 
     expect(
       JSON.parse(screen.getByTestId('settings').textContent ?? ''),

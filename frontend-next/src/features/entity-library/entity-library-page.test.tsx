@@ -300,7 +300,7 @@ describe('EntityLibraryPage display values', () => {
 
     renderPage('instrument')
 
-    expect(await screen.findByText('光镜')).toBeInTheDocument()
+    expect(await screen.findByText('OM')).toBeInTheDocument()
     expect(screen.queryByText('optical_microscopy')).not.toBeInTheDocument()
   })
 })

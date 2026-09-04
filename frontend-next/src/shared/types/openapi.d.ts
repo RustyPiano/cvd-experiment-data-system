@@ -1663,8 +1663,12 @@ export interface components {
             catalog_number?: string | null;
             /** Declared Grade */
             declared_grade?: string | null;
+            /** Batch Number Availability */
+            batch_number_availability?: ("batch_number_not_provided" | "batch_number_reported") | null;
             /** Batch Number */
-            batch_number: string;
+            batch_number?: string | null;
+            /** Production Date */
+            production_date?: string | null;
             /** Purity */
             purity?: number | null;
             /** Form Appearance */
@@ -1831,18 +1835,22 @@ export interface components {
             properties?: components["schemas"]["PropertyValueWrite"][];
             /** Assertions */
             assertions?: components["schemas"]["MaterialAssertionWrite"][];
-        } & (({
+        } & ((({
             measurement?: {
                 /** @constant */
                 method_profile: "optical_microscopy";
                 typed_conditions: {
+                    image_object_type?: string;
+                    /** @enum {string} */
+                    image_size_metric?: "maximum_length" | "equivalent_diameter" | "width";
                     objective?: string;
                     illumination_mode?: string;
+                    image_scale_um_per_px?: number;
                 };
-                sample_region: {
+                sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "whole_sample" | "selected_area";
-                };
+                } | null;
             } & ({
                 instrument_id?: null;
                 instrument_version?: null;
@@ -1853,7 +1861,7 @@ export interface components {
             });
             properties?: unknown;
             assertions?: unknown;
-        } | {
+        } & (unknown & unknown)) | ({
             measurement?: {
                 /** @constant */
                 method_profile: "Raman";
@@ -1865,11 +1873,17 @@ export interface components {
                     objective?: string;
                     integration_time_s?: number;
                     accumulations?: number;
+                    raman_shift_range_cm1?: {
+                        start: number;
+                        end: number;
+                    };
+                    filter_configuration?: string;
+                    temperature_K?: number;
                 };
-                sample_region: {
+                sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "line" | "whole_sample" | "selected_area";
-                };
+                } | null;
                 raw_file_ids: unknown[];
                 /** Format: uuid */
                 instrument_id: string;
@@ -1877,7 +1891,9 @@ export interface components {
             };
             properties?: unknown;
             assertions?: unknown;
-        } | {
+        } & {
+            properties?: unknown;
+        }) | ({
             measurement?: {
                 /** @constant */
                 method_profile: "low_frequency_raman";
@@ -1890,10 +1906,10 @@ export interface components {
                     integration_time_s?: number;
                     accumulations?: number;
                 };
-                sample_region: {
+                sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "line" | "whole_sample" | "selected_area";
-                };
+                } | null;
                 raw_file_ids: unknown[];
                 /** Format: uuid */
                 instrument_id: string;
@@ -1901,7 +1917,9 @@ export interface components {
             };
             properties?: unknown;
             assertions?: unknown;
-        } | {
+        } & {
+            properties?: unknown;
+        }) | ({
             measurement?: {
                 /** @constant */
                 method_profile: "PL";
@@ -1911,13 +1929,18 @@ export interface components {
                     /** @enum {string} */
                     excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
                     integration_time_s?: number;
-                    spectral_range_nm?: Record<string, never>;
+                    spectral_range_nm?: {
+                        min: number;
+                        max: number;
+                    };
                     temperature_K?: number;
+                    objective?: string;
+                    accumulations?: number;
                 };
-                sample_region: {
+                sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "line" | "whole_sample" | "selected_area";
-                };
+                } | null;
                 raw_file_ids: unknown[];
                 /** Format: uuid */
                 instrument_id: string;
@@ -1925,22 +1948,32 @@ export interface components {
             };
             properties?: unknown;
             assertions?: unknown;
-        } | {
+        } & {
+            properties?: unknown;
+        }) | {
             measurement?: {
                 /** @constant */
                 method_profile: "AFM";
                 typed_conditions: {
-                    mode?: string;
+                    /** @enum {string} */
+                    mode?: "tapping" | "contact" | "non_contact" | "peak_force" | "other";
                     probe?: string;
-                    scan_size_um: Record<string, never>;
-                    resolution_px?: Record<string, never>;
+                    scan_size_um: {
+                        x: number;
+                        y: number;
+                    };
+                    resolution_px?: {
+                        width: number;
+                        height: number;
+                    };
                     scan_rate_hz?: number;
                     height_processing?: string;
-                };
-                sample_region: {
+                    mode_other?: string;
+                } & unknown;
+                sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "whole_sample" | "selected_area";
-                };
+                } | null;
                 raw_file_ids: unknown[];
                 /** Format: uuid */
                 instrument_id: string;
@@ -1948,11 +1981,14 @@ export interface components {
             };
             properties?: unknown;
             assertions?: unknown;
-        } | {
+        } | ({
             measurement?: {
                 /** @constant */
                 method_profile: "SEM";
                 typed_conditions: {
+                    image_object_type?: string;
+                    /** @enum {string} */
+                    image_size_metric?: "maximum_length" | "equivalent_diameter" | "width";
                     accelerating_voltage_kV: number;
                     /** @enum {string} */
                     mode: "secondary_electron" | "backscattered_electron" | "EDS";
@@ -1961,12 +1997,15 @@ export interface components {
                     detector?: string;
                     stage_tilt_deg?: number;
                     sample_preparation?: string;
-                    field_of_view_um?: Record<string, never>;
+                    field_of_view_um?: {
+                        width: number;
+                        height: number;
+                    };
                 };
-                sample_region: {
+                sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "whole_sample" | "selected_area";
-                };
+                } | null;
                 raw_file_ids: unknown[];
                 /** Format: uuid */
                 instrument_id: string;
@@ -1974,24 +2013,37 @@ export interface components {
             };
             properties?: unknown;
             assertions?: unknown;
-        } | {
+        } & (unknown & unknown & unknown & unknown & unknown & unknown)) | ({
             measurement?: {
                 /** @constant */
                 method_profile: "XRD";
                 typed_conditions: {
+                    /** @enum {string} */
+                    geometry?: "symmetric" | "grazing_incidence" | "rocking_curve" | "in_plane" | "other";
+                    /** @enum {string} */
+                    scan_axis: "two_theta" | "omega" | "phi" | "chi";
+                    scan_range_deg: {
+                        start: number;
+                        end: number;
+                    };
                     radiation_source: string;
                     source_wavelength_nm: number;
-                    scan_range_2theta_deg: Record<string, never>;
-                    step_size_deg: number;
+                    scan_range_2theta_deg?: {
+                        start: number;
+                        end: number;
+                    };
+                    step_size_deg?: number;
                     count_time_s?: number;
                     scan_rate_deg_min?: number;
                     incident_angle_deg?: number;
-                    geometry?: string;
-                };
-                sample_region: {
+                    /** @enum {string} */
+                    scan_mode?: "step" | "continuous";
+                    geometry_other?: string;
+                } & (unknown & unknown & unknown & unknown & unknown);
+                sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "whole_sample" | "area" | "selected_area";
-                };
+                } | null;
                 raw_file_ids: unknown[];
                 /** Format: uuid */
                 instrument_id: string;
@@ -1999,20 +2051,32 @@ export interface components {
             };
             properties?: unknown;
             assertions?: unknown;
-        } | {
+        } & (unknown & unknown & unknown & unknown & {
+            properties?: unknown;
+        })) | ({
             measurement?: {
                 /** @constant */
                 method_profile: "TEM";
                 typed_conditions: {
+                    /** @enum {string} */
+                    data_type: "image" | "diffraction" | "spectrum";
                     accelerating_voltage_kV: number;
                     /** @enum {string} */
-                    mode: "bright_field" | "HRTEM" | "SAED" | "STEM" | "EDS" | "EELS";
+                    mode?: "bright_field" | "HRTEM" | "SAED" | "STEM" | "EDS" | "EELS";
                     sample_preparation?: string;
-                };
-                sample_region: {
+                    /** @enum {string} */
+                    acquisition_mode?: "TEM" | "STEM";
+                    /** @enum {string} */
+                    image_mode?: "bright_field" | "dark_field" | "HRTEM" | "HAADF" | "other";
+                    /** @enum {string} */
+                    diffraction_mode?: "SAED" | "NBED" | "CBED" | "other";
+                    /** @enum {string} */
+                    spectrum_mode?: "EDS" | "EELS";
+                } & (unknown & unknown & unknown);
+                sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "lamella" | "particle" | "whole_sample" | "selected_area";
-                };
+                } | null;
                 raw_file_ids: unknown[];
                 /** Format: uuid */
                 instrument_id: string;
@@ -2020,17 +2084,17 @@ export interface components {
             };
             properties?: unknown;
             assertions?: unknown;
-        } | {
+        } & (unknown & unknown)) | {
             measurement?: {
                 /** @constant */
                 method_profile: "other";
                 typed_conditions: {
                     method_description: string;
                 };
-                sample_region: {
+                sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "whole_sample" | "point" | "area" | "selected_area";
-                };
+                } | null;
                 raw_file_ids: unknown[];
             } & ({
                 instrument_id?: null;
@@ -2042,7 +2106,47 @@ export interface components {
             });
             properties?: unknown;
             assertions?: unknown;
-        }) & ({
+        } | ({
+            measurement?: {
+                /** @constant */
+                method_profile: "SHG";
+                typed_conditions: {
+                    /** @enum {string} */
+                    data_type: "spectrum" | "polarization_scan" | "image" | "power_scan";
+                    excitation_wavelength_nm: number;
+                    excitation_power_value?: number;
+                    /** @enum {string} */
+                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
+                    integration_time_s?: number;
+                    objective?: string;
+                    /** @enum {string} */
+                    excitation_mode?: "continuous" | "pulsed";
+                    pulse_width_fs?: number;
+                    repetition_rate_MHz?: number;
+                    input_polarization?: string;
+                    analyzer_polarization?: string;
+                    angle_reference?: string;
+                    /** @enum {string} */
+                    polarization_scan_axis?: "input_polarization" | "analyzer" | "sample";
+                    angle_range_deg?: {
+                        start: number;
+                        end: number;
+                    };
+                } & (unknown & unknown & unknown & unknown & unknown);
+                sample_region?: {
+                    /** @enum {unknown} */
+                    geometry_type: "point" | "area" | "selected_area" | "whole_sample";
+                } | null;
+                raw_file_ids: unknown[];
+                /** Format: uuid */
+                instrument_id: string;
+                instrument_version: number;
+            };
+            properties?: unknown;
+            assertions?: unknown;
+        } & (unknown & {
+            properties?: unknown;
+        }))) & ({
             measurement: {
                 raw_file_ids: unknown;
             };
@@ -2057,6 +2161,45 @@ export interface components {
             laser_wavelength_nm?: number | null;
             /** Excitation Wavelength Nm */
             excitation_wavelength_nm?: number | null;
+            raman_shift_range_cm1?: components["schemas"]["SignedScanRange"] | null;
+            scan_range_deg?: components["schemas"]["SignedScanRange"] | null;
+            angle_range_deg?: components["schemas"]["SignedScanRange"] | null;
+            /** Image Scale Um Per Px */
+            image_scale_um_per_px?: number | null;
+            /** Pulse Width Fs */
+            pulse_width_fs?: number | null;
+            /** Repetition Rate Mhz */
+            repetition_rate_MHz?: number | null;
+            /** Filter Configuration */
+            filter_configuration?: string | null;
+            /** Mode Other */
+            mode_other?: string | null;
+            /** Geometry Other */
+            geometry_other?: string | null;
+            /** Scan Axis */
+            scan_axis?: string | null;
+            /** Scan Mode */
+            scan_mode?: string | null;
+            /** Data Type */
+            data_type?: string | null;
+            /** Acquisition Mode */
+            acquisition_mode?: string | null;
+            /** Image Mode */
+            image_mode?: string | null;
+            /** Diffraction Mode */
+            diffraction_mode?: string | null;
+            /** Spectrum Mode */
+            spectrum_mode?: string | null;
+            /** Excitation Mode */
+            excitation_mode?: string | null;
+            /** Input Polarization */
+            input_polarization?: string | null;
+            /** Analyzer Polarization */
+            analyzer_polarization?: string | null;
+            /** Angle Reference */
+            angle_reference?: string | null;
+            /** Polarization Scan Axis */
+            polarization_scan_axis?: string | null;
             /** Power Setting */
             power_setting?: string | null;
             /** Excitation Power Value */
@@ -2112,9 +2255,19 @@ export interface components {
             height_processing?: string | null;
             /** Illumination Mode */
             illumination_mode?: string | null;
+            /** Image Object Type */
+            image_object_type?: string | null;
+            /** Image Size Metric */
+            image_size_metric?: string | null;
             /** Method Description */
             method_description?: string | null;
-        };
+        } & (unknown & ({
+            excitation_power_value?: null;
+            excitation_power_basis?: null;
+        } | {
+            excitation_power_value: number;
+            excitation_power_basis: string;
+        }));
         /** MeasurementDetailRead */
         MeasurementDetailRead: {
             /**
@@ -2279,7 +2432,7 @@ export interface components {
              * Format: date-time
              */
             measured_at: string;
-            sample_region: components["schemas"]["SampleRegion"];
+            sample_region?: components["schemas"]["SampleRegion"] | null;
             typed_conditions: components["schemas"]["MeasurementConditions"];
             /** Raw File Ids */
             raw_file_ids?: string[];
@@ -2403,6 +2556,66 @@ export interface components {
             /** Analysis Index */
             analysis_index?: number | null;
         } & (({
+            /** @constant */
+            property_code: "spectral_peaks";
+            numeric_value?: null;
+            text_value?: null;
+            structured_value: {
+                /** @enum {unknown} */
+                status: "recorded" | "not_detected" | "not_analyzed";
+                /** @enum {unknown} */
+                position_unit: "cm⁻¹" | "nm" | "eV" | "° 2θ" | "° ω" | "° φ" | "° χ";
+                /** @enum {unknown} */
+                intensity_unit: "a.u." | "counts" | "counts/s";
+                /** Format: uuid */
+                source_file_id?: string;
+                extraction_method?: string;
+                baseline_method?: string;
+                peaks: {
+                    id: number;
+                    position: number;
+                    fwhm?: number;
+                    height?: number;
+                    area?: number;
+                    d_spacing_nm?: number;
+                }[];
+            } & (unknown & unknown & unknown & unknown);
+            unit?: null;
+            uncertainty_value?: null;
+            uncertainty_type?: null;
+        } | {
+            /** @constant */
+            property_code: "elemental_composition";
+            numeric_value?: null;
+            text_value?: null;
+            structured_value: {
+                /** @enum {unknown} */
+                basis: "atomic_fraction" | "mass_fraction";
+                components: {
+                    species: string;
+                    fraction: number;
+                }[];
+            };
+            unit?: null;
+            uncertainty_value?: null;
+            uncertainty_type?: null;
+        } | {
+            /** @constant */
+            property_code: "image_object_size_um";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "μm";
+        } | {
+            /** @constant */
+            property_code: "image_object_density_cm2";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "cm⁻²";
+        } | {
             /** @constant */
             property_code: "coverage_percent";
             numeric_value: number;
@@ -2849,12 +3062,21 @@ export interface components {
             /** Wall Type */
             wall_type?: ("cold_wall" | "hot_wall") | null;
             /** Field Devices */
-            field_devices: ("electric_field" | "light" | "none" | "plasma")[];
+            field_devices: ("electric_field" | "light" | "none" | "other" | "plasma")[];
+            /** Field Device Other Name */
+            field_device_other_name?: string | null;
             setup_diagram?: components["schemas"]["FileAssetReferencePayload"] | null;
             /** Component Bindings */
             component_bindings?: {
                 [key: string]: unknown;
             }[] | null;
+        };
+        /** SignedScanRange */
+        SignedScanRange: {
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
         };
         /** Size2D */
         Size2D: {

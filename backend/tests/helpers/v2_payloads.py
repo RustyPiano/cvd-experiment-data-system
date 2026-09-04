@@ -96,6 +96,7 @@ def substrate_lot_payload(
         "lot_category": "substrate",
         "substance_name": chemical_formula,
         "chemical_formula": chemical_formula,
+        "batch_number_availability": "batch_number_reported",
         "batch_number": batch_number,
         "substrate_material": material,
         "substrate_orientation_polish_availability": "reported",

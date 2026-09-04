@@ -217,8 +217,7 @@ class TargetSpec(Base):
     )
     architecture_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     dimensional_form: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    coverage_state: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    orientation: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    in_plane_outline: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     optimization_objective: Mapped[str | None] = mapped_column(Text, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -379,6 +378,7 @@ class SourceLoadIngredient(Base):
         nullable=False,
     )
     function_role: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # Legacy columns retained for history; current writes/exports omit process roles.
     process_roles: Mapped[list[str]] = mapped_column(
         json_payload_type,
         nullable=False,

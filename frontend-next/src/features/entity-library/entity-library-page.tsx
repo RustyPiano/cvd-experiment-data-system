@@ -194,7 +194,11 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
                       entity.latest_version?.data?.[config.primaryKey],
                       i18n.language,
                     )
-                    const code = displayValue(entity, config.codeKey)
+                    const code =
+                      displayValue(entity, config.codeKey) ||
+                      (kind === 'material_lot'
+                        ? displayValue(entity, 'production_date')
+                        : '')
                     const version = entity.latest_version?.version
                     return (
                       <TableRow key={entity.id}>

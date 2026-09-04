@@ -209,6 +209,7 @@ const fieldLabels: FieldParamsEditorLabels = {
     plasma: 'Plasma',
     light: 'Light',
     electric_field: 'Electric field',
+    other: 'Other',
   },
   startMinutes: 'Field start (min)',
   endMinutes: 'Field end (min)',
@@ -217,6 +218,7 @@ const fieldLabels: FieldParamsEditorLabels = {
     plasma: 'Plasma parameters',
     light: 'Light parameters',
     electric_field: 'Electric-field parameters',
+    other: 'Other field parameters',
   },
   explicitParameters: {
     plasmaPowerW: 'Plasma power (W)',
@@ -231,7 +233,11 @@ const fieldLabels: FieldParamsEditorLabels = {
     electricElectrodeGapMm: 'Electrode gap (mm)',
     electricDirection: 'Field direction',
   },
-  otherParameters: 'Other parameters (optional)',
+  magnitudeHints: {
+    light: 'Enter either optical power or irradiance.',
+    electric_field: 'Enter either voltage or field strength.',
+  },
+  otherParameters: 'Other parameters',
   parameters: parameterLabels,
 }
 
@@ -478,8 +484,8 @@ describe('FieldParamsEditor', () => {
     render(<FieldWrapper />)
     await user.click(screen.getByRole('button', { name: 'Add applied field' }))
     await user.click(screen.getByRole('combobox', { name: 'Field type' }))
+    expect(screen.getByRole('option', { name: 'Other' })).toBeVisible()
     await user.click(screen.getByRole('option', { name: 'Plasma' }))
-    expect(screen.queryByRole('option', { name: 'Other' })).toBeNull()
     await user.type(screen.getByLabelText('Field start (min)'), '5')
     await user.type(screen.getByLabelText('Field end (min)'), '25')
     await user.type(screen.getByLabelText(/Plasma power \(W\)/), '50')
@@ -518,6 +524,12 @@ describe('FieldParamsEditor', () => {
 
     expect(screen.getByLabelText(/Wavelength \(nm\)/)).toBeInTheDocument()
     expect(screen.getByLabelText('Optical power (mW)')).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('Optical power (mW)'),
+    ).toHaveAccessibleDescription('Enter either optical power or irradiance.')
+    expect(
+      screen.getByText('Enter either optical power or irradiance.'),
+    ).toBeInTheDocument()
     expect(screen.getByLabelText('Irradiance (mW·cm⁻²)')).toBeInTheDocument()
     expect(screen.getByLabelText(/Source distance \(mm\)/)).toBeInTheDocument()
     await user.type(screen.getByLabelText(/Wavelength \(nm\)/), '365')
@@ -526,6 +538,12 @@ describe('FieldParamsEditor', () => {
     await user.click(screen.getByRole('option', { name: 'Electric field' }))
     expect(outputValue<ActualField[]>()[0].parameters).toEqual([])
     expect(screen.getByLabelText('Voltage (V)')).toBeInTheDocument()
+    expect(screen.getByLabelText('Voltage (V)')).toHaveAccessibleDescription(
+      'Enter either voltage or field strength.',
+    )
+    expect(
+      screen.queryByText('Enter either optical power or irradiance.'),
+    ).not.toBeInTheDocument()
     expect(screen.getByLabelText('Field strength (V·cm⁻¹)')).toBeInTheDocument()
     expect(screen.getByLabelText(/Electrode gap \(mm\)/)).toBeInTheDocument()
     expect(screen.getByLabelText(/Field direction/)).toBeInTheDocument()
@@ -579,6 +597,19 @@ describe('FieldParamsEditor', () => {
         },
       ]),
     ).toBe(false)
+  })
+
+  it('accepts a configured other field only with a named parameter', () => {
+    const other: ActualField = {
+      field_type: 'other',
+      start_min: 0,
+      end_min: 10,
+      parameters: [{ name: 'magnetic_flux_density', value: 0.5, unit: 'T' }],
+    }
+    expect(fieldParamsAreValid([other], ['other'])).toBe(true)
+    expect(fieldParamsAreValid([{ ...other, parameters: [] }], ['other'])).toBe(
+      false,
+    )
   })
 
   it('maps recognized legacy parameters without dropping unknown entries', async () => {

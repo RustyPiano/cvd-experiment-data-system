@@ -34,28 +34,44 @@ const labels: TreatmentStepsEditorLabels = {
   selectAtmosphere: 'Select atmosphere',
   noAtmosphere: 'Not provided',
   otherAtmosphereName: 'Other atmosphere name',
+  selectOption: 'Select option',
   requiredMessage: 'This field is required',
   invalidMessage: 'Enter a valid value',
+  numberGtMessage: (limit) => `Enter a number greater than ${limit}`,
   atmosphereOptions: {
     air: 'Air',
     vacuum: 'Vacuum',
     other: 'Other',
   },
+  options: {
+    acetone: 'Acetone',
+    isopropanol: 'Isopropanol',
+    ethanol: 'Ethanol',
+    methanol: 'Methanol',
+    deionized_water: 'Deionized water',
+    ultrasonic: 'Ultrasonic',
+    soak: 'Soak',
+    rinse: 'Rinse',
+    wipe: 'Wipe',
+    other: 'Other',
+    not_recorded: 'Not recorded',
+  },
   types: {
     direct_load: 'Direct load',
     melt_solidify: 'Melt and solidify',
-    mix: 'Mix',
+    melt: 'Melt',
+    dry: 'Dry',
+    drop_cast: 'Drop cast',
+    dip_coat: 'Immerse',
     pelletize: 'Pelletize',
     spin_coat: 'Spin coat',
     anneal: 'Anneal',
-    pre_anneal: 'Pre-anneal',
     grind: 'Grind',
     other: 'Other',
-    acetone_clean: 'Acetone clean',
-    isopropanol_clean: 'Isopropanol clean',
+    solvent_cleaning: 'Solvent cleaning',
     nitrogen_dry: 'Nitrogen dry',
     plasma_treatment: 'Plasma treatment',
-    hydrophilic_treatment: 'Hydrophilic treatment',
+    uv_ozone_treatment: 'UV/ozone treatment',
   },
   fields: {
     temperature_C: 'Temperature',
@@ -68,7 +84,10 @@ const labels: TreatmentStepsEditorLabels = {
     pressure_Pa: 'Pressure',
     pressure_MPa: 'Pressure',
     die_diameter_mm: 'Die diameter',
-    method: 'Method',
+    solvent: 'Solvent',
+    solvent_other: 'Other solvent',
+    cleaning_method: 'Cleaning method',
+    cleaning_method_other: 'Other cleaning method',
   },
 }
 
@@ -181,7 +200,7 @@ describe('TreatmentStepsEditor', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add step' }))
     await user.click(screen.getByRole('combobox', { name: /^Treatment type/ }))
-    await user.click(screen.getByRole('option', { name: 'Pre-anneal' }))
+    await user.click(screen.getByRole('option', { name: 'Dry' }))
     await user.type(screen.getByLabelText(/^Temperature \(°C\)/), '500')
     await user.type(screen.getByLabelText(/^Duration \(min\)/), '20')
 
@@ -189,7 +208,7 @@ describe('TreatmentStepsEditor', () => {
     await user.click(screen.getByRole('option', { name: 'Ar' }))
     expect(JSON.parse(screen.getByTestId('value').textContent ?? '')).toEqual([
       {
-        type: 'pre_anneal',
+        type: 'dry',
         parameters: {
           temperature_C: 500,
           duration_min: 20,
@@ -233,6 +252,40 @@ describe('TreatmentStepsEditor', () => {
     ).toBe(false)
   })
 
+  it('requires solvent and method, with duration only for ultrasonic cleaning or soaking', () => {
+    const base: TreatmentStep = {
+      type: 'solvent_cleaning',
+      parameters: { solvent: 'acetone', cleaning_method: 'rinse' },
+    }
+    expect(treatmentStepsAreValid('substrate', [base])).toBe(true)
+    expect(
+      treatmentStepsAreValid('substrate', [
+        {
+          ...base,
+          parameters: { solvent: 'acetone', cleaning_method: 'ultrasonic' },
+        },
+      ]),
+    ).toBe(false)
+    expect(
+      treatmentStepsAreValid('substrate', [
+        {
+          ...base,
+          parameters: {
+            solvent: 'other',
+            solvent_other: 'ethyl acetate',
+            cleaning_method: 'soak',
+            duration_min: 10,
+          },
+        },
+      ]),
+    ).toBe(true)
+    expect(
+      treatmentStepsAreValid('substrate', [
+        { type: 'uv_ozone_treatment', parameters: {} },
+      ]),
+    ).toBe(false)
+  })
+
   it('distinguishes an invalid number from a missing required value', () => {
     render(
       <Wrapper
@@ -246,7 +299,9 @@ describe('TreatmentStepsEditor', () => {
       />,
     )
 
-    expect(screen.getByText('Enter a valid value')).toBeInTheDocument()
+    expect(
+      screen.getByText('Speed: Enter a number greater than 0'),
+    ).toBeInTheDocument()
     expect(screen.queryByText('This field is required')).not.toBeInTheDocument()
   })
 

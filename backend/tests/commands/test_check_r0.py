@@ -269,7 +269,7 @@ def test_target_architecture_and_composition_relations_are_part_of_r0() -> None:
     r0_fields = [field for field in fields if field.get("r0")]
     r0_by_key = {field["key"]: field for field in r0_fields}
 
-    assert len(r0_fields) == 27
+    assert len(r0_fields) == 26
     assert r0_by_key["architecture_type"]["requirement"]["level"] == "required"
     assert r0_by_key["composition_relations"]["requirement"]["level"] == "optional"
 

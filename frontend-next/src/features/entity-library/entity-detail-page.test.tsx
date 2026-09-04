@@ -70,14 +70,14 @@ const versions = [
   },
 ]
 
-function renderPage() {
+function renderPage(kind: 'setup' | 'instrument' = 'setup') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
-        <EntityDetailPage kind="setup" entityId="setup-1" />
+        <EntityDetailPage kind={kind} entityId="setup-1" />
       </QueryClientProvider>
     </I18nextProvider>,
   )
@@ -97,6 +97,26 @@ beforeEach(async () => {
 })
 
 describe('EntityDetailPage display values', () => {
+  it('shows named other methods rather than opaque JSON objects', async () => {
+    api.getEntity.mockResolvedValue({
+      id: 'setup-1',
+      latest_version: {
+        ...versions[0],
+        data: {
+          instrument_code: 'CUSTOM-01',
+          name_type: 'other',
+          capabilities: [
+            { code: 'Raman', configuration: {} },
+            { code: 'other', configuration: { method_names: ['XPS', 'FTIR'] } },
+          ],
+        },
+      },
+    })
+    renderPage('instrument')
+    expect(await screen.findByText('Raman · XPS · FTIR')).toBeInTheDocument()
+    expect(screen.queryByText(/\[object Object\]/)).toBeNull()
+  })
+
   it('renders named geometry as localized human-readable parts', async () => {
     renderPage()
 

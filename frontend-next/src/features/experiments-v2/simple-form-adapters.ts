@@ -1,6 +1,8 @@
 import type { V2ExperimentCreate } from './api'
 import { gasCylinderMatchesSpecies } from './components/reference-snapshot'
 import { toIsoDateTime } from './datetime'
+import { experimentModules } from '@/shared/generated/field-metadata'
+import { canonicalOption } from '@/shared/field-i18n'
 
 export type SimpleExperimentCreateValues = {
   startedAt: string
@@ -90,19 +92,18 @@ export function buildEventDescription(description: string, action: string) {
     : trimmedDescription
 }
 
-const processDeviationCodes = new Set([
-  'line_blockage',
-  'pressure_excursion',
-  'signal_anomaly',
-  'manual_intervention',
-  'equipment_alarm',
-  'manual_stop',
-  'power_interruption',
-  'water_interruption',
-  'gas_interruption',
-  'plan_changed',
-  'other',
-])
+export const PROCESS_DEVIATION_OPTIONS = (
+  experimentModules.process_events.find(
+    (field) => field.key === 'observed_deviations',
+  )?.options ?? ''
+)
+  .split('/')
+  .filter(Boolean)
+  .map((label) => [canonicalOption(label), label] as const)
+
+const processDeviationCodes = new Set(
+  PROCESS_DEVIATION_OPTIONS.map(([code]) => code),
+)
 
 export function simpleProcessEventsIssue(
   events: Array<{
@@ -241,6 +242,7 @@ export function buildSimpleSourceLoadsPayload<
       snapshot?: unknown
       function_role?: unknown
       process_roles?: string[]
+      process_role_other?: unknown
     }>
   },
 >(loads: T[]) {
@@ -268,12 +270,147 @@ export function buildSimpleSourceLoadsPayload<
           const payload = { ...ingredient }
           delete payload.snapshot
           delete payload.function_role
-          payload.process_roles ??= []
+          delete payload.process_roles
+          delete payload.process_role_other
           return payload
         }),
       }
     }),
   }
+}
+
+export type SimplePreparationOperation = {
+  operation_type: string
+  exchange_mode?: 'continuous_flow' | 'evacuation_backfill'
+  duration_min?: number
+  target_absolute_pressure_Pa?: number
+  backfill_absolute_pressure_Pa?: number
+  cycle_count?: number
+  gas_sources?: Array<{
+    material_lot_id: string
+    material_lot_version?: number
+    snapshot?: Record<string, unknown>
+    flow_sccm?: number
+  }>
+  /** 旧记录兼容；新录入使用气瓶批次。 */
+  gases?: string[]
+  other_name?: string
+}
+
+export function simplePreparationIssue(
+  operation: SimplePreparationOperation,
+): string | null {
+  const positive = (value: number | undefined) =>
+    Number.isFinite(value) && Number(value) > 0
+  const cyclic =
+    operation.operation_type === 'gas_exchange' &&
+    operation.exchange_mode === 'evacuation_backfill'
+  if (operation.duration_min !== undefined && !positive(operation.duration_min))
+    return '总时长须大于 0。'
+  if (
+    operation.target_absolute_pressure_Pa !== undefined &&
+    !positive(operation.target_absolute_pressure_Pa)
+  )
+    return '终点绝对压力须大于 0。'
+  if (
+    operation.backfill_absolute_pressure_Pa !== undefined &&
+    !positive(operation.backfill_absolute_pressure_Pa)
+  )
+    return '回填终点绝对压力须大于 0。'
+  if (operation.operation_type === 'pump_down') {
+    if (
+      !positive(operation.target_absolute_pressure_Pa) &&
+      !positive(operation.duration_min)
+    )
+      return '请填写终点绝对压力或持续时间。'
+  } else if (!cyclic && !positive(operation.duration_min)) {
+    return '请填写总时长。'
+  }
+  if (operation.operation_type === 'gas_exchange') {
+    const sources = operation.gas_sources ?? []
+    if (
+      !sources.length ||
+      sources.some(
+        (source) => !source.material_lot_id || !source.material_lot_version,
+      ) ||
+      new Set(sources.map((source) => source.material_lot_id)).size !==
+        sources.length
+    )
+      return '请选择实际使用且不重复的气瓶批次。'
+    if (!operation.exchange_mode) return '请选择气氛置换方式。'
+    if (
+      cyclic &&
+      (!operation.cycle_count ||
+        operation.cycle_count < 1 ||
+        !Number.isInteger(operation.cycle_count))
+    )
+      return '循环次数须为正整数。'
+    if (!cyclic && operation.cycle_count !== undefined)
+      return '连续通气不填写循环次数。'
+    if (
+      cyclic &&
+      operation.target_absolute_pressure_Pa !== undefined &&
+      operation.backfill_absolute_pressure_Pa !== undefined &&
+      operation.backfill_absolute_pressure_Pa <=
+        operation.target_absolute_pressure_Pa
+    )
+      return '回填压力须高于抽空压力。'
+    if (
+      sources.some(
+        (source) =>
+          source.flow_sccm !== undefined &&
+          (!positive(source.flow_sccm) || cyclic),
+      )
+    )
+      return '连续通气流量须大于 0。'
+  }
+  if (operation.operation_type === 'other' && !operation.other_name?.trim())
+    return '请填写具体操作。'
+  return null
+}
+
+export type SimpleCoolingStep = {
+  method: string
+  lid_open_temperature_C?: number
+  other_name?: string
+}
+
+export function simpleCoolingIssue(
+  method: string | undefined,
+  sequence: SimpleCoolingStep[] = [],
+  other?: string,
+  lidTemperature?: number,
+): string | null {
+  const methods = [
+    'furnace_cooling',
+    'open_lid_cooling',
+    'rapid_furnace_move_cooling',
+    'controlled_cooling',
+    'other',
+  ]
+  if (method !== 'staged_cooling' && !methods.includes(method ?? ''))
+    return '请选择降温方式。'
+  if (method === 'staged_cooling' && sequence.length < 2)
+    return '请至少添加两段降温操作。'
+  for (const step of method === 'staged_cooling'
+    ? sequence
+    : [
+        {
+          method: method!,
+          other_name: other,
+          lid_open_temperature_C: lidTemperature,
+        },
+      ]) {
+    if (!methods.includes(step.method)) return '请选择各段降温方式。'
+    if (step.method === 'other' && !step.other_name?.trim())
+      return '请说明降温方式。'
+    if (
+      step.method === 'open_lid_cooling' &&
+      !Number.isFinite(step.lid_open_temperature_C)
+    )
+      return '请填写开盖温度。'
+  }
+  return null
 }
 
 export function simpleGrowthIssue(
@@ -295,67 +432,21 @@ export function simpleGrowthIssue(
   }>,
   settings: {
     pressure_regime?: string
+    process_duration_min?: number
     cooling_method?: string
+    cooling_sequence?: SimpleCoolingStep[]
     cooling_other?: string
     cooling_rate_C_per_min?: number
     lid_open_temperature_C?: number
-    preparation_operations?: Array<{
-      operation_type: string
-      duration_min?: number
-      target_absolute_pressure_Pa?: number
-      cycle_count?: number
-      gas_sources?: Array<{
-        material_lot_id: string
-        material_lot_version?: number
-      }>
-      gases?: string[]
-      other_name?: string
-    }>
+    preparation_operations?: SimplePreparationOperation[]
   },
   zoneCount: number | null,
   fieldParamsValid = true,
 ): string | null {
   const preparationOperations = settings.preparation_operations ?? []
   for (const operation of preparationOperations) {
-    const durationValid =
-      Number.isFinite(operation.duration_min) &&
-      Number(operation.duration_min) > 0
-    const targetPressureValid =
-      Number.isFinite(operation.target_absolute_pressure_Pa) &&
-      Number(operation.target_absolute_pressure_Pa) > 0
-    if (operation.operation_type === 'pump_down') {
-      if (
-        operation.target_absolute_pressure_Pa !== undefined &&
-        !targetPressureValid
-      ) {
-        return '请填写大于 0 的抽气终点绝对压力。'
-      }
-      if (operation.duration_min !== undefined && !durationValid) {
-        return '请填写大于 0 的抽真空持续时间。'
-      }
-      if (!durationValid && !targetPressureValid) {
-        return '请填写抽至绝对压力；没有压力读数时，请填写持续时间。'
-      }
-    } else if (!durationValid) {
-      return '请填写大于 0 的系统准备持续时间。'
-    }
-    if (
-      operation.operation_type === 'gas_exchange' &&
-      (!operation.cycle_count ||
-        operation.cycle_count < 1 ||
-        !Number.isInteger(operation.cycle_count) ||
-        !operation.gas_sources?.length ||
-        operation.gas_sources.some(
-          (source) => !source.material_lot_id || !source.material_lot_version,
-        ) ||
-        new Set(operation.gas_sources.map((source) => source.material_lot_id))
-          .size !== operation.gas_sources.length)
-    ) {
-      return '请选择实际使用且不重复的气瓶批次，并填写置换次数。'
-    }
-    if (operation.operation_type === 'other' && !operation.other_name?.trim()) {
-      return '请说明其他系统准备操作。'
-    }
+    const issue = simplePreparationIssue(operation)
+    if (issue) return issue
   }
   for (let zone = 1; zone <= (zoneCount ?? 0); zone += 1) {
     const points = channels.find(
@@ -373,7 +464,7 @@ export function simpleGrowthIssue(
         (point) => point.value === '' || !Number.isFinite(Number(point.value)),
       )
     ) {
-      return `请填写温区 ${zone} 的初始温度，并检查各温度步骤的持续时间和目标温度。`
+      return `请填写温区 ${zone} 的初始设定温度，并检查各温度步骤的持续时间和终点设定温度。`
     }
   }
   const gasChannels = channels.filter((item) => item.channel_type === 'flow')
@@ -395,7 +486,7 @@ export function simpleGrowthIssue(
     if (
       !['mfc', 'rotameter', 'other'].includes(channel.measurement_source ?? '')
     ) {
-      return '请选择气体流量的测量来源。'
+      return '请选择流量测量方式。'
     }
     if (
       channel.measurement_source === 'other' &&
@@ -403,6 +494,8 @@ export function simpleGrowthIssue(
     ) {
       return '请说明其他流量测量方式。'
     }
+    if (!['sccm', 'slm', 'mL/min', 'L/min'].includes(channel.unit ?? ''))
+      return '请选择流量单位。'
     if (
       !channel.series?.length ||
       channel.series.some(
@@ -425,7 +518,7 @@ export function simpleGrowthIssue(
           index > 0 && item.start_s < channel.series![index - 1].start_s,
       )
     ) {
-      return '请按开始时间顺序填写供气区间。'
+      return '请按开始时间顺序填写供气时段。'
     }
     const ordered = [...channel.series].sort(
       (left, right) => left.start_s - right.start_s,
@@ -436,7 +529,7 @@ export function simpleGrowthIssue(
           index > 0 && item.start_s < (ordered[index - 1].end_s ?? 0),
       )
     ) {
-      return '同一种气体的供气区间不能重叠。'
+      return '同一气瓶的供气时段不能重叠。'
     }
   }
   if (!settings.pressure_regime) return '请选择反应压力条件。'
@@ -458,41 +551,59 @@ export function simpleGrowthIssue(
     return '工作压力必须使用绝对压力。'
   }
   if (settings.pressure_regime !== 'atmospheric' && pressure) {
-    const scale = { Pa: 1, kPa: 1000, mbar: 100, Torr: 133.32236842105263 }[
-      pressure.unit ?? ''
-    ]
+    const scale = {
+      Pa: 1,
+      kPa: 1000,
+      MPa: 1000000,
+      bar: 100000,
+      mbar: 100,
+      Torr: 133.32236842105263,
+    }[pressure.unit ?? '']
     if (!scale) return '请选择工作压力单位。'
-    const pressurePa = (pressure.scalar_value ?? 0) * scale
-    if (
-      settings.pressure_regime === 'low_pressure' &&
-      !(pressurePa > 1e-6 && pressurePa < 80000)
-    ) {
-      return '低压条件的绝对压力应大于 10⁻⁶ Pa 且低于 80,000 Pa。'
-    }
-    if (
-      settings.pressure_regime === 'ultra_high_vacuum' &&
-      !(pressurePa > 0 && pressurePa <= 1e-6)
-    ) {
-      return '超高真空的绝对压力应不高于 10⁻⁶ Pa。'
-    }
   }
-  if (!settings.cooling_method) return '请选择降温方式。'
-  if (settings.cooling_method === 'other' && !settings.cooling_other?.trim()) {
-    return '请说明降温方式。'
-  }
+  const coolingIssue = simpleCoolingIssue(
+    settings.cooling_method,
+    settings.cooling_sequence,
+    settings.cooling_other,
+    settings.lid_open_temperature_C,
+  )
+  if (coolingIssue) return coolingIssue
+  const programmed =
+    settings.cooling_method === 'controlled_cooling' ||
+    settings.cooling_sequence?.some(
+      (step) => step.method === 'controlled_cooling',
+    )
+  const hasDescent = channels.some(
+    (channel) =>
+      channel.channel_type === 'temperature' &&
+      channel.source_type === 'setpoint' &&
+      channel.series?.some(
+        (point, index, points) =>
+          index > 0 && Number(point.value) < Number(points[index - 1].value),
+      ),
+  )
   if (
-    settings.cooling_method === 'controlled_cooling' &&
-    (!Number.isFinite(settings.cooling_rate_C_per_min) ||
-      (settings.cooling_rate_C_per_min ?? 0) <= 0)
-  ) {
-    return '请填写大于 0 的受控降温速率。'
-  }
-  if (
-    settings.cooling_method === 'open_lid_cooling' &&
-    !Number.isFinite(settings.lid_open_temperature_C)
-  ) {
-    return '请填写开盖温度。'
-  }
+    programmed &&
+    !hasDescent &&
+    !(
+      Number.isFinite(settings.cooling_rate_C_per_min) &&
+      (settings.cooling_rate_C_per_min ?? 0) > 0
+    )
+  )
+    return '请在温度程序中填写降温步骤。'
   if (!fieldParamsValid) return '请补齐实际使用的外场参数。'
+  if (
+    !Number.isFinite(settings.process_duration_min) ||
+    (settings.process_duration_min ?? 0) <= 0
+  )
+    return '请填写大于 0 的过程总时长。'
+  const end = settings.process_duration_min! * 60
+  if (
+    _segments.some((segment) => segment.end_s > end) ||
+    channels.some((channel) =>
+      channel.series?.some((point) => (point.end_s ?? point.start_s) > end),
+    )
+  )
+    return '温度或供气时段超出过程总时长。'
   return null
 }

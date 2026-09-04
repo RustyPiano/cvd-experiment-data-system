@@ -29,6 +29,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Form,
@@ -52,6 +53,7 @@ import {
   buildSubmitPayload,
   getDisplayEntityFields,
   getEntityFields,
+  instrumentOtherMethodNames,
   isEffectivelyRequired,
   isEntityJsonArrayField,
   isFieldVisible,
@@ -62,6 +64,7 @@ import {
   materialLotFormulaIsCompatible,
   parseEnumOptions,
   parseEntityJsonArray,
+  productionDateIsValid,
 } from './field-logic'
 import type { EntityFormValues, EntityVersionPayload } from './field-logic'
 import {
@@ -127,9 +130,24 @@ function instrumentCapabilitiesAreValid(value: string | string[]): boolean {
         capability &&
         typeof capability === 'object' &&
         INSTRUMENT_CAPABILITY_CODES.has(capability.code) &&
-        (!capability.configuration ||
-          (typeof capability.configuration === 'object' &&
-            !Array.isArray(capability.configuration))),
+        (capability.configuration === undefined ||
+          (capability.configuration !== null &&
+            typeof capability.configuration === 'object' &&
+            !Array.isArray(capability.configuration))) &&
+        (capability.code !== 'other' ||
+          (Array.isArray(capability.configuration?.method_names) &&
+            capability.configuration.method_names.length > 0 &&
+            capability.configuration.method_names.every(
+              (name) =>
+                typeof name === 'string' &&
+                name.trim().length > 0 &&
+                name.trim().length <= 128,
+            ) &&
+            new Set(
+              capability.configuration.method_names.map((name: string) =>
+                name.trim().toLowerCase(),
+              ),
+            ).size === capability.configuration.method_names.length)),
     ) &&
     new Set(capabilities.map((capability) => capability.code)).size ===
       capabilities.length
@@ -170,7 +188,7 @@ export function EntityForm({
   onPendingFilesChange,
   onUploadPendingChange,
 }: EntityFormProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const fields = useMemo(() => getEntityFields(kind), [kind])
   const defaultValues = useMemo(
     () =>
@@ -279,7 +297,7 @@ export function EntityForm({
             type: 'validate',
             message:
               zoneCount == null
-                ? t('validation.structuredField')
+                ? t('structuredEditors.temperatureSensors.selectZoneCountFirst')
                 : t('validation.temperatureSensorsCoverage', {
                     count: zoneCount,
                   }),
@@ -302,6 +320,16 @@ export function EntityForm({
             type: 'validate',
             message: t('validation.instrumentCapabilities'),
           }
+        }
+      } else if (
+        !empty &&
+        field.key === 'production_date' &&
+        !Array.isArray(value) &&
+        !productionDateIsValid(value)
+      ) {
+        errors[field.key] = {
+          type: 'validate',
+          message: t('validation.productionDate'),
         }
       } else if (!empty && isEntityFileInput(field.input)) {
         try {
@@ -337,7 +365,11 @@ export function EntityForm({
               : null
           errors[field.key] = {
             type: 'validate',
-            message: wallThicknessMessage ?? t('validation.structuredField'),
+            message:
+              wallThicknessMessage ??
+              t('validation.structuredField', {
+                field: localizedFieldLabel(field, i18n.language),
+              }),
           }
         }
       } else if (!empty && !Array.isArray(value)) {
@@ -713,42 +745,173 @@ function EntityFieldControl({
               aria-invalid={fieldState.invalid || undefined}
               className="grid gap-2 rounded-md border border-input px-3 py-2 sm:grid-cols-2"
             >
-              {Object.entries(characterizationProfiles).map(
-                ([code, profile]) => {
+              {Object.entries(characterizationProfiles)
+                .filter(([, profile]) => !profile.legacy_only)
+                .sort(
+                  ([a], [b]) => Number(a === 'other') - Number(b === 'other'),
+                )
+                .map(([code, profile]) => {
                   const capabilities =
                     parseEntityJsonArray<InstrumentCapability>(rhf.value)
                   const selected = capabilities.some(
-                    (capability) => capability.code === code,
+                    (capability) =>
+                      capability.code === code ||
+                      (code === 'Raman' &&
+                        capability.code === 'low_frequency_raman'),
                   )
+                  const capability = capabilities.find(
+                    (item) => item.code === code,
+                  )
+                  const methodNames = instrumentOtherMethodNames(
+                    capability?.configuration,
+                  )
+                  const setMethodNames = (names: string[]) =>
+                    rhf.onChange(
+                      JSON.stringify(
+                        capabilities.map((item) =>
+                          item.code === 'other'
+                            ? {
+                                ...item,
+                                configuration: {
+                                  ...item.configuration,
+                                  method_names: names,
+                                },
+                              }
+                            : item,
+                        ),
+                      ),
+                    )
                   return (
-                    <label
+                    <div
                       key={code}
-                      className="flex cursor-pointer items-center gap-2 text-sm"
+                      className={
+                        code === 'other'
+                          ? 'flex flex-col gap-3 sm:col-span-2'
+                          : 'flex flex-col gap-3'
+                      }
                     >
-                      <Checkbox
-                        checked={selected}
-                        disabled={disabled}
-                        onCheckedChange={(checked) =>
-                          rhf.onChange(
-                            JSON.stringify(
-                              checked
-                                ? [...capabilities, { code, configuration: {} }]
-                                : capabilities.filter(
-                                    (capability) => capability.code !== code,
-                                  ),
+                      <label className="flex cursor-pointer items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={selected}
+                          disabled={disabled}
+                          onCheckedChange={(checked) => {
+                            if (
+                              !checked &&
+                              code === 'other' &&
+                              methodNames.some((name) => name.trim()) &&
+                              !window.confirm(
+                                t('entityLibrary.form.clearOtherMethods'),
+                              )
+                            )
+                              return
+                            rhf.onChange(
+                              JSON.stringify(
+                                checked
+                                  ? [
+                                      ...capabilities,
+                                      {
+                                        code,
+                                        configuration:
+                                          code === 'other'
+                                            ? { method_names: [''] }
+                                            : {},
+                                      },
+                                    ]
+                                  : capabilities.filter(
+                                      (item) =>
+                                        item.code !== code &&
+                                        !(
+                                          code === 'Raman' &&
+                                          item.code === 'low_frequency_raman'
+                                        ),
+                                    ),
+                              ),
+                            )
+                          }}
+                        />
+                        <span>
+                          {i18n.language.startsWith('en')
+                            ? profile.label_en
+                            : profile.label_zh}
+                        </span>
+                      </label>
+                      {code === 'other' && selected ? (
+                        <fieldset
+                          className="flex flex-col gap-3"
+                          disabled={disabled}
+                        >
+                          {(methodNames.length ? methodNames : ['']).map(
+                            (name, index) => (
+                              <div key={index} className="flex items-end gap-2">
+                                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                                  <Label
+                                    htmlFor={controlId + '-method-' + index}
+                                  >
+                                    {t('entityLibrary.form.methodName')}{' '}
+                                    {index + 1} <RequiredMark />
+                                  </Label>
+                                  <Input
+                                    id={controlId + '-method-' + index}
+                                    value={name}
+                                    maxLength={128}
+                                    required
+                                    disabled={disabled}
+                                    aria-invalid={
+                                      fieldState.invalid || undefined
+                                    }
+                                    onChange={(event) => {
+                                      const names = methodNames.length
+                                        ? [...methodNames]
+                                        : ['']
+                                      names[index] = event.target.value
+                                      setMethodNames(names)
+                                    }}
+                                  />
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={disabled}
+                                  aria-label={t(
+                                    'entityLibrary.form.removeMethod',
+                                    { index: index + 1 },
+                                  )}
+                                  onClick={() =>
+                                    setMethodNames(
+                                      methodNames.length > 1
+                                        ? methodNames.filter(
+                                            (_, position) => position !== index,
+                                          )
+                                        : [''],
+                                    )
+                                  }
+                                >
+                                  {t('entityLibrary.form.removeMethodButton')}
+                                </Button>
+                              </div>
                             ),
-                          )
-                        }
-                      />
-                      <span>
-                        {i18n.language.startsWith('en')
-                          ? profile.label_en
-                          : profile.label_zh}
-                      </span>
-                    </label>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="self-start"
+                            disabled={disabled}
+                            onClick={() =>
+                              setMethodNames([
+                                ...(methodNames.length ? methodNames : ['']),
+                                '',
+                              ])
+                            }
+                          >
+                            {t('entityLibrary.form.addMethod')}
+                          </Button>
+                        </fieldset>
+                      ) : null}
+                    </div>
                   )
-                },
-              )}
+                })}
             </div>
           ) : entityFileInput ? (
             <EntityFileControl

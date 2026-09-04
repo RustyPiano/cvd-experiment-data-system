@@ -295,7 +295,7 @@ def test_populated_0002_upgrade_backfills_revision_and_preserves_export(
                 "material": "SiO2/Si"
             }
             assert state is not None
-            assert (state.growth_state, state.identity_state) == ("present", "unknown")
+            assert (state.growth_state, state.identity_state) == ("unknown", "unknown")
             current_sample_state = session.scalar(
                 select(SampleRevisionState).where(
                     SampleRevisionState.sample_id == UUID(CURRENT_SAMPLE_ID),
@@ -310,7 +310,7 @@ def test_populated_0002_upgrade_backfills_revision_and_preserves_export(
             )
             assert current_association is not None
             assert current_sample_state is not None
-            assert current_sample_state.growth_state == "absent"
+            assert current_sample_state.growth_state == "unknown"
             assert set(
                 session.scalars(
                     select(RunContributor.role).where(RunContributor.run_revision_id == revision.id)

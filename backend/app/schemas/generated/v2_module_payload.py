@@ -20,12 +20,12 @@ from app.services.v2_field_source import (
 )
 
 V2_MODULE_PAYLOAD_SCHEMA_VERSION = "cvd_v2"
-_OPTION_ALIASES = {'盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '设定值': 'setpoint', '实测值': 'measured', '光': 'light', '电': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '正常': 'normal', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主要前驱体': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '舟': 'boat', '坩埚': 'crucible', '衬底表面': 'substrate_surface', '涂覆在衬底表面': 'substrate_surface', '其他容器': 'other_container', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', '白云母': 'muscovite', '金云母': 'phlogopite', '氟金云母': 'fluorophlogopite', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '两片生长面相对': 'face_to_face', '倾角': 'tilted', '竖放': 'upright', '清洗': 'clean', '丙酮清洗': 'acetone_clean', '异丙醇清洗': 'isopropanol_clean', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '亲水处理': 'hydrophilic_treatment', '亲水化': 'hydrophilic_treatment', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气路置换': 'gas_exchange', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '受控降温': 'controlled_cooling', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '液体': 'liquid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '有规格数值': 'reported', '供应商未提供': 'not_provided', '不适用': 'not_applicable', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '材料层': 'material_layer', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4', 'CO₂': 'CO2', '热电偶': 'thermocouple', '热电阻（RTD）': 'rtd', '红外测温仪': 'infrared_thermometer', '光纤温度传感器': 'fiber_optic_temperature_sensor', '热敏电阻': 'thermistor', '商业设备': 'commercial', '实验室自制': 'lab_built', '改造设备': 'modified', '促进反应或成核': 'reaction_or_nucleation_promoter', '助熔或盐辅助': 'flux_or_salt_assistant', '输运': 'transport_agent', '溶剂或分散介质': 'solvent_or_dispersion_medium', '还原': 'reducing_agent', '氧化': 'oxidizing_agent', '刻蚀': 'etchant', 'mol/L': 'mol_per_L', 'mmol/L (mM)': 'mmol_per_L', 'g/L': 'g_per_L', 'mg/mL': 'mg_per_mL', 'wt%': 'wt_percent', 'vol%': 'vol_percent'}
-_FIELD_OPTION_ALIASES = {'loading_method': {'气路供给': 'gas_line', '鼓泡器': 'bubbler', '其他容器': 'other'}, 'field_devices': {'等离子': 'plasma', '等离子体': 'plasma'}, 'field_type': {'等离子': 'plasma', '等离子体': 'plasma'}, 'type': {'等离子': 'plasma_treatment', '等离子体': 'plasma_treatment'}}
-_CONTROLLED_KEYS = frozenset(('affected_objects', 'architecture_type', 'concentration_unit', 'cooling_method', 'coverage_state', 'data_validity_impact', 'dimensional_form', 'exposure_environment', 'field_devices', 'form_appearance', 'gas_purity_grade', 'intervention_actions', 'loading_method', 'lot_category', 'material', 'mica_type', 'name_type', 'observed_deviations', 'orientation', 'outcome', 'performed_by_user_ids', 'pressure_regime', 'process_roles', 'role', 'setup_origin', 'storage_method', 'substrate_material', 'substrate_miscut_availability', 'substrate_orientation_polish', 'substrate_orientation_polish_availability', 'supplier', 'suspected_causes', 'wall_type'))
+_OPTION_ALIASES = {'盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '设定值': 'setpoint', '实测值': 'measured', '光': 'light', '电': 'electric_field', '光照': 'light', '电场': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '正常': 'normal', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主要前驱体': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '舟': 'boat', '坩埚': 'crucible', '衬底表面': 'substrate_surface', '涂覆在衬底表面': 'substrate_surface', '其他容器': 'other_container', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', '白云母': 'muscovite', '金云母': 'phlogopite', '氟金云母': 'fluorophlogopite', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '两片生长面相对': 'face_to_face', '倾角': 'tilted', '竖放': 'upright', '朝下游': 'downstream', '朝上游': 'upstream', '朝炉管左侧': 'tube_left', '朝炉管右侧': 'tube_right', '清洗': 'clean', '溶剂清洗': 'solvent_cleaning', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '紫外/臭氧处理': 'uv_ozone_treatment', '有批号': 'batch_number_reported', '未提供批号': 'batch_number_not_provided', '超声': 'ultrasonic', '浸泡': 'soak', '冲洗': 'rinse', '擦拭': 'wipe', '丙酮': 'acetone', '异丙醇': 'isopropanol', '乙醇': 'ethanol', '甲醇': 'methanol', '去离子水': 'deionized_water', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气氛置换': 'gas_exchange', '气路置换': 'gas_exchange', '连续通气': 'continuous_flow', '抽空—回填': 'evacuation_backfill', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉冷却': 'rapid_furnace_move_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '程序降温': 'controlled_cooling', '受控降温': 'controlled_cooling', '分段降温': 'staged_cooling', '减压（含真空）': 'low_pressure', '加压': 'high_pressure', '预混气': 'premixed', '浮子流量计（转子流量计）': 'rotameter', '浮子流量计': 'rotameter', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', 'OM': 'optical_microscopy', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '液体': 'liquid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '有规格数值': 'reported', '供应商未提供': 'not_provided', '不适用': 'not_applicable', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '材料层': 'material_layer', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4', 'CO₂': 'CO2', '热电偶': 'thermocouple', '热电阻（RTD）': 'rtd', '红外测温仪': 'infrared_thermometer', '光纤温度传感器': 'fiber_optic_temperature_sensor', '热敏电阻': 'thermistor', '商业设备': 'commercial', '实验室自制': 'lab_built', '改造设备': 'modified', '促进反应或成核': 'reaction_or_nucleation_promoter', '助熔或盐辅助': 'flux_or_salt_assistant', '输运': 'transport_agent', '溶剂或分散介质': 'solvent_or_dispersion_medium', '还原': 'reducing_agent', '氧化': 'oxidizing_agent', '刻蚀': 'etchant', 'mol/L': 'mol_per_L', 'mmol/L (mM)': 'mmol_per_L', 'g/L': 'g_per_L', 'mg/mL': 'mg_per_mL', 'wt%': 'wt_percent', 'vol%': 'vol_percent'}
+_FIELD_OPTION_ALIASES = {'dimensional_form': {'连续膜': 'continuous_film', '分立片状晶体/晶畴': 'discrete_planar_crystal', '带状': 'ribbon', '线状': 'wire', '管状': 'tube', '棒状': 'rod', '颗粒': 'particle', '块状晶体': 'bulk_crystal', '其他': 'other'}, 'in_plane_outline': {'三角形': 'triangle', '截角三角形': 'truncated_triangle', '六边形': 'hexagon', '四边形（矩形/平行四边形/菱形）': 'quadrilateral', '其他规则多边形': 'other_regular_polygon', '圆形/椭圆形': 'circular_elliptical', '星形/多裂片状': 'lobed_star', '枝晶状/分形': 'dendritic_fractal', '不规则': 'irregular', '其他': 'other'}, 'loading_method': {'衬底': 'substrate_surface', '气路供给': 'gas_line', '鼓泡器': 'bubbler', '其他容器': 'other'}, 'field_devices': {'等离子': 'plasma', '等离子体': 'plasma'}, 'field_type': {'等离子': 'plasma', '等离子体': 'plasma'}, 'type': {'等离子': 'plasma_treatment', '等离子体': 'plasma_treatment'}}
+_CONTROLLED_KEYS = frozenset(('affected_objects', 'architecture_type', 'batch_number_availability', 'concentration_unit', 'cooling_method', 'data_validity_impact', 'dimensional_form', 'exposure_environment', 'field_devices', 'form_appearance', 'gas_purity_grade', 'in_plane_outline', 'intervention_actions', 'loading_method', 'lot_category', 'material', 'mica_type', 'name_type', 'observed_deviations', 'orientation', 'outcome', 'performed_by_user_ids', 'pressure_regime', 'role', 'setup_origin', 'storage_method', 'substrate_material', 'substrate_miscut_availability', 'substrate_orientation_polish', 'substrate_orientation_polish_availability', 'supplier', 'suspected_causes', 'wall_type'))
 _STRUCTURED_CONTROLLED_KEYS = frozenset(('field_type', 'material', 'measurement_source', 'method', 'operation_type', 'placement', 'shape', 'species', 'type'))
 _COMPOSITE_KEYS = frozenset(('substrate_orientation_polish',))
-_MULTI_KEYS = frozenset(('affected_objects', 'field_devices', 'intervention_actions', 'observed_deviations', 'performed_by_user_ids', 'process_roles', 'suspected_causes'))
+_MULTI_KEYS = frozenset(('affected_objects', 'field_devices', 'intervention_actions', 'observed_deviations', 'performed_by_user_ids', 'suspected_causes'))
 
 
 def _json_default(value: Any) -> str:
@@ -142,6 +142,10 @@ class OptionalDurationParametersPayload(V2PayloadBase):
     duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
 
 
+class RequiredDurationParametersPayload(V2PayloadBase):
+    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
+
+
 class MeltSolidifyParametersPayload(OptionalDurationParametersPayload):
     temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)]
 
@@ -254,8 +258,31 @@ PrecursorTreatmentPayload = Annotated[
 ]
 
 
-class CleaningPretreatmentPayload(V2PayloadBase):
-    type: Literal['acetone_clean', 'isopropanol_clean', 'nitrogen_dry']
+class SolventCleaningParametersPayload(V2PayloadBase):
+    solvent: Literal['acetone', 'deionized_water', 'ethanol', 'isopropanol', 'methanol', 'other']
+    solvent_other: NonBlankStr | None = None
+    cleaning_method: Literal['not_recorded', 'other', 'rinse', 'soak', 'ultrasonic', 'wipe']
+    cleaning_method_other: NonBlankStr | None = None
+    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+
+    @model_validator(mode="after")
+    def _conditional_details(self) -> Self:
+        if (self.solvent == 'other') != bool((self.solvent_other or '').strip()):
+            raise ValueError("solvent_other is required only for other solvent")
+        if (self.cleaning_method == 'other') != bool((self.cleaning_method_other or '').strip()):
+            raise ValueError("cleaning_method_other is required only for other cleaning method")
+        if self.cleaning_method in {'ultrasonic', 'soak'} and self.duration_min is None:
+            raise ValueError("duration_min is required for ultrasonic cleaning or soaking")
+        return self
+
+
+class SolventCleaningPretreatmentPayload(V2PayloadBase):
+    type: Literal['solvent_cleaning']
+    parameters: SolventCleaningParametersPayload
+
+
+class DryingPretreatmentPayload(V2PayloadBase):
+    type: Literal['nitrogen_dry']
     parameters: OptionalDurationParametersPayload
 
 
@@ -276,13 +303,9 @@ class PlasmaPretreatmentPayload(V2PayloadBase):
     parameters: PlasmaTreatmentParametersPayload
 
 
-class HydrophilicTreatmentParametersPayload(OptionalDurationParametersPayload):
-    method: str | None = None
-
-
-class HydrophilicPretreatmentPayload(V2PayloadBase):
-    type: Literal['hydrophilic_treatment']
-    parameters: HydrophilicTreatmentParametersPayload
+class UvOzonePretreatmentPayload(V2PayloadBase):
+    type: Literal['uv_ozone_treatment']
+    parameters: RequiredDurationParametersPayload
 
 
 class OtherPretreatmentPayload(V2PayloadBase):
@@ -292,10 +315,11 @@ class OtherPretreatmentPayload(V2PayloadBase):
 
 
 SubstratePretreatmentPayload = Annotated[
-    CleaningPretreatmentPayload
+    SolventCleaningPretreatmentPayload
+    | DryingPretreatmentPayload
     | AnnealPretreatmentPayload
     | PlasmaPretreatmentPayload
-    | HydrophilicPretreatmentPayload
+    | UvOzonePretreatmentPayload
     | OtherPretreatmentPayload,
     Field(discriminator='type'),
 ]
@@ -413,17 +437,34 @@ class SubstrateSizePlacementPayload(V2PayloadBase):
     length_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
     width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
     thickness_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
-    placement: Literal['face_up', 'face_down', 'face_to_face', 'tilted', 'upright', 'other']
-    tilt_angle_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0, lt=90)] | None = None
+    placement: Literal['face_up', 'face_down', 'tilted', 'upright', 'other']
+    tilt_angle_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=-90, lt=90, json_schema_extra={'not': {'const': 0}})] | None = None
+    tilt_azimuth_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, lt=360)] | None = None
+    upright_growth_face_direction: Literal['downstream', 'upstream', 'tube_left', 'tube_right'] | None = None
     placement_other: str | None = None
 
     @model_validator(mode="after")
     def _placement_details(self) -> Self:
-        if (self.placement == 'tilted') != (self.tilt_angle_deg is not None):
-            raise ValueError("tilt_angle_deg is required only for tilted placement")
+        if self.length_mm < self.width_mm:
+            raise ValueError("length_mm must be greater than or equal to width_mm")
+        tilted = self.tilt_angle_deg is not None and self.tilt_azimuth_deg is not None
+        if (self.placement == 'tilted') != tilted:
+            raise ValueError("tilt_angle_deg and tilt_azimuth_deg are required only for tilted placement")
+        if self.placement == 'tilted' and self.tilt_angle_deg == 0:
+            raise ValueError("tilt_angle_deg must be non-zero")
+        if self.placement != 'tilted' and (self.tilt_angle_deg is not None or self.tilt_azimuth_deg is not None):
+            raise ValueError("tilt angles apply only to tilted placement")
+        if (self.placement == 'upright') != (self.upright_growth_face_direction is not None):
+            raise ValueError("upright_growth_face_direction is required only for upright placement")
         if (self.placement == 'other') != bool((self.placement_other or '').strip()):
             raise ValueError("placement_other is required only for other placement")
         return self
+
+
+class SubstratePlacementRelationPayload(V2PayloadBase):
+    piece_a_label: NonBlankStr
+    piece_b_label: NonBlankStr
+    gap_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)] | None = None
 
 
 class SourcePositionPayload(V2PayloadBase):
@@ -590,7 +631,7 @@ class CoolingParametersPayload(V2PayloadBase):
 
 
 class ActualFieldPayload(V2PayloadBase):
-    field_type: Literal['plasma', 'light', 'electric_field']
+    field_type: Literal['plasma', 'light', 'electric_field', 'other']
     start_min: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]
     end_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
     parameters: Annotated[list[NamedParameterPayload], Field(min_length=1)]
@@ -603,6 +644,8 @@ class ActualFieldPayload(V2PayloadBase):
 
     @model_validator(mode="after")
     def _typed_parameters(self) -> Self:
+        if self.field_type == 'other':
+            return self
         aliases = {
             'plasma': {
                 'powerw': 'power_W', 'power': 'power_W', 'plasmapower': 'power_W',
@@ -705,7 +748,8 @@ class EquipmentPayload(V2PayloadBase):
     tube_outer_diameter_wall_mm: TubeDimensionsPayload | None = None
     coordinate_system: str | None = None
     temperature_sensors: Annotated[list[TemperatureSensorPayload], Field(min_length=1)]
-    field_devices: list[Literal['electric_field', 'light', 'none', 'plasma']] | None = None
+    field_devices: list[Literal['electric_field', 'light', 'none', 'other', 'plasma']] | None = None
+    field_device_other_name: str | None = None
     setup_diagram: FileAssetReferencePayload | None = None
     tube_usage_history: TubeUsageHistoryPayload
 
@@ -776,6 +820,16 @@ class EquipmentPayload(V2PayloadBase):
             and not _missing(self.modification_details)
         ):
             raise ValueError("modification_details is not applicable")
+        if (
+            _matches({'op': 'eq', 'value': 'other'}, self.field_devices)
+            and _missing(self.field_device_other_name)
+        ):
+            raise ValueError("field_device_other_name is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'other'}, self.field_devices)
+            and not _missing(self.field_device_other_name)
+        ):
+            raise ValueError("field_device_other_name is not applicable")
         return self
 
 
@@ -818,6 +872,24 @@ class SubstrateItemPayload(V2PayloadBase):
 
 class SubstratesPayload(V2PayloadBase):
     items: list[SubstrateItemPayload] = Field(default_factory=list)
+    placement_relations: list[SubstratePlacementRelationPayload] | None = None
+
+    @model_validator(mode="after")
+    def _placement_relations(self) -> Self:
+        labels = [item.piece_label for item in self.items]
+        if len(labels) != len(set(labels)):
+            raise ValueError("substrate piece_label values must be unique")
+        pairs: set[tuple[str, str]] = set()
+        for relation in self.placement_relations or []:
+            if relation.piece_a_label not in labels or relation.piece_b_label not in labels:
+                raise ValueError("placement relation must reference substrate piece labels")
+            if relation.piece_a_label == relation.piece_b_label:
+                raise ValueError("placement relation must reference two different pieces")
+            pair = tuple(sorted((relation.piece_a_label, relation.piece_b_label)))
+            if pair in pairs:
+                raise ValueError("placement relation pair is duplicated")
+            pairs.add(pair)
+        return self
 
 
 
@@ -829,7 +901,9 @@ class MaterialLotVersionPayload(V2PayloadBase):
     supplier: str | None = None
     catalog_number: str | None = None
     declared_grade: str | None = None
-    batch_number: NonBlankStr
+    batch_number_availability: Literal['batch_number_not_provided', 'batch_number_reported'] | None = None
+    batch_number: str | None = None
+    production_date: str | None = None
     purity: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0, le=100)] | None = None
     form_appearance: str | None = None
     opened_date: date | None = None
@@ -858,6 +932,34 @@ class MaterialLotVersionPayload(V2PayloadBase):
         if value in (None, ""):
             return None
         return _validate_formula(value)
+
+    @field_validator("production_date")
+    @classmethod
+    def _production_date(cls, value: str | None) -> str | None:
+        if value in (None, ''):
+            return None
+        if not isinstance(value, str):
+            raise ValueError("invalid production date")
+        try:
+            date.fromisoformat(value + '-01' if len(value) == 7 else value)
+        except ValueError as exc:
+            raise ValueError("invalid production date") from exc
+        if len(value) not in {7, 10}:
+            raise ValueError("invalid production date precision")
+        return value
+
+    @model_validator(mode="after")
+    def _batch_number_policy(self) -> Self:
+        has_batch_number = bool((self.batch_number or '').strip())
+        if self.lot_category != 'substrate' and not has_batch_number:
+            raise ValueError("batch_number is required for chemical and gas-cylinder lots")
+        if self.lot_category == 'substrate':
+            expected = 'batch_number_reported' if has_batch_number else 'batch_number_not_provided'
+            if self.batch_number_availability != expected:
+                raise ValueError("batch_number must match batch_number_availability")
+            if expected == 'batch_number_not_provided' and self.production_date is None:
+                raise ValueError("production_date is required when a substrate lot number is not provided")
+        return self
 
     @model_validator(mode="after")
     def _miscut_direction(self) -> Self:
@@ -901,6 +1003,26 @@ class MaterialLotVersionPayload(V2PayloadBase):
             and not _missing(self.declared_grade)
         ):
             raise ValueError("declared_grade is not applicable")
+        if (
+            _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and _missing(self.batch_number_availability)
+        ):
+            raise ValueError("batch_number_availability is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and not _missing(self.batch_number_availability)
+        ):
+            raise ValueError("batch_number_availability is not applicable")
+        if (
+            _matches({'op': 'eq', 'value': 'batch_number_not_provided'}, self.batch_number_availability)
+            and _missing(self.production_date)
+        ):
+            raise ValueError("production_date is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'batch_number_not_provided'}, self.batch_number_availability)
+            and not _missing(self.production_date)
+        ):
+            raise ValueError("production_date is not applicable")
         if (
             not _matches({'op': 'eq', 'value': 'chemical'}, self.lot_category)
             and not _missing(self.purity)
@@ -1035,7 +1157,8 @@ class SetupVersionPayload(V2PayloadBase):
     tube_material_shape: TubeMaterialShapePayload
     tube_outer_diameter_wall_mm: TubeDimensionsPayload
     wall_type: Literal['cold_wall', 'hot_wall'] | None = None
-    field_devices: list[Literal['electric_field', 'light', 'none', 'plasma']]
+    field_devices: list[Literal['electric_field', 'light', 'none', 'other', 'plasma']]
+    field_device_other_name: str | None = None
     setup_diagram: FileAssetReferencePayload | None = None
     component_bindings: list[dict[str, Any]] | None = None
 
@@ -1106,6 +1229,16 @@ class SetupVersionPayload(V2PayloadBase):
             and not _missing(self.modification_details)
         ):
             raise ValueError("modification_details is not applicable")
+        if (
+            _matches({'op': 'eq', 'value': 'other'}, self.field_devices)
+            and _missing(self.field_device_other_name)
+        ):
+            raise ValueError("field_device_other_name is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'other'}, self.field_devices)
+            and not _missing(self.field_device_other_name)
+        ):
+            raise ValueError("field_device_other_name is not applicable")
         return self
 
 

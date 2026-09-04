@@ -17,6 +17,7 @@ import tempfile
 
 import openpyxl
 import yaml
+from jsonschema import Draft202012Validator
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(BASE, "field-source.yaml")
@@ -33,9 +34,9 @@ KNOWN_LEVELS = {
     "conditional_required",
     "conditional_recommended",
 }
-EXPECTED_FIELDS = 120
-EXPECTED_ENTITY_FIELDS = 59
-EXPECTED_R0 = 27
+EXPECTED_FIELDS = 121
+EXPECTED_ENTITY_FIELDS = 62
+EXPECTED_R0 = 26
 
 errors: list[str] = []
 
@@ -362,6 +363,10 @@ if set(properties) != set(property_units):
 for property_code, definition in properties.items():
     where = f"characterization_properties.{property_code}"
     value_type = definition.get("value_type")
+    if "structured_schema" in definition:
+        if value_type != "structured":
+            err(f"{where}: structured_schema 仅用于结构化属性")
+        Draft202012Validator.check_schema(definition["structured_schema"])
     if value_type not in {"numeric", "text", "structured"}:
         err(f"{where}: value_type 必须为 numeric / text / structured")
     validation = definition.get("validation")
@@ -415,6 +420,10 @@ for profile_code, profile in (doc.get("characterization_profiles") or {}).items(
     if len(condition_codes) != len(set(condition_codes)):
         err(f"characterization_profiles.{profile_code}: 条件 key 重复")
     allowed_properties = set(profile.get("allowed_property_codes") or [])
+    if not set(profile.get("property_modes", {})) <= allowed_properties:
+        err(f"characterization_profiles.{profile_code}: 模式约束包含不适用属性")
+    if profile.get("allowed_assertion_types"):
+        err(f"characterization_profiles.{profile_code}: 表征录入不接受材料判定")
     unknown_properties = allowed_properties - set(properties)
     if unknown_properties:
         err(
@@ -422,6 +431,12 @@ for profile_code, profile in (doc.get("characterization_profiles") or {}).items(
         )
     if not set(profile.get("default_property_codes") or []) <= allowed_properties:
         err(f"characterization_profiles.{profile_code}: 默认属性不属于允许属性")
+    if any(
+        properties[code].get("legacy_only")
+        for code in profile.get("default_property_codes", [])
+        if code in properties
+    ):
+        err(f"characterization_profiles.{profile_code}: 默认录入包含暂缓字段")
     unknown_assertions = (
         set(profile.get("allowed_assertion_types") or []) - known_assertions
     )

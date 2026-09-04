@@ -156,6 +156,35 @@ def _apply_characterization_contract(
 ) -> None:
     """Add the cross-field rules that Pydantic model validators cannot emit."""
     model_schemas = definitions or schema["$defs"]
+    condition_schema = model_schemas["MeasurementConditions"]
+    condition_schema.setdefault("allOf", []).extend(
+        [
+            {
+                "if": {
+                    "required": ["excitation_power_basis"],
+                    "properties": {"excitation_power_basis": {"const": "instrument_percent"}},
+                },
+                "then": {"properties": {"excitation_power_value": {"maximum": 100}}},
+            },
+            {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "excitation_power_value": {"type": "null"},
+                            "excitation_power_basis": {"type": "null"},
+                        }
+                    },
+                    {
+                        "required": ["excitation_power_value", "excitation_power_basis"],
+                        "properties": {
+                            "excitation_power_value": {"type": "number"},
+                            "excitation_power_basis": {"type": "string"},
+                        },
+                    },
+                ]
+            },
+        ]
+    )
     property_schema = model_schemas["PropertyValueWrite"]
     property_schema.setdefault("allOf", []).extend(
         [
@@ -494,7 +523,9 @@ def _property_value_schema(
         }
         required.append("text_value")
     else:
-        properties["structured_value"] = {"type": "object", "minProperties": 1}
+        properties["structured_value"] = definition.get(
+            "structured_schema", {"type": "object", "minProperties": 1}
+        )
         required.append("structured_value")
     if value_type != "numeric":
         properties.update(
@@ -518,12 +549,27 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
             "additionalProperties": False,
         },
         "sample_region": {
-            "type": "object",
+            "type": ["object", "null"],
             "properties": {"geometry_type": {"enum": profile["allowed_region_types"]}},
             "required": ["geometry_type"],
         },
     }
-    measurement_required = ["method_profile", "sample_region", "typed_conditions"]
+    typed_schema = measurement_properties["typed_conditions"]
+    typed_schema["allOf"] = [
+        {
+            "if": {
+                "required": [field["key"]],
+                "properties": {field["key"]: {"not": {"type": "null"}}},
+            },
+            "then": {
+                "required": list(field["when"]),
+                "properties": {key: {"enum": values} for key, values in field["when"].items()},
+            },
+        }
+        for field in profile["condition_fields"]
+        if field.get("when")
+    ]
+    measurement_required = ["method_profile", "typed_conditions"]
     if profile["raw_files_required"]:
         measurement_properties["raw_file_ids"] = {"type": "array", "minItems": 1}
         measurement_required.append("raw_file_ids")
@@ -553,7 +599,7 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
 
     allowed_properties = profile["allowed_property_codes"]
     allowed_assertions = profile["allowed_assertion_types"]
-    return {
+    result = {
         "properties": {
             "measurement": {
                 "properties": measurement_properties,
@@ -572,6 +618,184 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
             ),
         }
     }
+
+    constraints = []
+    for property_code, conditions in profile.get("property_conditions", {}).items():
+        constraints.append(
+            {
+                "if": {
+                    "required": ["properties"],
+                    "properties": {
+                        "properties": {
+                            "contains": {
+                                "required": ["property_code"],
+                                "properties": {"property_code": {"const": property_code}},
+                            }
+                        }
+                    },
+                },
+                "then": {
+                    "properties": {
+                        "measurement": {
+                            "properties": {
+                                "typed_conditions": {
+                                    "required": list(conditions),
+                                    "properties": {
+                                        key: {"enum": values} for key, values in conditions.items()
+                                    },
+                                }
+                            }
+                        }
+                    }
+                },
+            }
+        )
+    if code == "XRD":
+        for axis, unit in {"two_theta": "° 2θ", "omega": "° ω", "phi": "° φ", "chi": "° χ"}.items():
+            constraints.append(
+                {
+                    "if": {
+                        "properties": {
+                            "measurement": {
+                                "properties": {
+                                    "typed_conditions": {
+                                        "required": ["scan_axis"],
+                                        "properties": {"scan_axis": {"const": axis}},
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "properties": {
+                                "items": {
+                                    "if": {
+                                        "properties": {"property_code": {"const": "spectral_peaks"}}
+                                    },
+                                    "then": {
+                                        "properties": {
+                                            "structured_value": {
+                                                "properties": {
+                                                    "position_unit": {"const": unit},
+                                                    **(
+                                                        {
+                                                            "peaks": {
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "d_spacing_nm": False
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        if axis != "two_theta"
+                                                        else {}
+                                                    ),
+                                                }
+                                            }
+                                        }
+                                    },
+                                }
+                            }
+                        }
+                    },
+                }
+            )
+        typed_schema["allOf"].append(
+            {
+                "if": {
+                    "properties": {"scan_axis": {"const": "two_theta"}},
+                    "required": ["scan_axis"],
+                },
+                "then": {
+                    "properties": {
+                        "scan_range_deg": {
+                            "properties": {"start": {"minimum": 0}, "end": {"maximum": 180}}
+                        }
+                    }
+                },
+            }
+        )
+    for property_code, modes in profile.get("property_modes", {}).items():
+        constraints.append(
+            {
+                "if": {
+                    "required": ["properties"],
+                    "properties": {
+                        "properties": {
+                            "contains": {
+                                "required": ["property_code"],
+                                "properties": {"property_code": {"const": property_code}},
+                            }
+                        },
+                    },
+                },
+                "then": {
+                    "properties": {
+                        "measurement": {
+                            "properties": {
+                                "typed_conditions": {
+                                    "required": ["mode"],
+                                    "properties": {"mode": {"enum": modes}},
+                                },
+                            }
+                        }
+                    }
+                },
+            }
+        )
+    for property_code, required_keys in {
+        "image_object_size_um": ["image_object_type", "image_size_metric"],
+        "image_object_density_cm2": ["image_object_type"],
+    }.items():
+        if property_code in allowed_properties:
+            constraints.append(
+                {
+                    "if": {
+                        "required": ["properties"],
+                        "properties": {
+                            "properties": {
+                                "contains": {
+                                    "required": ["property_code"],
+                                    "properties": {"property_code": {"const": property_code}},
+                                }
+                            },
+                        },
+                    },
+                    "then": {
+                        "properties": {
+                            "measurement": {
+                                "properties": {
+                                    "typed_conditions": {"required": required_keys},
+                                }
+                            }
+                        }
+                    },
+                }
+            )
+    if "spectral_peaks" in allowed_properties:
+        peak_properties = {"position_unit": {"enum": profile["peak_position_units"]}}
+        if code != "XRD":
+            peak_properties["peaks"] = {"items": {"properties": {"d_spacing_nm": False}}}
+        constraints.append(
+            {
+                "properties": {
+                    "properties": {
+                        "items": {
+                            "if": {"properties": {"property_code": {"const": "spectral_peaks"}}},
+                            "then": {
+                                "properties": {"structured_value": {"properties": peak_properties}}
+                            },
+                        }
+                    }
+                }
+            }
+        )
+    if not typed_schema["allOf"]:
+        typed_schema.pop("allOf")
+    if constraints:
+        result["allOf"] = constraints
+    return result
 
 
 def _condition_field_schema(field: dict[str, Any]) -> dict[str, Any]:
@@ -597,6 +821,16 @@ def _condition_field_schema(field: dict[str, Any]) -> dict[str, Any]:
     }.items():
         if source_key in validation:
             result[schema_key] = validation[source_key]
+    if field.get("components"):
+        bounds = {
+            key: result.pop(key)
+            for key in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum")
+            if key in result
+        }
+        result["properties"] = {
+            component["key"]: {"type": "number", **bounds} for component in field["components"]
+        }
+        result["required"] = [component["key"] for component in field["components"]]
     if field["value_type"] == "text":
         result["pattern"] = r"\S"
     if field["value_type"] == "select":

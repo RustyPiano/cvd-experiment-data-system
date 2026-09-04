@@ -1,10 +1,266 @@
 {
   "standard_id": "cvd-2d-process",
-  "version": "v4.0-alpha.25",
+  "version": "v4.0-alpha.40",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "characterization_properties": {
+    "spectral_peaks": {
+      "label_zh": "峰参数",
+      "label_en": "Spectral peak records",
+      "value_type": "structured",
+      "validation": {},
+      "structured_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "position_unit",
+          "intensity_unit",
+          "peaks"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "recorded",
+              "not_detected",
+              "not_analyzed"
+            ]
+          },
+          "position_unit": {
+            "enum": [
+              "cm⁻¹",
+              "nm",
+              "eV",
+              "° 2θ",
+              "° ω",
+              "° φ",
+              "° χ"
+            ]
+          },
+          "intensity_unit": {
+            "enum": [
+              "a.u.",
+              "counts",
+              "counts/s"
+            ]
+          },
+          "source_file_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "extraction_method": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "\\S"
+          },
+          "baseline_method": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "\\S"
+          },
+          "peaks": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "position"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "position": {
+                  "type": "number"
+                },
+                "fwhm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "area": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "d_spacing_nm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "recorded"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "source_file_id"
+              ],
+              "properties": {
+                "peaks": {
+                  "minItems": 1
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "peaks": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "not_detected"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "source_file_id"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "position_unit": {
+                  "enum": [
+                    "nm",
+                    "eV"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "peaks": {
+                  "items": {
+                    "properties": {
+                      "position": {
+                        "exclusiveMinimum": 0
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "position_unit": {
+                  "const": "° 2θ"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "peaks": {
+                  "items": {
+                    "properties": {
+                      "position": {
+                        "minimum": 0,
+                        "maximum": 180
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "unit": "—"
+    },
+    "elemental_composition": {
+      "legacy_only": true,
+      "label_zh": "元素定量",
+      "label_en": "Elemental quantification",
+      "value_type": "structured",
+      "validation": {},
+      "structured_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "basis",
+          "components"
+        ],
+        "properties": {
+          "basis": {
+            "enum": [
+              "atomic_fraction",
+              "mass_fraction"
+            ]
+          },
+          "components": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 118,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "species",
+                "fraction"
+              ],
+              "properties": {
+                "species": {
+                  "type": "string",
+                  "pattern": "^[A-Z][a-z]?$"
+                },
+                "fraction": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            }
+          }
+        }
+      },
+      "unit": "—"
+    },
+    "image_object_size_um": {
+      "legacy_only": true,
+      "label_zh": "图像对象尺寸",
+      "label_en": "Image object size",
+      "value_type": "numeric",
+      "validation": {
+        "gt": 0
+      },
+      "unit": "μm"
+    },
+    "image_object_density_cm2": {
+      "legacy_only": true,
+      "label_zh": "图像对象数量密度",
+      "label_en": "Image object number density",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      },
+      "unit": "cm⁻²"
+    },
     "coverage_percent": {
+      "legacy_only": true,
       "label_zh": "覆盖率",
       "label_en": "Coverage",
       "value_type": "numeric",
@@ -132,6 +388,7 @@
       "unit": "meV"
     },
     "afm_ra_roughness": {
+      "legacy_only": true,
       "label_zh": "AFM 算术平均粗糙度",
       "label_en": "AFM arithmetic roughness",
       "value_type": "numeric",
@@ -141,6 +398,7 @@
       "unit": "nm"
     },
     "afm_rms_roughness": {
+      "legacy_only": true,
       "label_zh": "AFM 均方根粗糙度",
       "label_en": "AFM RMS roughness",
       "value_type": "numeric",
@@ -208,12 +466,19 @@
   },
   "characterization_profiles": {
     "optical_microscopy": {
-      "label_zh": "光学显微镜",
-      "label_en": "Optical microscopy",
+      "legacy_property_codes": [
+        "domain_size_um",
+        "nucleation_density_cm2"
+      ],
+      "legacy_assertion_types": [
+        "growth_presence"
+      ],
+      "label_zh": "OM",
+      "label_en": "OM",
       "instrument_required": false,
       "raw_files_required": false,
-      "show_growth_presence": true,
-      "raw_file_guidance_zh": "建议上传原始图像；仅记录直接观察结论时可不上传。",
+      "show_growth_presence": false,
+      "raw_file_guidance_zh": "可上传原始图像。",
       "allowed_region_types": [
         "point",
         "area",
@@ -223,42 +488,107 @@
       "required_condition_keys": [],
       "optional_condition_keys": [
         "objective",
-        "illumination_mode"
+        "illumination_mode",
+        "image_object_type",
+        "image_size_metric",
+        "image_scale_um_per_px"
       ],
       "condition_fields": [
         {
-          "key": "objective",
-          "label_zh": "物镜",
-          "label_en": "Objective",
+          "key": "image_object_type",
+          "legacy_only": true,
+          "label_zh": "统计对象",
+          "label_en": "Counted objects",
           "value_type": "text",
           "validation": {
             "max_length": 128
-          }
+          },
+          "section": "results"
+        },
+        {
+          "key": "image_size_metric",
+          "legacy_only": true,
+          "label_zh": "尺寸定义",
+          "label_en": "Size definition",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "maximum_length",
+              "label_zh": "最大长度",
+              "label_en": "Maximum length"
+            },
+            {
+              "value": "equivalent_diameter",
+              "label_zh": "等效圆直径",
+              "label_en": "Equivalent circular diameter"
+            },
+            {
+              "value": "width",
+              "label_zh": "宽度",
+              "label_en": "Width"
+            }
+          ],
+          "section": "results"
+        },
+        {
+          "key": "objective",
+          "label_zh": "物镜规格",
+          "label_en": "Objective specification",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          },
+          "placeholder_zh": "100×，NA 0.9",
+          "placeholder_en": "100×, NA 0.9"
         },
         {
           "key": "illumination_mode",
+          "legacy_only": true,
           "label_zh": "照明模式",
           "label_en": "Illumination mode",
           "value_type": "text",
           "validation": {
             "max_length": 128
           }
+        },
+        {
+          "key": "image_scale_um_per_px",
+          "legacy_only": true,
+          "label_zh": "图像标尺",
+          "label_en": "Image scale",
+          "value_type": "number",
+          "unit": "μm/px",
+          "section": "results"
         }
       ],
       "allowed_property_codes": [
         "coverage_percent",
-        "domain_size_um",
-        "nucleation_density_cm2",
+        "image_object_size_um",
+        "image_object_density_cm2",
         "observation_note"
       ],
       "default_property_codes": [
-        "coverage_percent"
+        "observation_note"
       ],
-      "allowed_assertion_types": [
-        "growth_presence"
+      "allowed_assertion_types": [],
+      "common_condition_keys": [
+        "objective"
       ]
     },
     "Raman": {
+      "legacy_property_codes": [
+        "raman_e2g_peak_position",
+        "raman_a1g_peak_position",
+        "raman_peak_separation",
+        "raman_peak_fwhm",
+        "raman_intensity_ratio"
+      ],
+      "legacy_assertion_types": [
+        "phase_identity",
+        "polytype",
+        "stacking_order",
+        "layer_count"
+      ],
       "label_zh": "Raman",
       "label_en": "Raman spectroscopy",
       "instrument_required": true,
@@ -279,7 +609,10 @@
         "excitation_power_basis",
         "objective",
         "integration_time_s",
-        "accumulations"
+        "accumulations",
+        "raman_shift_range_cm1",
+        "filter_configuration",
+        "temperature_K"
       ],
       "condition_fields": [
         {
@@ -291,16 +624,14 @@
         },
         {
           "key": "excitation_power_value",
-          "label_zh": "激光功率数值",
-          "label_en": "Laser power value",
-          "value_type": "number",
-          "help_zh": "请配合功率口径填写；优先记录样品处实测功率。",
-          "help_en": "Use with the power basis; prefer measured power at the sample."
+          "label_zh": "激光功率",
+          "label_en": "Laser power",
+          "value_type": "number"
         },
         {
           "key": "excitation_power_basis",
-          "label_zh": "激光功率口径",
-          "label_en": "Laser power basis",
+          "label_zh": "功率单位",
+          "label_en": "Power unit",
           "value_type": "select",
           "options": [
             {
@@ -317,48 +648,92 @@
         },
         {
           "key": "objective",
-          "label_zh": "物镜",
-          "label_en": "Objective",
+          "label_zh": "物镜规格",
+          "label_en": "Objective specification",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          },
+          "placeholder_zh": "100×，NA 0.9",
+          "placeholder_en": "100×, NA 0.9"
+        },
+        {
+          "key": "integration_time_s",
+          "label_zh": "单次采集时间",
+          "label_en": "Time per acquisition",
+          "value_type": "number",
+          "unit": "s"
+        },
+        {
+          "key": "accumulations",
+          "label_zh": "光谱累积次数",
+          "label_en": "Spectral accumulations",
+          "value_type": "integer"
+        },
+        {
+          "key": "raman_shift_range_cm1",
+          "label_zh": "采集范围",
+          "label_en": "Acquired Raman shift range",
+          "value_type": "range",
+          "unit": "cm⁻¹",
+          "components": [
+            {
+              "key": "start",
+              "label_zh": "起点",
+              "label_en": "Start"
+            },
+            {
+              "key": "end",
+              "label_zh": "终点",
+              "label_en": "End"
+            }
+          ],
+          "signed": true
+        },
+        {
+          "key": "filter_configuration",
+          "legacy_only": true,
+          "label_zh": "滤光配置",
+          "label_en": "Filter configuration",
           "value_type": "text",
           "validation": {
             "max_length": 128
           }
         },
         {
-          "key": "integration_time_s",
-          "label_zh": "积分时间",
-          "label_en": "Integration time",
+          "key": "temperature_K",
+          "label_zh": "测量温度",
+          "label_en": "Measurement temperature",
           "value_type": "number",
-          "unit": "s"
-        },
-        {
-          "key": "accumulations",
-          "label_zh": "累加次数",
-          "label_en": "Accumulations",
-          "value_type": "integer"
+          "unit": "K"
         }
       ],
       "allowed_property_codes": [
-        "raman_e2g_peak_position",
-        "raman_a1g_peak_position",
-        "raman_peak_separation",
-        "raman_peak_fwhm",
-        "raman_intensity_ratio",
+        "spectral_peaks",
         "observation_note"
       ],
-      "default_property_codes": [
-        "raman_e2g_peak_position",
-        "raman_a1g_peak_position",
-        "raman_peak_separation"
+      "default_property_codes": [],
+      "allowed_assertion_types": [],
+      "peak_position_units": [
+        "cm⁻¹"
       ],
-      "allowed_assertion_types": [
-        "phase_identity",
-        "polytype",
-        "stacking_order",
-        "layer_count"
+      "common_condition_keys": [
+        "excitation_power_value",
+        "excitation_power_basis",
+        "integration_time_s",
+        "accumulations"
       ]
     },
     "low_frequency_raman": {
+      "legacy_property_codes": [
+        "shear_mode_peak_position",
+        "low_frequency_peak_fwhm"
+      ],
+      "legacy_assertion_types": [
+        "polytype",
+        "stacking_order",
+        "layer_count"
+      ],
       "label_zh": "低频 Raman",
       "label_en": "Low-frequency Raman spectroscopy",
       "instrument_required": true,
@@ -391,16 +766,14 @@
         },
         {
           "key": "excitation_power_value",
-          "label_zh": "激光功率数值",
-          "label_en": "Laser power value",
-          "value_type": "number",
-          "help_zh": "请配合功率口径填写；优先记录样品处实测功率。",
-          "help_en": "Use with the power basis; prefer measured power at the sample."
+          "label_zh": "激光功率",
+          "label_en": "Laser power",
+          "value_type": "number"
         },
         {
           "key": "excitation_power_basis",
-          "label_zh": "激光功率口径",
-          "label_en": "Laser power basis",
+          "label_zh": "功率单位",
+          "label_en": "Power unit",
           "value_type": "select",
           "options": [
             {
@@ -417,41 +790,51 @@
         },
         {
           "key": "objective",
-          "label_zh": "物镜",
-          "label_en": "Objective",
+          "label_zh": "物镜规格",
+          "label_en": "Objective specification",
           "value_type": "text",
           "validation": {
             "max_length": 128
-          }
+          },
+          "placeholder_zh": "100×，NA 0.9",
+          "placeholder_en": "100×, NA 0.9"
         },
         {
           "key": "integration_time_s",
-          "label_zh": "积分时间",
-          "label_en": "Integration time",
+          "label_zh": "单次采集时间",
+          "label_en": "Time per acquisition",
           "value_type": "number",
           "unit": "s"
         },
         {
           "key": "accumulations",
-          "label_zh": "累加次数",
-          "label_en": "Accumulations",
+          "label_zh": "光谱累积次数",
+          "label_en": "Spectral accumulations",
           "value_type": "integer"
         }
       ],
       "allowed_property_codes": [
-        "shear_mode_peak_position",
-        "low_frequency_peak_fwhm"
+        "spectral_peaks",
+        "observation_note"
       ],
-      "default_property_codes": [
-        "shear_mode_peak_position"
+      "default_property_codes": [],
+      "allowed_assertion_types": [],
+      "peak_position_units": [
+        "cm⁻¹"
       ],
-      "allowed_assertion_types": [
-        "polytype",
-        "stacking_order",
-        "layer_count"
-      ]
+      "legacy_only": true
     },
     "PL": {
+      "legacy_property_codes": [
+        "pl_a_exciton_peak_energy",
+        "pl_b_exciton_peak_energy",
+        "pl_integrated_intensity",
+        "pl_peak_fwhm"
+      ],
+      "legacy_assertion_types": [
+        "phase_identity",
+        "layer_count"
+      ],
       "label_zh": "PL",
       "label_en": "Photoluminescence",
       "instrument_required": true,
@@ -472,7 +855,9 @@
         "excitation_power_basis",
         "integration_time_s",
         "spectral_range_nm",
-        "temperature_K"
+        "temperature_K",
+        "objective",
+        "accumulations"
       ],
       "condition_fields": [
         {
@@ -484,16 +869,14 @@
         },
         {
           "key": "excitation_power_value",
-          "label_zh": "激发功率数值",
-          "label_en": "Excitation power value",
-          "value_type": "number",
-          "help_zh": "请配合功率口径填写；优先记录样品处实测功率。",
-          "help_en": "Use with the power basis; prefer measured power at the sample."
+          "label_zh": "激光功率",
+          "label_en": "Laser power",
+          "value_type": "number"
         },
         {
           "key": "excitation_power_basis",
-          "label_zh": "激发功率口径",
-          "label_en": "Excitation power basis",
+          "label_zh": "功率单位",
+          "label_en": "Power unit",
           "value_type": "select",
           "options": [
             {
@@ -510,8 +893,8 @@
         },
         {
           "key": "integration_time_s",
-          "label_zh": "积分时间",
-          "label_en": "Integration time",
+          "label_zh": "单次采集时间",
+          "label_en": "Time per acquisition",
           "value_type": "number",
           "unit": "s"
         },
@@ -540,24 +923,47 @@
           "label_en": "Measurement temperature",
           "value_type": "number",
           "unit": "K"
+        },
+        {
+          "key": "objective",
+          "label_zh": "物镜规格",
+          "label_en": "Objective specification",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          },
+          "placeholder_zh": "100×，NA 0.9",
+          "placeholder_en": "100×, NA 0.9"
+        },
+        {
+          "key": "accumulations",
+          "label_zh": "光谱累积次数",
+          "label_en": "Spectral accumulations",
+          "value_type": "integer"
         }
       ],
       "allowed_property_codes": [
-        "pl_a_exciton_peak_energy",
-        "pl_b_exciton_peak_energy",
-        "pl_integrated_intensity",
-        "pl_peak_fwhm"
+        "spectral_peaks",
+        "observation_note"
       ],
-      "default_property_codes": [
-        "pl_a_exciton_peak_energy",
-        "pl_b_exciton_peak_energy"
+      "default_property_codes": [],
+      "allowed_assertion_types": [],
+      "peak_position_units": [
+        "nm",
+        "eV"
       ],
-      "allowed_assertion_types": [
-        "phase_identity",
-        "layer_count"
+      "common_condition_keys": [
+        "excitation_power_value",
+        "excitation_power_basis",
+        "integration_time_s",
+        "accumulations"
       ]
     },
     "AFM": {
+      "legacy_property_codes": [],
+      "legacy_assertion_types": [
+        "layer_count"
+      ],
       "label_zh": "AFM",
       "label_en": "Atomic force microscopy",
       "instrument_required": true,
@@ -578,22 +984,47 @@
         "probe",
         "resolution_px",
         "scan_rate_hz",
-        "height_processing"
+        "height_processing",
+        "mode_other"
       ],
       "condition_fields": [
         {
           "key": "mode",
-          "label_zh": "模式",
-          "label_en": "Mode",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          }
+          "label_zh": "扫描模式",
+          "label_en": "Scan mode",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "tapping",
+              "label_zh": "轻敲",
+              "label_en": "Tapping"
+            },
+            {
+              "value": "contact",
+              "label_zh": "接触",
+              "label_en": "Contact"
+            },
+            {
+              "value": "non_contact",
+              "label_zh": "非接触",
+              "label_en": "Non-contact"
+            },
+            {
+              "value": "peak_force",
+              "label_zh": "峰值力",
+              "label_en": "Peak force"
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "Other"
+            }
+          ]
         },
         {
           "key": "probe",
-          "label_zh": "探针",
-          "label_en": "Probe",
+          "label_zh": "探针型号",
+          "label_en": "Probe model",
           "value_type": "text",
           "validation": {
             "max_length": 128
@@ -620,10 +1051,9 @@
         },
         {
           "key": "resolution_px",
-          "label_zh": "分辨率",
-          "label_en": "Resolution",
+          "label_zh": "采样点数",
+          "label_en": "Sampling points",
           "value_type": "resolution",
-          "unit": "px",
           "components": [
             {
               "key": "width",
@@ -639,13 +1069,14 @@
         },
         {
           "key": "scan_rate_hz",
-          "label_zh": "扫描速率",
-          "label_en": "Scan rate",
+          "label_zh": "扫描频率",
+          "label_en": "Scan frequency",
           "value_type": "number",
           "unit": "Hz"
         },
         {
           "key": "height_processing",
+          "legacy_only": true,
           "label_zh": "高度数据处理",
           "label_en": "Height-data processing",
           "value_type": "text",
@@ -653,28 +1084,53 @@
           "help_en": "For example: line leveling, plane fitting, or unprocessed.",
           "validation": {
             "max_length": 1000
+          },
+          "section": "results"
+        },
+        {
+          "key": "mode_other",
+          "label_zh": "其他扫描模式",
+          "label_en": "Other scan mode",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          },
+          "when": {
+            "mode": [
+              "other"
+            ]
           }
         }
       ],
       "allowed_property_codes": [
         "afm_ra_roughness",
         "afm_rms_roughness",
-        "afm_step_height"
+        "afm_step_height",
+        "observation_note"
       ],
       "default_property_codes": [
-        "afm_rms_roughness",
-        "afm_step_height"
+        "afm_step_height",
+        "observation_note"
       ],
-      "allowed_assertion_types": [
-        "layer_count"
+      "allowed_assertion_types": [],
+      "common_condition_keys": [
+        "mode"
       ]
     },
     "SEM": {
+      "legacy_property_codes": [
+        "domain_size_um",
+        "nucleation_density_cm2"
+      ],
+      "legacy_assertion_types": [
+        "growth_presence",
+        "composition"
+      ],
       "label_zh": "SEM",
       "label_en": "Scanning electron microscopy",
       "instrument_required": true,
       "raw_files_required": true,
-      "show_growth_presence": true,
+      "show_growth_presence": false,
       "raw_file_guidance_zh": "请上传原始图像与仪器元数据。",
       "allowed_region_types": [
         "point",
@@ -692,9 +1148,47 @@
         "detector",
         "stage_tilt_deg",
         "sample_preparation",
-        "field_of_view_um"
+        "field_of_view_um",
+        "image_object_type",
+        "image_size_metric"
       ],
       "condition_fields": [
+        {
+          "key": "image_object_type",
+          "legacy_only": true,
+          "label_zh": "统计对象",
+          "label_en": "Counted objects",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          },
+          "section": "results"
+        },
+        {
+          "key": "image_size_metric",
+          "legacy_only": true,
+          "label_zh": "尺寸定义",
+          "label_en": "Size definition",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "maximum_length",
+              "label_zh": "最大长度",
+              "label_en": "Maximum length"
+            },
+            {
+              "value": "equivalent_diameter",
+              "label_zh": "等效圆直径",
+              "label_en": "Equivalent circular diameter"
+            },
+            {
+              "value": "width",
+              "label_zh": "宽度",
+              "label_en": "Width"
+            }
+          ],
+          "section": "results"
+        },
         {
           "key": "accelerating_voltage_kV",
           "label_zh": "加速电压",
@@ -741,6 +1235,7 @@
         },
         {
           "key": "detector",
+          "legacy_only": true,
           "label_zh": "探测器",
           "label_en": "Detector",
           "value_type": "text",
@@ -761,6 +1256,7 @@
         },
         {
           "key": "sample_preparation",
+          "legacy_only": true,
           "label_zh": "导电处理或镀膜",
           "label_en": "Conductive treatment or coating",
           "value_type": "text",
@@ -770,8 +1266,8 @@
         },
         {
           "key": "field_of_view_um",
-          "label_zh": "视场",
-          "label_en": "Field of view",
+          "label_zh": "图像视场尺寸",
+          "label_en": "Image field of view",
           "value_type": "size",
           "unit": "μm",
           "components": [
@@ -790,19 +1286,45 @@
       ],
       "allowed_property_codes": [
         "coverage_percent",
-        "domain_size_um",
-        "nucleation_density_cm2"
+        "image_object_size_um",
+        "image_object_density_cm2",
+        "elemental_composition",
+        "observation_note"
       ],
       "default_property_codes": [
-        "coverage_percent",
-        "domain_size_um"
+        "observation_note"
       ],
-      "allowed_assertion_types": [
-        "growth_presence",
-        "composition"
-      ]
+      "allowed_assertion_types": [],
+      "property_modes": {
+        "coverage_percent": [
+          "secondary_electron",
+          "backscattered_electron"
+        ],
+        "image_object_size_um": [
+          "secondary_electron",
+          "backscattered_electron"
+        ],
+        "image_object_density_cm2": [
+          "secondary_electron",
+          "backscattered_electron"
+        ],
+        "elemental_composition": [
+          "EDS"
+        ]
+      }
     },
     "XRD": {
+      "legacy_property_codes": [
+        "xrd_peak_2theta",
+        "xrd_peak_fwhm",
+        "xrd_d_spacing"
+      ],
+      "legacy_assertion_types": [
+        "phase_identity",
+        "polytype",
+        "stacking_order",
+        "orientation_relationship"
+      ],
       "label_zh": "XRD",
       "label_en": "X-ray diffraction",
       "instrument_required": true,
@@ -817,20 +1339,107 @@
       "required_condition_keys": [
         "radiation_source",
         "source_wavelength_nm",
-        "scan_range_2theta_deg",
-        "step_size_deg"
+        "scan_axis",
+        "scan_range_deg"
       ],
       "optional_condition_keys": [
+        "scan_range_2theta_deg",
+        "step_size_deg",
         "count_time_s",
         "scan_rate_deg_min",
         "incident_angle_deg",
-        "geometry"
+        "geometry",
+        "scan_mode",
+        "geometry_other"
       ],
       "condition_fields": [
+        {
+          "key": "geometry",
+          "label_zh": "扫描几何",
+          "label_en": "Scan geometry",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "symmetric",
+              "label_zh": "对称扫描",
+              "label_en": "Symmetric"
+            },
+            {
+              "value": "grazing_incidence",
+              "label_zh": "掠入射",
+              "label_en": "Grazing incidence"
+            },
+            {
+              "value": "rocking_curve",
+              "label_zh": "摇摆曲线",
+              "label_en": "Rocking curve"
+            },
+            {
+              "value": "in_plane",
+              "label_zh": "面内扫描",
+              "label_en": "In-plane"
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "Other"
+            }
+          ]
+        },
+        {
+          "key": "scan_axis",
+          "label_zh": "扫描轴",
+          "label_en": "Scan axis",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "two_theta",
+              "label_zh": "2θ",
+              "label_en": "2θ"
+            },
+            {
+              "value": "omega",
+              "label_zh": "ω",
+              "label_en": "ω"
+            },
+            {
+              "value": "phi",
+              "label_zh": "φ",
+              "label_en": "φ"
+            },
+            {
+              "value": "chi",
+              "label_zh": "χ",
+              "label_en": "χ"
+            }
+          ]
+        },
+        {
+          "key": "scan_range_deg",
+          "label_zh": "扫描范围",
+          "label_en": "Scan range",
+          "value_type": "range",
+          "unit": "°",
+          "components": [
+            {
+              "key": "start",
+              "label_zh": "起点",
+              "label_en": "Start"
+            },
+            {
+              "key": "end",
+              "label_zh": "终点",
+              "label_en": "End"
+            }
+          ],
+          "signed": true
+        },
         {
           "key": "radiation_source",
           "label_zh": "辐射源",
           "label_en": "Radiation source",
+          "placeholder_zh": "Cu Kα",
+          "placeholder_en": "Cu Kα",
           "value_type": "text",
           "validation": {
             "max_length": 128
@@ -860,7 +1469,8 @@
               "label_zh": "终点",
               "label_en": "End"
             }
-          ]
+          ],
+          "legacy_only": true
         },
         {
           "key": "step_size_deg",
@@ -874,14 +1484,24 @@
           "label_zh": "每步计数时间",
           "label_en": "Count time per step",
           "value_type": "number",
-          "unit": "s"
+          "unit": "s",
+          "when": {
+            "scan_mode": [
+              "step"
+            ]
+          }
         },
         {
           "key": "scan_rate_deg_min",
           "label_zh": "扫描速率",
           "label_en": "Scan rate",
           "value_type": "number",
-          "unit": "°/min"
+          "unit": "°/min",
+          "when": {
+            "scan_mode": [
+              "continuous"
+            ]
+          }
         },
         {
           "key": "incident_angle_deg",
@@ -892,35 +1512,78 @@
           "validation": {
             "ge": 0,
             "le": 90
+          },
+          "when": {
+            "geometry": [
+              "grazing_incidence",
+              "in_plane"
+            ]
           }
         },
         {
-          "key": "geometry",
-          "label_zh": "几何构型",
-          "label_en": "Geometry",
+          "key": "scan_mode",
+          "label_zh": "采集方式",
+          "label_en": "Acquisition mode",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "step",
+              "label_zh": "步进扫描",
+              "label_en": "Step scan"
+            },
+            {
+              "value": "continuous",
+              "label_zh": "连续扫描",
+              "label_en": "Continuous scan"
+            }
+          ]
+        },
+        {
+          "key": "geometry_other",
+          "label_zh": "其他扫描几何",
+          "label_en": "Other scan geometry",
           "value_type": "text",
           "validation": {
             "max_length": 128
+          },
+          "when": {
+            "geometry": [
+              "other"
+            ]
           }
         }
       ],
       "allowed_property_codes": [
-        "xrd_peak_2theta",
-        "xrd_peak_fwhm",
-        "xrd_d_spacing"
+        "spectral_peaks",
+        "observation_note"
       ],
-      "default_property_codes": [
-        "xrd_peak_2theta",
-        "xrd_d_spacing"
+      "default_property_codes": [],
+      "allowed_assertion_types": [],
+      "peak_position_units": [
+        "° 2θ",
+        "° ω",
+        "° φ",
+        "° χ"
       ],
-      "allowed_assertion_types": [
-        "phase_identity",
-        "polytype",
-        "stacking_order",
-        "orientation_relationship"
+      "common_condition_keys": [
+        "scan_mode",
+        "geometry",
+        "step_size_deg",
+        "count_time_s",
+        "scan_rate_deg_min",
+        "incident_angle_deg"
       ]
     },
     "TEM": {
+      "legacy_property_codes": [],
+      "legacy_assertion_types": [
+        "phase_identity",
+        "composition",
+        "polytype",
+        "stacking_order",
+        "orientation_relationship",
+        "layer_count"
+      ],
       "label_zh": "TEM",
       "label_en": "Transmission electron microscopy",
       "instrument_required": true,
@@ -935,12 +1598,40 @@
       ],
       "required_condition_keys": [
         "accelerating_voltage_kV",
-        "mode"
+        "data_type"
       ],
       "optional_condition_keys": [
-        "sample_preparation"
+        "sample_preparation",
+        "mode",
+        "acquisition_mode",
+        "image_mode",
+        "diffraction_mode",
+        "spectrum_mode"
       ],
       "condition_fields": [
+        {
+          "key": "data_type",
+          "label_zh": "数据类型",
+          "label_en": "Data type",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "image",
+              "label_zh": "图像",
+              "label_en": "Image"
+            },
+            {
+              "value": "diffraction",
+              "label_zh": "衍射",
+              "label_en": "Diffraction"
+            },
+            {
+              "value": "spectrum",
+              "label_zh": "能谱",
+              "label_en": "Spectrum"
+            }
+          ]
+        },
         {
           "key": "accelerating_voltage_kV",
           "label_zh": "加速电压",
@@ -984,32 +1675,165 @@
               "label_zh": "电子能量损失谱（EELS）",
               "label_en": "Electron energy-loss spectroscopy (EELS)"
             }
-          ]
+          ],
+          "legacy_only": true
         },
         {
           "key": "sample_preparation",
-          "label_zh": "样品制备",
-          "label_en": "Sample preparation",
+          "legacy_only": true,
+          "label_zh": "表征前制样",
+          "label_en": "Preparation for characterization",
           "value_type": "text",
           "validation": {
             "max_length": 1000
           }
+        },
+        {
+          "key": "acquisition_mode",
+          "label_zh": "采集模式",
+          "label_en": "Acquisition mode",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "TEM",
+              "label_zh": "TEM",
+              "label_en": "TEM"
+            },
+            {
+              "value": "STEM",
+              "label_zh": "STEM",
+              "label_en": "STEM"
+            }
+          ]
+        },
+        {
+          "key": "image_mode",
+          "label_zh": "成像模式",
+          "label_en": "Imaging mode",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "bright_field",
+              "label_zh": "明场",
+              "label_en": "Bright field"
+            },
+            {
+              "value": "dark_field",
+              "label_zh": "暗场",
+              "label_en": "Dark field"
+            },
+            {
+              "value": "HRTEM",
+              "label_zh": "HRTEM",
+              "label_en": "HRTEM"
+            },
+            {
+              "value": "HAADF",
+              "label_zh": "HAADF",
+              "label_en": "HAADF"
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "Other"
+            }
+          ],
+          "when": {
+            "data_type": [
+              "image"
+            ]
+          }
+        },
+        {
+          "key": "diffraction_mode",
+          "label_zh": "衍射模式",
+          "label_en": "Diffraction mode",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "SAED",
+              "label_zh": "SAED",
+              "label_en": "SAED"
+            },
+            {
+              "value": "NBED",
+              "label_zh": "NBED",
+              "label_en": "NBED"
+            },
+            {
+              "value": "CBED",
+              "label_zh": "CBED",
+              "label_en": "CBED"
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "Other"
+            }
+          ],
+          "when": {
+            "data_type": [
+              "diffraction"
+            ]
+          }
+        },
+        {
+          "key": "spectrum_mode",
+          "label_zh": "能谱方法",
+          "label_en": "Spectroscopy method",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "EDS",
+              "label_zh": "EDS",
+              "label_en": "EDS"
+            },
+            {
+              "value": "EELS",
+              "label_zh": "EELS",
+              "label_en": "EELS"
+            }
+          ],
+          "when": {
+            "data_type": [
+              "spectrum"
+            ]
+          }
         }
       ],
       "allowed_property_codes": [
-        "tem_lattice_spacing"
+        "tem_lattice_spacing",
+        "elemental_composition",
+        "observation_note"
       ],
       "default_property_codes": [
-        "tem_lattice_spacing"
+        "tem_lattice_spacing",
+        "observation_note"
       ],
-      "allowed_assertion_types": [
-        "phase_identity",
-        "composition",
-        "polytype",
-        "stacking_order",
-        "orientation_relationship",
-        "layer_count"
-      ]
+      "allowed_assertion_types": [],
+      "common_condition_keys": [
+        "acquisition_mode",
+        "image_mode",
+        "diffraction_mode",
+        "spectrum_mode"
+      ],
+      "property_conditions": {
+        "tem_lattice_spacing": {
+          "data_type": [
+            "image",
+            "diffraction"
+          ]
+        },
+        "elemental_composition": {
+          "data_type": [
+            "spectrum"
+          ],
+          "spectrum_mode": [
+            "EDS",
+            "EELS"
+          ]
+        }
+      }
     },
     "other": {
       "label_zh": "其他",
@@ -1047,6 +1871,272 @@
         "observation_note"
       ],
       "allowed_assertion_types": []
+    },
+    "SHG": {
+      "label_zh": "SHG",
+      "label_en": "SHG",
+      "instrument_required": true,
+      "raw_files_required": true,
+      "show_growth_presence": false,
+      "raw_file_guidance_zh": "上传原始光谱、扫描数据或图像。",
+      "allowed_region_types": [
+        "point",
+        "area",
+        "selected_area",
+        "whole_sample"
+      ],
+      "required_condition_keys": [
+        "data_type",
+        "excitation_wavelength_nm"
+      ],
+      "optional_condition_keys": [
+        "excitation_power_value",
+        "excitation_power_basis",
+        "integration_time_s",
+        "objective",
+        "excitation_mode",
+        "pulse_width_fs",
+        "repetition_rate_MHz",
+        "input_polarization",
+        "analyzer_polarization",
+        "angle_reference",
+        "polarization_scan_axis",
+        "angle_range_deg"
+      ],
+      "common_condition_keys": [
+        "excitation_power_value",
+        "excitation_power_basis",
+        "integration_time_s",
+        "excitation_mode",
+        "polarization_scan_axis"
+      ],
+      "condition_fields": [
+        {
+          "key": "data_type",
+          "label_zh": "数据类型",
+          "label_en": "Data type",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "spectrum",
+              "label_zh": "光谱",
+              "label_en": "Spectrum"
+            },
+            {
+              "value": "polarization_scan",
+              "label_zh": "偏振扫描",
+              "label_en": "Polarization scan"
+            },
+            {
+              "value": "image",
+              "label_zh": "图像",
+              "label_en": "Image"
+            },
+            {
+              "value": "power_scan",
+              "label_zh": "功率扫描",
+              "label_en": "Power scan"
+            }
+          ]
+        },
+        {
+          "key": "excitation_wavelength_nm",
+          "label_zh": "激发波长",
+          "label_en": "Excitation wavelength",
+          "value_type": "number",
+          "unit": "nm"
+        },
+        {
+          "key": "excitation_power_value",
+          "label_zh": "激光功率",
+          "label_en": "Laser power",
+          "value_type": "number"
+        },
+        {
+          "key": "excitation_power_basis",
+          "label_zh": "功率单位",
+          "label_en": "Power unit",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "sample_plane_mW",
+              "label_zh": "样品处功率（mW）",
+              "label_en": "At-sample power (mW)"
+            },
+            {
+              "value": "instrument_percent",
+              "label_zh": "仪器设置（%）",
+              "label_en": "Instrument setting (%)"
+            }
+          ]
+        },
+        {
+          "key": "integration_time_s",
+          "label_zh": "单次采集时间",
+          "label_en": "Time per acquisition",
+          "value_type": "number",
+          "unit": "s"
+        },
+        {
+          "key": "objective",
+          "label_zh": "物镜规格",
+          "label_en": "Objective specification",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          },
+          "placeholder_zh": "100×，NA 0.9",
+          "placeholder_en": "100×, NA 0.9"
+        },
+        {
+          "key": "excitation_mode",
+          "label_zh": "激光输出",
+          "label_en": "Laser output",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "continuous",
+              "label_zh": "连续",
+              "label_en": "Continuous-wave"
+            },
+            {
+              "value": "pulsed",
+              "label_zh": "脉冲",
+              "label_en": "Pulsed"
+            }
+          ]
+        },
+        {
+          "key": "pulse_width_fs",
+          "label_zh": "脉冲宽度",
+          "label_en": "Pulse duration",
+          "value_type": "number",
+          "unit": "fs",
+          "when": {
+            "excitation_mode": [
+              "pulsed"
+            ]
+          }
+        },
+        {
+          "key": "repetition_rate_MHz",
+          "label_zh": "重复频率",
+          "label_en": "Repetition rate",
+          "value_type": "number",
+          "unit": "MHz",
+          "when": {
+            "excitation_mode": [
+              "pulsed"
+            ]
+          }
+        },
+        {
+          "key": "input_polarization",
+          "legacy_only": true,
+          "label_zh": "入射偏振",
+          "label_en": "Input polarization",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "analyzer_polarization",
+          "legacy_only": true,
+          "label_zh": "检偏设置",
+          "label_en": "Analyzer setting",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "angle_reference",
+          "legacy_only": true,
+          "label_zh": "角度零点",
+          "label_en": "Angular zero reference",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          },
+          "when": {
+            "data_type": [
+              "polarization_scan"
+            ]
+          }
+        },
+        {
+          "key": "polarization_scan_axis",
+          "label_zh": "旋转对象",
+          "label_en": "Rotated element",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "input_polarization",
+              "label_zh": "入射偏振",
+              "label_en": "Input polarization"
+            },
+            {
+              "value": "analyzer",
+              "label_zh": "检偏器",
+              "label_en": "Analyzer"
+            },
+            {
+              "value": "sample",
+              "label_zh": "样品",
+              "label_en": "Sample"
+            }
+          ],
+          "when": {
+            "data_type": [
+              "polarization_scan"
+            ]
+          }
+        },
+        {
+          "key": "angle_range_deg",
+          "legacy_only": true,
+          "label_zh": "角度范围",
+          "label_en": "Angular range",
+          "value_type": "range",
+          "unit": "°",
+          "components": [
+            {
+              "key": "start",
+              "label_zh": "起点",
+              "label_en": "Start"
+            },
+            {
+              "key": "end",
+              "label_zh": "终点",
+              "label_en": "End"
+            }
+          ],
+          "when": {
+            "data_type": [
+              "polarization_scan"
+            ]
+          },
+          "signed": true
+        }
+      ],
+      "allowed_property_codes": [
+        "spectral_peaks",
+        "observation_note"
+      ],
+      "default_property_codes": [],
+      "allowed_assertion_types": [],
+      "peak_position_units": [
+        "nm",
+        "eV"
+      ],
+      "property_conditions": {
+        "spectral_peaks": {
+          "data_type": [
+            "spectrum"
+          ]
+        }
+      }
     }
   },
   "fields": [
@@ -1344,13 +2434,13 @@
       "module": "目标产物",
       "module_key": "target_product",
       "key": "target_layer_count",
-      "label": "目标原子层数",
-      "label_en": "Target atomic-layer count",
-      "meaning": "单一材料体系期望的原子层数；异质结构按材料层或区域记录，不显示本全局字段",
+      "label": "目标层数",
+      "label_en": "Target material-layer count",
+      "meaning": "层状材料各目标区域期望的材料层数；例如单层 MoS₂ 记为 1，不按三个原子面计数；非层状材料留空",
       "input": "数值",
       "example": "1（单层）",
-      "help": null,
-      "help_en": null,
+      "help": "仅层状材料填写；例如单层 MoS₂ 填 1，非层状材料留空。",
+      "help_en": "Complete only for layered materials; enter 1 for monolayer MoS₂ and leave blank for non-layered materials.",
       "machine_type": "integer",
       "schema_path": "$.modules.target_product.properties.material_regions.items.properties.target_layer_count",
       "r0": false,
@@ -1391,11 +2481,11 @@
       "module": "目标产物",
       "module_key": "target_product",
       "key": "dimensional_form",
-      "label": "目标形态",
-      "label_en": "Target morphology",
-      "meaning": "目标材料的几何维度形态",
+      "label": "目标产物形态",
+      "label_en": "Target product form",
+      "meaning": "实验前希望制备出的主要宏观形态；连续膜与分立片状晶体作为互斥的目标产物形式",
       "input": "下拉",
-      "example": "片状",
+      "example": "分立片状晶体/晶畴",
       "help": null,
       "help_en": null,
       "machine_type": "string",
@@ -1406,51 +2496,29 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "片状/带状/线状/管状/棒状/颗粒/其他"
+      "options": "连续膜·分立片状晶体/晶畴·带状·线状·管状·棒状·颗粒·块状晶体·其他"
     },
     {
       "source_part": "experiment_record",
       "module": "目标产物",
       "module_key": "target_product",
-      "key": "coverage_state",
-      "label": "目标覆盖状态",
-      "label_en": "Target coverage state",
-      "meaning": "片状或晶畴在衬底表面的空间连通与覆盖状态",
+      "key": "in_plane_outline",
+      "label": "目标平面轮廓",
+      "label_en": "Target in-plane outline",
+      "meaning": "分立片状晶体或晶畴的目标平面几何轮廓",
       "input": "下拉",
-      "example": "不连续",
+      "example": "三角形",
       "help": null,
       "help_en": null,
       "machine_type": "string",
-      "schema_path": "$.modules.target_product.properties.coverage_state",
+      "schema_path": "$.modules.target_product.properties.in_plane_outline",
       "r0": false,
       "condition": null,
       "requirement": "optional",
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "孤立/不连续/贯通/连续"
-    },
-    {
-      "source_part": "experiment_record",
-      "module": "目标产物",
-      "module_key": "target_product",
-      "key": "orientation",
-      "label": "目标生长取向",
-      "label_en": "Target growth orientation",
-      "meaning": "目标材料相对衬底的主要生长取向",
-      "input": "下拉",
-      "example": "面内",
-      "help": null,
-      "help_en": null,
-      "machine_type": "string",
-      "schema_path": "$.modules.target_product.properties.orientation",
-      "r0": false,
-      "condition": null,
-      "requirement": "optional",
-      "otherwise": null,
-      "validation": null,
-      "unit": null,
-      "options": "面内/垂直/混合"
+      "options": "三角形·截角三角形·六边形·四边形（矩形/平行四边形/菱形）·其他规则多边形·圆形/椭圆形·星形/多裂片状·枝晶状/分形·不规则·其他"
     },
     {
       "source_part": "experiment_record",
@@ -1840,7 +2908,7 @@
       "key": "field_devices",
       "label": "外场能力",
       "label_en": "External field capabilities",
-      "meaning": "所引用装置是否具备等离子体、光或电场能力；本炉实际使用情况在反应条件中记录",
+      "meaning": "所引用装置是否具备等离子体、光、电场或其他外场能力；本炉实际使用情况在反应条件中记录",
       "input": "多选",
       "example": "无",
       "help": null,
@@ -1853,7 +2921,33 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "无/等离子体/光/电"
+      "options": "无/等离子体/光/电/其他"
+    },
+    {
+      "source_part": "experiment_record",
+      "module": "设备",
+      "module_key": "equipment",
+      "key": "field_device_other_name",
+      "label": "其他外场能力名称",
+      "label_en": "Other external-field capability name",
+      "meaning": "所引用装置登记的其他外场能力名称，只读带出",
+      "input": "文本",
+      "example": "磁场",
+      "help": null,
+      "help_en": null,
+      "machine_type": "string",
+      "schema_path": "$.modules.equipment.properties.field_device_other_name",
+      "r0": false,
+      "condition": {
+        "field": "设备.外场能力",
+        "op": "eq",
+        "value": "other"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": null
     },
     {
       "source_part": "experiment_record",
@@ -1972,58 +3066,10 @@
       "source_part": "experiment_record",
       "module": "前驱体",
       "module_key": "precursors",
-      "key": "process_roles",
-      "label": "工艺作用",
-      "label_en": "Process roles",
-      "meaning": "本物料在本炉次中承担、且不能仅由物料和目标化学式确定的工艺功能",
-      "input": "多选",
-      "example": "助熔或盐辅助·促进反应或成核",
-      "help": null,
-      "help_en": null,
-      "machine_type": "array",
-      "schema_path": "$.modules.precursors.properties.items.items.properties.ingredients.items.properties.process_roles",
-      "r0": false,
-      "condition": null,
-      "requirement": "optional",
-      "otherwise": null,
-      "validation": null,
-      "unit": null,
-      "options": "促进反应或成核·助熔或盐辅助·输运·溶剂或分散介质·还原·氧化·刻蚀·其他"
-    },
-    {
-      "source_part": "experiment_record",
-      "module": "前驱体",
-      "module_key": "precursors",
-      "key": "process_role_other",
-      "label": "其他工艺作用",
-      "label_en": "Other process role",
-      "meaning": "选择其他工艺作用时填写的具体名称",
-      "input": "文本",
-      "example": "晶面选择剂",
-      "help": null,
-      "help_en": null,
-      "machine_type": "string",
-      "schema_path": "$.modules.precursors.properties.items.items.properties.ingredients.items.properties.process_role_other",
-      "r0": false,
-      "condition": {
-        "field": "前驱体.工艺作用",
-        "op": "eq",
-        "value": "other"
-      },
-      "requirement": "conditional_required",
-      "otherwise": null,
-      "validation": null,
-      "unit": null,
-      "options": null
-    },
-    {
-      "source_part": "experiment_record",
-      "module": "前驱体",
-      "module_key": "precursors",
       "key": "amount",
       "label": "使用量",
       "label_en": "Amount used",
-      "meaning": "投料量（只记投料，不记残余）",
+      "meaning": "本次投料量；滴涂记录滴加体积，不代表干燥后负载量",
       "input": "数值",
       "example": "20",
       "help": null,
@@ -2077,7 +3123,7 @@
       "key": "concentration_value",
       "label": "溶液浓度",
       "label_en": "Solution concentration",
-      "meaning": "本次旋涂使用的该物料在溶液中的浓度数值",
+      "meaning": "本次旋涂、滴涂或浸渍所用该物料的溶液浓度",
       "input": "数值",
       "example": "0.5",
       "help": null,
@@ -2147,9 +3193,9 @@
       "module": "前驱体",
       "module_key": "precursors",
       "key": "preparation_steps",
-      "label": "使用前处理",
-      "label_en": "Pre-loading treatment",
-      "meaning": "投料前处理（可多步，选了再展开参数）",
+      "label": "处理方式",
+      "label_en": "Treatment method",
+      "meaning": "前驱体准备与装载操作，按装载方式展开；本炉热处理记录在生长条件",
       "input": "前驱体处理步骤数组",
       "example": "[{type: 旋涂, parameters: {stages: [{speed_rpm: 1000, duration_s: 10}, {speed_rpm: 6000, duration_s: 30}]}}]",
       "help": null,
@@ -2162,7 +3208,7 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "{type: 直接加载|熔融凝固|压片|旋涂|退火|研磨|其他, other_name?, parameters: 固定参数对象}"
+      "options": "{step_type: 直接加载|研磨|压片|熔融|旋涂|滴涂|浸渍|干燥|其他, sequence, parameters: 固定参数对象}"
     },
     {
       "source_part": "experiment_record",
@@ -2184,7 +3230,7 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "舟/坩埚/涂覆在衬底表面/气路供给/鼓泡器/其他容器"
+      "options": "舟/坩埚/衬底/气路供给/其他"
     },
     {
       "source_part": "experiment_record",
@@ -2239,13 +3285,13 @@
       "module": "前驱体",
       "module_key": "precursors",
       "key": "initial_position",
-      "label": "热电偶相对位置",
+      "label": "相对测温点位置",
       "label_en": "Precursor source position",
-      "meaning": "独立前驱体源相对所选温区热电偶的有符号轴向距离",
+      "meaning": "独立前驱体源相对所选温区测温点的有符号轴向距离",
       "input": "源位置对象",
       "example": "{reference: zone_thermocouple, axial_mm: -20}",
-      "help": "以所选温区热电偶为0 mm；沿气流方向，上游填负值，下游填正值。",
-      "help_en": "Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.",
+      "help": "以所选温区测温点为0 mm；沿气流方向，上游填负值，下游填正值。",
+      "help_en": "Use the temperature measurement point in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.",
       "machine_type": "object",
       "schema_path": "$.modules.precursors.properties.items.items.properties.initial_position",
       "r0": false,
@@ -2271,7 +3317,7 @@
       "key": "heating_zone_ref",
       "label": "前驱体所在温区",
       "label_en": "Precursor zone",
-      "meaning": "独立前驱体源所属的加热温区，同时是轴向位置的热电偶参照",
+      "meaning": "独立前驱体源所属的加热温区，同时是轴向位置的测温点参照",
       "input": "温区选择",
       "example": "zone_2",
       "help": null,
@@ -2437,13 +3483,13 @@
       "module": "衬底",
       "module_key": "substrates",
       "key": "size_placement",
-      "label": "本片实际尺寸与放置方式",
-      "label_en": "Actual piece size and placement",
-      "meaning": "本次实验实际放入炉内的这一片衬底尺寸、放置方式及条件角度；长度为沿气流方向的边长，宽度为垂直气流方向的边长",
+      "label": "本片实际尺寸与姿态",
+      "label_en": "Actual piece size and pose",
+      "meaning": "本次实验实际放入炉内的这一片衬底的本体尺寸与空间姿态；长度和宽度按样片自身尺寸记录，不随摆放方向换名",
       "input": "衬底尺寸放置对象",
-      "example": "{length_mm: 10, width_mm: 10, thickness_mm: 0.5, placement: 倾角, tilt_angle_deg: 15}",
-      "help": "填本次实际放入炉内的单片尺寸和放置方式；长度沿气流方向、宽度垂直气流方向，未对齐时在备注说明；倾角相对水平放置平面。",
-      "help_en": "Enter the actual piece dimensions and placement for this run. Length follows the gas-flow direction and width is perpendicular; note any misalignment. Measure tilt from the horizontal support plane.",
+      "example": "{length_mm: 10, width_mm: 5, thickness_mm: 0.5, placement: 倾角, tilt_angle_deg: -15, tilt_azimuth_deg: 180}",
+      "help": "倾角绝对值为衬底平面与水平面的夹角，生长面朝上为正、朝下为负；方位角按生长面法向的水平投影，以下游为0°，俯视时顺时针为正。",
+      "help_en": "The absolute tilt is the angle between the substrate plane and the horizontal plane; positive means the growth face points upward and negative downward. Azimuth follows the horizontal projection of the growth-face normal, with downstream as 0° and clockwise positive when viewed from above.",
       "machine_type": "object",
       "schema_path": "$.modules.substrates.properties.items.items.properties.size_placement",
       "r0": true,
@@ -2452,7 +3498,29 @@
       "otherwise": null,
       "validation": null,
       "unit": "mm",
-      "options": "{length_mm, width_mm, thickness_mm?, placement: 正放|倒扣|两片生长面相对|倾角|竖放|其他, tilt_angle_deg?, placement_other?}"
+      "options": "{length_mm, width_mm, thickness_mm?, placement: 正放|倒扣|倾角|竖放|其他, tilt_angle_deg?, tilt_azimuth_deg?, upright_growth_face_direction?: 朝下游|朝上游|朝炉管左侧|朝炉管右侧, placement_other?}"
+    },
+    {
+      "source_part": "experiment_record",
+      "module": "衬底",
+      "module_key": "substrates",
+      "key": "placement_relations",
+      "label": "片间生长面相对关系",
+      "label_en": "Opposed growth-face relations between pieces",
+      "meaning": "两片衬底的生长面相对摆放关系；与单片空间姿态分开记录",
+      "input": "衬底片间关系数组",
+      "example": "[{piece_a_label: S1, piece_b_label: S2, gap_mm: 0}]",
+      "help": null,
+      "help_en": null,
+      "machine_type": "array",
+      "schema_path": "$.modules.substrates.properties.placement_relations",
+      "r0": false,
+      "condition": null,
+      "requirement": "optional",
+      "otherwise": null,
+      "validation": null,
+      "unit": "mm",
+      "options": "[{piece_a_label, piece_b_label, gap_mm?}]"
     },
     {
       "source_part": "experiment_record",
@@ -2463,7 +3531,7 @@
       "label_en": "Pretreatment steps (ordered)",
       "meaning": "预处理步骤序列（记顺序，展开参数）",
       "input": "衬底预处理步骤数组",
-      "example": "[{type: 丙酮清洗}, {type: 异丙醇清洗}, {type: 氮气吹干}]",
+      "example": "[{type: 溶剂清洗, parameters: {solvent: 丙酮, cleaning_method: 超声, duration_min: 10}}, {type: 溶剂清洗, parameters: {solvent: 异丙醇, cleaning_method: 冲洗}}, {type: 氮气吹干}]",
       "help": null,
       "help_en": null,
       "machine_type": "array",
@@ -2474,7 +3542,7 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "{type: 丙酮清洗|异丙醇清洗|氮气吹干|退火|等离子体|亲水处理|其他, other_name?, parameters: 具名参数对象}"
+      "options": "{type: 溶剂清洗|氮气吹干|退火|等离子体|紫外/臭氧处理|其他, other_name?, parameters: 溶剂清洗[solvent: 丙酮|异丙醇|乙醇|甲醇|去离子水|其他, solvent_other?, cleaning_method: 超声|浸泡|冲洗|擦拭|其他, cleaning_method_other?, duration_min?]；紫外/臭氧处理[duration_min]；其余为对应参数对象}"
     },
     {
       "source_part": "experiment_record",
@@ -2527,13 +3595,13 @@
       "module": "衬底",
       "module_key": "substrates",
       "key": "zone_thermocouple_distance_mm",
-      "label": "所在温区与热电偶相对位置",
-      "label_en": "Zone and distance to thermocouple",
+      "label": "所在温区与相对测温点位置",
+      "label_en": "Zone and position relative to temperature measurement point",
       "meaning": "第几温区、距离(±)",
       "input": "温区距离对象",
       "example": "温区2，+15",
-      "help": "以所选温区热电偶为 0 mm；沿气流方向，上游填负值，下游填正值。",
-      "help_en": "Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.",
+      "help": "以所选温区测温点为 0 mm；沿气流方向，上游填负值，下游填正值。",
+      "help_en": "Use the temperature measurement point in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.",
       "machine_type": "object",
       "schema_path": "$.modules.substrates.properties.items.items.properties.zone_thermocouple_distance_mm",
       "r0": false,
@@ -2592,6 +3660,30 @@
       "source_part": "experiment_record",
       "module": "过程通道",
       "module_key": "process_steps",
+      "key": "process_duration_min",
+      "label": "过程总时长",
+      "label_en": "Total process duration",
+      "meaning": "从统一实验开始时间到本次制备过程结束的总时长，包含记录的降温与供气",
+      "input": "数值",
+      "example": "100",
+      "help": null,
+      "help_en": null,
+      "machine_type": "number",
+      "schema_path": "$.modules.process_steps.properties.process_duration_min",
+      "r0": false,
+      "condition": null,
+      "requirement": "required",
+      "otherwise": null,
+      "validation": {
+        "gt": 0
+      },
+      "unit": "min",
+      "options": null
+    },
+    {
+      "source_part": "experiment_record",
+      "module": "过程通道",
+      "module_key": "process_steps",
       "key": "process_events_confirmed",
       "label": "本炉发生过异常",
       "label_en": "Process anomaly occurred",
@@ -2617,7 +3709,7 @@
       "key": "pressure_regime",
       "label": "反应压力条件",
       "label_en": "Reaction pressure regime",
-      "meaning": "本炉是常压、低压、超高真空或其他压力条件",
+      "meaning": "相对于当地环境大气压的减压、常压或加压条件",
       "input": "下拉",
       "example": "low_pressure",
       "help": null,
@@ -2630,7 +3722,7 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "atmospheric/low_pressure/ultra_high_vacuum/other"
+      "options": "atmospheric/low_pressure/high_pressure"
     },
     {
       "source_part": "experiment_record",
@@ -2652,7 +3744,33 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "furnace_cooling/open_lid_cooling/rapid_furnace_move_cooling/controlled_cooling/other"
+      "options": "furnace_cooling/open_lid_cooling/rapid_furnace_move_cooling/controlled_cooling/staged_cooling/other"
+    },
+    {
+      "source_part": "experiment_record",
+      "module": "步·降温",
+      "module_key": "process_steps",
+      "key": "cooling_sequence",
+      "label": "降温顺序",
+      "label_en": "Cooling sequence",
+      "meaning": "两种或更多降温操作的实际先后顺序；程序降温的温度和时长仍只记录在温度程序",
+      "input": "有序降温操作数组",
+      "example": "[{method: controlled_cooling}, {method: furnace_cooling}]",
+      "help": null,
+      "help_en": null,
+      "machine_type": "array",
+      "schema_path": "$.modules.process_steps.properties.cooling_sequence",
+      "r0": false,
+      "condition": {
+        "field": "步·降温.降温方式",
+        "op": "eq",
+        "value": "staged_cooling"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": "{method, lid_open_temperature_C?, other_name?}"
     },
     {
       "source_part": "experiment_record",
@@ -2678,34 +3796,6 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": null
-    },
-    {
-      "source_part": "experiment_record",
-      "module": "步·降温",
-      "module_key": "process_steps",
-      "key": "cooling_rate_C_per_min",
-      "label": "受控降温速率",
-      "label_en": "Controlled cooling rate",
-      "meaning": "受控降温时的设定降温速率",
-      "input": "数值",
-      "example": "10",
-      "help": null,
-      "help_en": null,
-      "machine_type": "number",
-      "schema_path": "$.modules.process_steps.properties.cooling_rate_C_per_min",
-      "r0": true,
-      "condition": {
-        "field": "步·降温.降温方式",
-        "op": "eq",
-        "value": "controlled_cooling"
-      },
-      "requirement": "conditional_required",
-      "otherwise": null,
-      "validation": {
-        "gt": 0
-      },
-      "unit": "℃/min",
       "options": null
     },
     {
@@ -2741,9 +3831,9 @@
       "key": "preparation_operations",
       "label": "实验前准备操作",
       "label_en": "Pre-run preparation operations",
-      "meaning": "选填的实验前操作；抽真空优先记录终点绝对压力，无压力读数时记录持续时间，气路置换引用实际气瓶版本",
+      "meaning": "按实际添加抽真空、气氛置换或其他操作；检漏属于设备操作规程，不设状态或自动确认。气氛置换按连续通气或抽空—回填展开，引用实际气瓶版本",
       "input": "预处理操作数组",
-      "example": "[{operation_type: pump_down, target_absolute_pressure_Pa: 10}, {operation_type: gas_exchange, duration_min: 10, cycle_count: 3, gas_sources: [{material_lot_id: UUID, material_lot_version: 2}]}]",
+      "example": "[{operation_type: gas_exchange, exchange_mode: continuous_flow, duration_min: 10, gas_sources: [{material_lot_id: UUID, material_lot_version: 2, flow_sccm: 100}]}]",
       "help": null,
       "help_en": null,
       "machine_type": "array",
@@ -2754,7 +3844,7 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "{operation_type: pump_down|gas_exchange|leak_check|other, duration_min?, target_absolute_pressure_Pa?, cycle_count?, gas_sources?: [{material_lot_id, material_lot_version, snapshot?}], other_name?}"
+      "options": "{operation_type: pump_down|gas_exchange|other, exchange_mode?: continuous_flow|evacuation_backfill, duration_min?, target_absolute_pressure_Pa?, backfill_absolute_pressure_Pa?, cycle_count?, gas_sources?: [{material_lot_id, material_lot_version, flow_sccm?, snapshot?}], other_name?}"
     },
     {
       "source_part": "experiment_record",
@@ -2776,7 +3866,7 @@
       "otherwise": null,
       "validation": null,
       "unit": "按参数",
-      "options": "{field_type: 等离子体|光|电, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；other_parameters?}"
+      "options": "{field_type: 等离子体|光|电|其他, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；其他[至少一个具名参数]；other_parameters?}"
     },
     {
       "source_part": "experiment_record",
@@ -2807,7 +3897,7 @@
       "key": "observed_deviations",
       "label": "观察到的偏差",
       "label_en": "Observed deviations",
-      "meaning": "过程中直接观察到的异常或人工干预，可同时选择多项",
+      "meaning": "过程中直接观察到的异常或计划变更；人工干预、人工停止统一归为计划变更",
       "input": "多选+其他",
       "example": "供气中断",
       "help": null,
@@ -2820,7 +3910,7 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "管路堵塞/压力超限/信号异常/人工干预/设备报警/人工停止/供电中断/供水中断/供气中断/计划改变/其他"
+      "options": "供电中断/供水中断/供气中断/管路堵塞/压力突变/设备报警/信号异常/计划变更/其他"
     },
     {
       "source_part": "experiment_record",
@@ -3196,8 +4286,8 @@
       "meaning": "包装标签、产品页或CoA给出的产品等级原文",
       "input": "文本",
       "example": "99.98% trace metals basis",
-      "help": "照录包装标签、产品页或 CoA 上的等级名称；未标注时留空。",
-      "help_en": "Copy the grade shown on the package label, product page, or CoA; leave blank if none is stated.",
+      "help": null,
+      "help_en": null,
       "machine_type": "string",
       "schema_path": "$.entities.material_lot.properties.declared_grade",
       "r0": false,
@@ -3216,6 +4306,32 @@
       "source_part": "entity",
       "module": "MaterialLot",
       "module_key": "material_lot",
+      "key": "batch_number_availability",
+      "label": "▸衬底·批号提供情况",
+      "label_en": "Substrate · lot-number availability",
+      "meaning": "衬底包装标签或供应商资料是否提供批号",
+      "input": "下拉",
+      "example": "未提供批号",
+      "help": null,
+      "help_en": null,
+      "machine_type": "string",
+      "schema_path": "$.entities.material_lot.properties.batch_number_availability",
+      "r0": false,
+      "condition": {
+        "field": "MaterialLot.批次类别",
+        "op": "eq",
+        "value": "substrate"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": "有批号·未提供批号"
+    },
+    {
+      "source_part": "entity",
+      "module": "MaterialLot",
+      "module_key": "material_lot",
       "key": "batch_number",
       "label": "批号（Lot No. / Batch No.）",
       "label_en": "Lot/Batch number",
@@ -3228,11 +4344,37 @@
       "schema_path": "$.entities.material_lot.properties.batch_number",
       "r0": false,
       "condition": null,
-      "requirement": "required",
+      "requirement": "optional",
       "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
+    },
+    {
+      "source_part": "entity",
+      "module": "MaterialLot",
+      "module_key": "material_lot",
+      "key": "production_date",
+      "label": "▸衬底·生产日期（标签原文）",
+      "label_en": "Substrate · production date (as labeled)",
+      "meaning": "衬底包装标签或供应商资料给出的生产日期；只标到月份时保留月份精度",
+      "input": "年月或日期",
+      "example": "2026-08",
+      "help": null,
+      "help_en": null,
+      "machine_type": "string",
+      "schema_path": "$.entities.material_lot.properties.production_date",
+      "r0": false,
+      "condition": {
+        "field": "MaterialLot.▸衬底·批号提供情况",
+        "op": "eq",
+        "value": "batch_number_not_provided"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": "YYYY-MM或YYYY-MM-DD"
     },
     {
       "source_part": "entity",
@@ -3549,8 +4691,8 @@
       "meaning": "子类(批次类别=气瓶)；与base『纯度』分工",
       "input": "下拉",
       "example": "5N",
-      "help": "仅选择标签明确标示的 N 级；其他等级填写在“产品等级（标签原文）”。",
-      "help_en": "Select an N-grade only when explicitly shown on the label; enter other grades under “Product grade (as labeled)”.",
+      "help": "按标签选择；未列出的等级填入“产品等级”。",
+      "help_en": "Select the grade shown on the label; enter unlisted grades under “Product grade”.",
       "machine_type": "string",
       "schema_path": "$.entities.material_lot.properties.gas_purity_grade",
       "r0": false,
@@ -3935,7 +5077,7 @@
       "key": "field_devices",
       "label": "外场能力",
       "label_en": "External field capabilities",
-      "meaning": "装置具备的光、电或等离子体能力",
+      "meaning": "装置具备的光照、电场、等离子体或其他外场能力",
       "input": "多选",
       "example": "无",
       "help": null,
@@ -3948,7 +5090,33 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "无/光/电/等离子体"
+      "options": "无/光照/电场/等离子体/其他"
+    },
+    {
+      "source_part": "entity",
+      "module": "装置Setup",
+      "module_key": "setup",
+      "key": "field_device_other_name",
+      "label": "其他外场能力名称",
+      "label_en": "Other external-field capability name",
+      "meaning": "外场能力选择“其他”时填写可复用的能力名称",
+      "input": "文本",
+      "example": "磁场",
+      "help": null,
+      "help_en": null,
+      "machine_type": "string",
+      "schema_path": "$.entities.setup.properties.field_device_other_name",
+      "r0": false,
+      "condition": {
+        "field": "装置Setup.外场能力",
+        "op": "eq",
+        "value": "other"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": null
     },
     {
       "source_part": "entity",
@@ -4036,7 +5204,7 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他"
+      "options": "OM/Raman/PL/SHG/AFM/SEM/TEM/XRD/其他/低波数Raman"
     },
     {
       "source_part": "entity",
@@ -4114,8 +5282,8 @@
       "meaning": "可长期稳定指向该仪器的公开或机构标识，不等同于设备序列号",
       "input": "文本",
       "example": "—",
-      "help": "PID（Persistent Identifier）是长期稳定的仪器标识，例如机构分配的 PIDINST；它不是厂商序列号。",
-      "help_en": "A PID is a persistent identifier assigned by an institution or registry, such as PIDINST; it is not the manufacturer's serial number.",
+      "help": "机构分配的长期标识，非厂商序列号。",
+      "help_en": "A persistent institution-assigned identifier, not the manufacturer's serial number.",
       "machine_type": "string",
       "schema_path": "$.entities.instrument.properties.pid",
       "r0": false,
@@ -4158,8 +5326,8 @@
       "meaning": "随仪器长期固定的硬件或能力；本次实际使用参数在表征结果的测试条件中填写",
       "input": "自由",
       "example": "CCD探测器；300、600、1800 lines·mm⁻¹光栅",
-      "help": "只填不会随一次测试改变的硬件或能力；本次参数填在表征结果中。",
-      "help_en": "Enter stable hardware or capabilities only; record settings used for a measurement in that result.",
+      "help": "记录固定硬件与能力；本次使用参数填在表征记录中。",
+      "help_en": "Record fixed hardware and capabilities here; enter acquisition settings in each characterization record.",
       "machine_type": "string",
       "schema_path": "$.entities.instrument.properties.fixed_config",
       "r0": false,
@@ -4180,8 +5348,8 @@
       "meaning": "选择该仪器支持的表征方法，供结果录入时筛选",
       "input": "JSON数组",
       "example": "[{\"code\":\"Raman\",\"configuration\":{}}]",
-      "help": "勾选仪器支持的方法；固定硬件填在“关键固定配置”，本次实际参数填在表征结果中。",
-      "help_en": "Select supported methods; record stable hardware under Key fixed configuration and actual settings in each characterization result.",
+      "help": null,
+      "help_en": null,
       "machine_type": "array",
       "schema_path": "$.entities.instrument.properties.capabilities",
       "r0": false,
@@ -4190,7 +5358,7 @@
       "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "[{code,configuration}]"
+      "options": "[{code,configuration}]；code=other 时 configuration.method_names 为方法名称列表"
     },
     {
       "source_part": "entity",
@@ -4215,5 +5383,5 @@
       "options": null
     }
   ],
-  "field_count": 134
+  "field_count": 137
 }

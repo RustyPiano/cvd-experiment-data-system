@@ -38,7 +38,7 @@ import { RequiredMark } from '@/shared/ui/required-mark'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { uploadExperimentFile } from '@/features/samples/api'
 
-import type { ModuleValues } from './field-logic'
+import type { ModuleValues, SubstratePlacementRelation } from './field-logic'
 import { emptySubstrateValues, moduleValueAsString } from './field-logic'
 import { EntityReferenceSelect } from './components/entity-reference-select'
 import { gasCylinderMatchesSpecies } from './components/reference-snapshot'
@@ -54,6 +54,7 @@ import { ModuleCard } from './components/module-card'
 import { TargetBulkPhaseSelect } from './components/target-bulk-phase-select'
 import {
   TreatmentStepsEditor,
+  sourceTreatmentTypesFor,
   normalizeTreatmentSteps,
   treatmentStepsAreValid,
 } from './components/treatment-steps-editor'
@@ -77,16 +78,21 @@ import {
   suggestedBulkSpaceGroups,
 } from './space-groups'
 import {
+  PROCESS_DEVIATION_OPTIONS,
   buildEventDescription,
   compositionValueForDisplay,
   compositionValueForPayload,
-  simpleProcessEndSeconds,
+  simplePreparationIssue,
   splitEventDescription,
   temperatureStepOperation,
   updateTemperatureStepDuration,
   wholeProcessInterval,
 } from './simple-form-adapters'
-import type { GasTimingPreset } from './simple-form-adapters'
+import type {
+  GasTimingPreset,
+  SimpleCoolingStep,
+  SimplePreparationOperation,
+} from './simple-form-adapters'
 
 export type SimpleRegion = {
   region_key: string
@@ -125,14 +131,26 @@ export type SimpleTarget = {
   material_regions: SimpleRegion[]
   composition_relations: SimpleCompositionRelation[]
   dimensional_form?:
-    | 'sheet'
+    | 'continuous_film'
+    | 'discrete_planar_crystal'
     | 'ribbon'
     | 'wire'
     | 'tube'
     | 'rod'
     | 'particle'
+    | 'bulk_crystal'
     | 'other'
-  coverage_state?: 'isolated' | 'discontinuous' | 'percolated' | 'continuous'
+  in_plane_outline?:
+    | 'triangle'
+    | 'truncated_triangle'
+    | 'hexagon'
+    | 'quadrilateral'
+    | 'other_regular_polygon'
+    | 'circular_elliptical'
+    | 'lobed_star'
+    | 'dendritic_fractal'
+    | 'irregular'
+    | 'other'
   optimization_objective?: string
   note?: string
 }
@@ -142,6 +160,7 @@ export type SimpleIngredient = {
   material_lot_version: number
   /** 旧记录只读兼容；新保存不再写入。 */
   function_role?: string
+  /** 旧载荷兼容；保存时剔除，不展示或用于校验。 */
   process_roles?: string[]
   process_role_other?: string
   amount?: number
@@ -153,6 +172,7 @@ export type SimpleIngredient = {
 }
 
 export type SimpleSourceLoad = {
+  attrs?: Record<string, unknown>
   load_key: string
   loading_method: string
   preparation_steps: Array<{
@@ -178,30 +198,6 @@ export type SimpleSourceLoad = {
   ingredients: SimpleIngredient[]
 }
 
-const PROCESS_ROLE_OPTIONS = [
-  ['reaction_or_nucleation_promoter', '促进反应或成核'],
-  ['flux_or_salt_assistant', '助熔或盐辅助'],
-  ['transport_agent', '输运'],
-  ['solvent_or_dispersion_medium', '溶剂或分散介质'],
-  ['reducing_agent', '还原'],
-  ['oxidizing_agent', '氧化'],
-  ['etchant', '刻蚀'],
-  ['other', '其他'],
-] as const
-const LEGACY_FUNCTION_ROLE_LABELS: Record<string, string> = {
-  metal_source: '金属源',
-  chalcogen_source: '硫族元素源',
-  carbon_source: '碳源',
-  dopant_source: '掺杂源',
-  promoter: '促进剂',
-  transport_agent: '输运剂',
-  etchant: '刻蚀剂',
-  reducing_agent: '还原剂',
-  oxidizing_agent: '氧化剂',
-  carrier_gas: '载气',
-  other: '其他',
-}
-
 const CONCENTRATION_UNITS = [
   ['mol_per_L', 'mol/L'],
   ['mmol_per_L', 'mmol/L (mM)'],
@@ -218,8 +214,10 @@ const AMOUNT_UNITS = ['mg', 'g', 'μL', 'mL'] as const
 
 export function sourceLoadIngredientsAreValid(
   ingredients: SimpleIngredient[],
-  hasSpinCoating = false,
+  hasSolution = false,
   amountRequired = true,
+  concentrationRequired = false,
+  volumeRequired = false,
 ): boolean {
   const lotIds = new Set<string>()
   return (
@@ -227,9 +225,7 @@ export function sourceLoadIngredientsAreValid(
     ingredients.every((ingredient) => {
       if (
         !ingredient.material_lot_id ||
-        lotIds.has(ingredient.material_lot_id) ||
-        ((ingredient.process_roles ?? []).includes('other') &&
-          !ingredient.process_role_other?.trim())
+        lotIds.has(ingredient.material_lot_id)
       ) {
         return false
       }
@@ -239,12 +235,17 @@ export function sourceLoadIngredientsAreValid(
         (Number.isFinite(ingredient.amount) &&
           Number(ingredient.amount) > 0 &&
           Boolean(ingredient.unit?.trim()))
-      if (!amountValid || !hasSpinCoating) return amountValid
+      if (
+        volumeRequired &&
+        !['μL', 'µL', 'uL', 'mL', 'L'].includes(ingredient.unit ?? '')
+      )
+        return false
+      if (!amountValid || !hasSolution) return amountValid
       const hasConcentration =
         ingredient.concentration_value !== undefined ||
         Boolean(ingredient.concentration_unit) ||
         Boolean(ingredient.concentration_unit_other?.trim())
-      if (!hasConcentration) return true
+      if (!hasConcentration) return !concentrationRequired
       return Boolean(
         Number.isFinite(ingredient.concentration_value) &&
         Number(ingredient.concentration_value) > 0 &&
@@ -296,34 +297,20 @@ export type SimpleChannel = {
 }
 
 export type SimpleProcessSettings = {
-  pressure_regime?:
-    | 'atmospheric'
-    | 'low_pressure'
-    | 'ultra_high_vacuum'
-    | 'other'
+  process_duration_min?: number
+  pressure_regime?: 'atmospheric' | 'low_pressure' | 'high_pressure' | 'other'
   cooling_method?:
     | 'furnace_cooling'
     | 'open_lid_cooling'
     | 'rapid_furnace_move_cooling'
     | 'controlled_cooling'
+    | 'staged_cooling'
     | 'other'
+  cooling_sequence?: SimpleCoolingStep[]
   cooling_other?: string
   cooling_rate_C_per_min?: number
   lid_open_temperature_C?: number
-  preparation_operations?: Array<{
-    operation_type: 'pump_down' | 'gas_exchange' | 'leak_check' | 'other'
-    duration_min?: number
-    target_absolute_pressure_Pa?: number
-    cycle_count?: number
-    gas_sources?: Array<{
-      material_lot_id: string
-      material_lot_version?: number
-      snapshot?: Record<string, unknown>
-    }>
-    /** 旧修订只读兼容；新保存改为引用 gas_sources。 */
-    gases?: string[]
-    other_name?: string
-  }>
+  preparation_operations?: SimplePreparationOperation[]
   field_params?: ActualField[]
   /** 旧草稿兼容；新记录使用 field_params。 */
   external_fields?: string[]
@@ -343,20 +330,6 @@ export type SimpleProcessEvent = {
   description?: string
   attachment_file_ids: string[]
 }
-
-const PROCESS_DEVIATION_OPTIONS = [
-  ['line_blockage', '管路堵塞'],
-  ['pressure_excursion', '压力突变'],
-  ['signal_anomaly', '信号异常'],
-  ['manual_intervention', '人工干预'],
-  ['equipment_alarm', '设备报警'],
-  ['manual_stop', '人工停止'],
-  ['power_interruption', '供电中断'],
-  ['water_interruption', '供水中断'],
-  ['gas_interruption', '供气中断'],
-  ['plan_changed', '计划变更'],
-  ['other', '其他异常'],
-] as const
 
 function key(prefix: string) {
   return `${prefix}_${crypto.randomUUID().replaceAll('-', '_')}`
@@ -643,7 +616,7 @@ export function SimpleTargetEditor({
       />
       {phaseWarnings[region.region_key] ? (
         <p className="text-xs text-amber-700">
-          原体相与新化学式不匹配，已清除，请重新选择。
+          化学式已变更，原晶体结构选择已清除，请重新选择。
         </p>
       ) : null}
     </div>
@@ -690,25 +663,29 @@ export function SimpleTargetEditor({
   }
   const moreInformation = (
     <div className="grid gap-4 sm:grid-cols-2">
-      {kindValue === 'single' ? (
+      {!['vertical', 'lateral'].includes(kindValue) ? (
         <div className="flex flex-col gap-2">
-          <Label>目标原子层数</Label>
+          <Label>目标层数</Label>
           <Input
             type="number"
             min="1"
             step="1"
             value={region?.target_layer_count ?? ''}
             disabled={disabled}
+            aria-label="目标层数"
             onChange={(event) =>
               setRegion(0, {
                 target_layer_count: number(event.target.value),
               })
             }
           />
+          <p className="text-xs text-muted-foreground">
+            仅层状材料填写；例如单层 MoS₂ 填 1，非层状材料留空。
+          </p>
         </div>
       ) : null}
       <div className="flex flex-col gap-2">
-        <Label>目标几何形态</Label>
+        <Label>目标产物形态</Label>
         <Select
           value={target.dimensional_form ?? ''}
           disabled={disabled}
@@ -716,56 +693,72 @@ export function SimpleTargetEditor({
             onChange({
               ...target,
               dimensional_form: value as SimpleTarget['dimensional_form'],
-              coverage_state:
-                value === 'sheet' ? target.coverage_state : undefined,
+              in_plane_outline:
+                value === 'discrete_planar_crystal'
+                  ? target.in_plane_outline
+                  : undefined,
             })
           }
         >
-          <SelectTrigger className="w-full" aria-label="目标几何形态">
+          <SelectTrigger className="w-full" aria-label="目标产物形态">
             <SelectValue placeholder="请选择" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectItem value="sheet">片状/晶畴</SelectItem>
-              <SelectItem value="ribbon">纳米带</SelectItem>
-              <SelectItem value="wire">纳米线</SelectItem>
-              <SelectItem value="tube">纳米管</SelectItem>
-              <SelectItem value="rod">纳米棒</SelectItem>
+              <SelectItem value="continuous_film">连续膜</SelectItem>
+              <SelectItem value="discrete_planar_crystal">
+                分立片状晶体/晶畴
+              </SelectItem>
+              <SelectItem value="ribbon">带状</SelectItem>
+              <SelectItem value="wire">线状</SelectItem>
+              <SelectItem value="tube">管状</SelectItem>
+              <SelectItem value="rod">棒状</SelectItem>
               <SelectItem value="particle">颗粒</SelectItem>
+              <SelectItem value="bulk_crystal">块状晶体</SelectItem>
               <SelectItem value="other">其他</SelectItem>
             </SelectGroup>
           </SelectContent>
         </Select>
       </div>
-      {target.dimensional_form === 'sheet' ? (
+      {target.dimensional_form === 'discrete_planar_crystal' ? (
         <div className="flex flex-col gap-2">
-          <Label>目标覆盖状态</Label>
+          <Label>目标平面轮廓</Label>
           <Select
-            value={target.coverage_state ?? ''}
+            value={target.in_plane_outline ?? ''}
             disabled={disabled}
             onValueChange={(value) =>
               onChange({
                 ...target,
-                coverage_state: value as SimpleTarget['coverage_state'],
+                in_plane_outline: value as SimpleTarget['in_plane_outline'],
               })
             }
           >
-            <SelectTrigger className="w-full" aria-label="目标覆盖状态">
+            <SelectTrigger className="w-full" aria-label="目标平面轮廓">
               <SelectValue placeholder="请选择" />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="isolated">离散晶畴</SelectItem>
-                <SelectItem value="discontinuous">不连续覆盖</SelectItem>
-                <SelectItem value="percolated">贯通覆盖</SelectItem>
-                <SelectItem value="continuous">连续膜</SelectItem>
+                <SelectItem value="triangle">三角形</SelectItem>
+                <SelectItem value="truncated_triangle">截角三角形</SelectItem>
+                <SelectItem value="hexagon">六边形</SelectItem>
+                <SelectItem value="quadrilateral">
+                  四边形（矩形/平行四边形/菱形）
+                </SelectItem>
+                <SelectItem value="other_regular_polygon">
+                  其他规则多边形
+                </SelectItem>
+                <SelectItem value="circular_elliptical">圆形/椭圆形</SelectItem>
+                <SelectItem value="lobed_star">星形/多裂片状</SelectItem>
+                <SelectItem value="dendritic_fractal">枝晶状/分形</SelectItem>
+                <SelectItem value="irregular">不规则</SelectItem>
+                <SelectItem value="other">其他</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
         </div>
       ) : null}
       <div className="flex flex-col gap-2 sm:col-span-2">
-        <Label>实验目标（选填）</Label>
+        <Label>实验目标</Label>
         <Textarea
           value={target.optimization_objective ?? ''}
           disabled={disabled}
@@ -797,7 +790,7 @@ export function SimpleTargetEditor({
       ) : null}
       <div className="flex flex-col gap-2">
         <Label>
-          目标材料类型 <RequiredMark />
+          目标材料体系 <RequiredMark />
         </Label>
         <Select
           value={
@@ -812,12 +805,12 @@ export function SimpleTargetEditor({
             )
           }
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full" aria-label="目标材料体系">
             <SelectValue placeholder="请选择" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectItem value="single">单一材料</SelectItem>
+              <SelectItem value="single">本征材料</SelectItem>
               <SelectItem value="doped">掺杂材料</SelectItem>
               <SelectItem value="alloy">合金</SelectItem>
               <SelectItem value="heterostructure">异质结构</SelectItem>
@@ -829,7 +822,7 @@ export function SimpleTargetEditor({
       {kindValue === 'vertical' || kindValue === 'lateral' ? (
         <div className="flex flex-col gap-2">
           <Label>
-            结构方式 <RequiredMark />
+            异质结构类型 <RequiredMark />
           </Label>
           <Select
             value={kindValue}
@@ -872,7 +865,7 @@ export function SimpleTargetEditor({
             {phaseSelect(
               region,
               0,
-              kindValue === 'doped' ? '基体目标晶体结构（选填）' : undefined,
+              kindValue === 'doped' ? '基体晶体结构' : undefined,
             )}
           </div>
           {kindValue === 'doped' ? (
@@ -1047,7 +1040,7 @@ export function SimpleTargetEditor({
               合金组分 <RequiredMark />
             </Label>
             <p className="mt-1 text-sm text-muted-foreground">
-              至少填写两个对等组分；目标摩尔分数总和必须为 1。
+              至少填写两个组分，摩尔分数之和为 1。
             </p>
           </div>
           {alloyRelations.map((component, index) => (
@@ -1079,7 +1072,7 @@ export function SimpleTargetEditor({
                 data-invalid={formulaInvalid(component.species) || undefined}
               >
                 <Label>
-                  端元材料化学式 <RequiredMark />
+                  材料化学式 <RequiredMark />
                 </Label>
                 <FormulaInput
                   value={component.species}
@@ -1176,7 +1169,7 @@ export function SimpleTargetEditor({
               <div className="flex items-center justify-between gap-3 sm:col-span-2">
                 <p className="font-medium">
                   {kindValue === 'vertical'
-                    ? `第 ${index + 1} 层${index === 0 ? '（靠近衬底）' : ''}`
+                    ? `材料 ${index + 1}${index === 0 ? '（靠近衬底）' : ''}`
                     : `区域 ${String.fromCharCode(65 + index)}`}
                 </p>
                 <div className="flex flex-wrap gap-1">
@@ -1302,7 +1295,7 @@ export function SimpleTargetEditor({
             }}
           >
             <Plus data-icon="inline-start" />
-            {kindValue === 'vertical' ? '添加一层' : '添加区域'}
+            {kindValue === 'vertical' ? '添加材料' : '添加区域'}
           </Button>
           {kindValue === 'lateral' ? (
             <div className="flex flex-col gap-2">
@@ -1349,7 +1342,6 @@ function newIngredient(): SimpleIngredient {
   return {
     material_lot_id: '',
     material_lot_version: 0,
-    process_roles: [],
   }
 }
 
@@ -1380,7 +1372,11 @@ function treatmentStepsForEditor(
         typeof step.parameters.other_name === 'string'
           ? step.parameters.other_name
           : undefined,
-      parameters: step.parameters as TreatmentStep['parameters'],
+      parameters: Object.fromEntries(
+        Object.entries(step.parameters).filter(
+          ([parameterKey]) => parameterKey !== 'other_name',
+        ),
+      ) as TreatmentStep['parameters'],
     })),
   )
 }
@@ -1400,8 +1396,36 @@ function treatmentStepsForPayload(
 
 export function sourcePreparationStepsAreValid(
   steps: SimpleSourceLoad['preparation_steps'],
+  loadingMethod?: string,
 ) {
+  if (
+    loadingMethod &&
+    steps.some(
+      (step) =>
+        !sourceTreatmentTypesFor(loadingMethod).includes(
+          step.step_type as never,
+        ),
+    )
+  )
+    return false
   return treatmentStepsAreValid('source_load', treatmentStepsForEditor(steps))
+}
+
+export function sourceSolutionMode(
+  steps: SimpleSourceLoad['preparation_steps'],
+) {
+  const types = new Set(steps.map((step) => step.step_type))
+  return {
+    hasSolution: ['spin_coat', 'drop_cast', 'dip_coat'].some((type) =>
+      types.has(type),
+    ),
+    concentrationRequired: types.has('drop_cast') || types.has('dip_coat'),
+    volumeRequired: types.has('drop_cast'),
+    immersionOnly:
+      types.has('dip_coat') &&
+      !types.has('drop_cast') &&
+      !types.has('spin_coat'),
+  }
 }
 
 export function SimpleSourceLoadsEditor({
@@ -1477,11 +1501,13 @@ export function SimpleSourceLoadsEditor({
               )),
           )
           const isGasLine = load.loading_method === 'gas_line'
-          const hasSpinCoating =
-            !isGasLine &&
-            load.preparation_steps.some(
-              (step) => step.step_type === 'spin_coat',
-            )
+          const {
+            hasSolution,
+            concentrationRequired,
+            volumeRequired,
+            immersionOnly,
+          } = sourceSolutionMode(load.preparation_steps)
+          const amountRequired = !isGasLine && !immersionOnly
           return (
             <div
               key={load.load_key}
@@ -1521,8 +1547,23 @@ export function SimpleSourceLoadsEditor({
                       update(loadIndex, {
                         ...load,
                         loading_method: value,
-                        preparation_steps:
-                          value === 'gas_line' ? [] : load.preparation_steps,
+                        attrs: {
+                          ...load.attrs,
+                          loading_other:
+                            value === 'other'
+                              ? load.attrs?.loading_other
+                              : undefined,
+                        },
+                        preparation_steps: load.preparation_steps
+                          .filter((step) =>
+                            sourceTreatmentTypesFor(value).includes(
+                              step.step_type as never,
+                            ),
+                          )
+                          .map((step, index) => ({
+                            ...step,
+                            sequence: index + 1,
+                          })),
                         heating_zone_ref: requiresPrecursorPosition(value)
                           ? load.heating_zone_ref
                           : undefined,
@@ -1538,7 +1579,16 @@ export function SimpleSourceLoadsEditor({
                             : [],
                         ingredients: changesGasMode
                           ? [newIngredient()]
-                          : load.ingredients,
+                          : load.ingredients.map((ingredient) =>
+                              value === 'substrate_surface'
+                                ? ingredient
+                                : {
+                                    ...ingredient,
+                                    concentration_value: undefined,
+                                    concentration_unit: undefined,
+                                    concentration_unit_other: undefined,
+                                  },
+                            ),
                       })
                     }}
                   >
@@ -1552,9 +1602,7 @@ export function SimpleSourceLoadsEditor({
                       <SelectGroup>
                         <SelectItem value="boat">舟</SelectItem>
                         <SelectItem value="crucible">坩埚</SelectItem>
-                        <SelectItem value="substrate_surface">
-                          涂覆在衬底表面
-                        </SelectItem>
+                        <SelectItem value="substrate_surface">衬底</SelectItem>
                         <SelectItem value="gas_line">气路供给</SelectItem>
                         <SelectItem value="other">其他</SelectItem>
                       </SelectGroup>
@@ -1562,6 +1610,32 @@ export function SimpleSourceLoadsEditor({
                   </Select>
                   {loadingInvalid ? (
                     <p className="text-destructive text-sm">请选择装载方式。</p>
+                  ) : null}
+                  {load.loading_method === 'other' ? (
+                    <>
+                      <Label htmlFor={`${load.load_key}-loading-other`}>
+                        其他装载方式 <RequiredMark />
+                      </Label>
+                      <Input
+                        id={`${load.load_key}-loading-other`}
+                        value={String(load.attrs?.loading_other ?? '')}
+                        disabled={disabled}
+                        aria-invalid={
+                          (showErrors &&
+                            !String(load.attrs?.loading_other ?? '').trim()) ||
+                          undefined
+                        }
+                        onChange={(event) =>
+                          update(loadIndex, {
+                            ...load,
+                            attrs: {
+                              ...load.attrs,
+                              loading_other: event.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </>
                   ) : null}
                 </div>
                 {requiresPosition ? (
@@ -1620,7 +1694,7 @@ export function SimpleSourceLoadsEditor({
                       data-invalid={positionInvalid || undefined}
                     >
                       <Label>
-                        热电偶相对位置（mm） <RequiredMark />
+                        相对测温点位置（mm） <RequiredMark />
                       </Label>
                       <Input
                         type="number"
@@ -1645,7 +1719,7 @@ export function SimpleSourceLoadsEditor({
                       />
                       {positionInvalid ? (
                         <p className="text-destructive text-sm">
-                          请填写相对于所选温区热电偶的位置。
+                          请填写相对于所选温区测温点的位置。
                         </p>
                       ) : null}
                     </div>
@@ -1654,12 +1728,12 @@ export function SimpleSourceLoadsEditor({
                       className="text-muted-foreground text-sm sm:col-span-2"
                     >
                       {
-                        '相对于所选温区的热电偶位置：以热电偶为 0 mm；沿气流方向，上游填负值，下游填正值。'
+                        '相对于所选温区的测温点位置：以测温点为 0 mm；沿气流方向，上游填负值，下游填正值。'
                       }
                     </p>
                     {load.initial_position?.reference === 'setup_origin' ? (
                       <p className="text-destructive text-sm sm:col-span-2">
-                        此记录使用旧装置原点参照；请按当前规则重新确认温区和相对热电偶位置。
+                        此记录使用旧装置原点参照；请按当前规则重新确认温区和相对测温点位置。
                       </p>
                     ) : null}
                   </>
@@ -1717,7 +1791,7 @@ export function SimpleSourceLoadsEditor({
                               </span>
                               <span className="text-xs text-muted-foreground">
                                 {position.zone_index
-                                  ? `温区 ${position.zone_index}，相对热电偶 ${position.distance_mm ?? '—'} mm`
+                                  ? `温区 ${position.zone_index}，相对测温点 ${position.distance_mm ?? '—'} mm`
                                   : '请先补齐该衬底片的温区与位置'}
                               </span>
                             </span>
@@ -1738,29 +1812,35 @@ export function SimpleSourceLoadsEditor({
                 ) : null}
                 {!isGasLine ? (
                   <div className="flex flex-col gap-2 sm:col-span-2">
-                    <Label>使用前处理（选填）</Label>
+                    <Label>处理方式</Label>
                     <TreatmentStepsEditor
                       kind="source_load"
+                      allowedTypes={sourceTreatmentTypesFor(
+                        load.loading_method,
+                      )}
                       value={treatmentStepsForEditor(load.preparation_steps)}
                       disabled={disabled}
                       showErrors={showErrors}
                       labels={buildTreatmentStepsEditorLabels(t)}
                       onChange={(steps) => {
                         const preparationSteps = treatmentStepsForPayload(steps)
-                        const keepConcentration = steps.some(
-                          (step) => step.type === 'spin_coat',
-                        )
+                        const nextMode = sourceSolutionMode(preparationSteps)
                         update(loadIndex, {
                           ...load,
                           preparation_steps: preparationSteps,
-                          ingredients: keepConcentration
-                            ? load.ingredients
-                            : load.ingredients.map((ingredient) => ({
-                                ...ingredient,
-                                concentration_value: undefined,
-                                concentration_unit: undefined,
-                                concentration_unit_other: undefined,
-                              })),
+                          ingredients: load.ingredients.map((ingredient) => ({
+                            ...ingredient,
+                            ...(nextMode.hasSolution
+                              ? {}
+                              : {
+                                  concentration_value: undefined,
+                                  concentration_unit: undefined,
+                                  concentration_unit_other: undefined,
+                                }),
+                            ...(nextMode.immersionOnly
+                              ? { amount: undefined, unit: undefined }
+                              : {}),
+                          })),
                         })
                       }}
                     />
@@ -1780,20 +1860,20 @@ export function SimpleSourceLoadsEditor({
                   const lotInvalid = Boolean(
                     showErrors && (!ingredient.material_lot_id || duplicateLot),
                   )
-                  const processRoles = ingredient.process_roles ?? []
-                  const roleInvalid = Boolean(
-                    showErrors &&
-                    processRoles.includes('other') &&
-                    !ingredient.process_role_other?.trim(),
-                  )
                   const amountInvalid = Boolean(
                     showErrors &&
-                    !isGasLine &&
+                    amountRequired &&
                     (!Number.isFinite(ingredient.amount) ||
                       Number(ingredient.amount) <= 0),
                   )
                   const unitInvalid = Boolean(
-                    showErrors && !isGasLine && !ingredient.unit?.trim(),
+                    showErrors &&
+                    amountRequired &&
+                    (!ingredient.unit?.trim() ||
+                      (volumeRequired &&
+                        !['μL', 'µL', 'uL', 'mL', 'L'].includes(
+                          ingredient.unit,
+                        ))),
                   )
                   const hasConcentration =
                     ingredient.concentration_value !== undefined ||
@@ -1801,14 +1881,14 @@ export function SimpleSourceLoadsEditor({
                     Boolean(ingredient.concentration_unit_other?.trim())
                   const concentrationValueInvalid = Boolean(
                     showErrors &&
-                    hasSpinCoating &&
-                    hasConcentration &&
+                    hasSolution &&
+                    (hasConcentration || concentrationRequired) &&
                     !(Number(ingredient.concentration_value) > 0),
                   )
                   const concentrationUnitInvalid = Boolean(
                     showErrors &&
-                    hasSpinCoating &&
-                    hasConcentration &&
+                    hasSolution &&
+                    (hasConcentration || concentrationRequired) &&
                     (!ingredient.concentration_unit ||
                       !CONCENTRATION_UNIT_CODES.has(
                         ingredient.concentration_unit,
@@ -1816,14 +1896,13 @@ export function SimpleSourceLoadsEditor({
                   )
                   const concentrationOtherInvalid = Boolean(
                     showErrors &&
-                    hasSpinCoating &&
+                    hasSolution &&
                     ingredient.concentration_unit === 'other' &&
                     !ingredient.concentration_unit_other?.trim(),
                   )
                   const unitInputId = `${load.load_key}-ingredient-${ingredientIndex}-unit`
                   const concentrationValueId = `${load.load_key}-ingredient-${ingredientIndex}-concentration`
                   const concentrationUnitId = `${load.load_key}-ingredient-${ingredientIndex}-concentration-unit`
-                  const processRoleOtherId = `${load.load_key}-ingredient-${ingredientIndex}-process-role-other`
                   const concentrationUnitOtherId = `${load.load_key}-ingredient-${ingredientIndex}-concentration-unit-other`
                   return (
                     <div
@@ -1882,101 +1961,15 @@ export function SimpleSourceLoadsEditor({
                           </p>
                         ) : null}
                       </div>
-                      {ingredient.function_role ? (
-                        <p className="text-sm text-muted-foreground sm:col-span-2">
-                          历史作用分类：
-                          {LEGACY_FUNCTION_ROLE_LABELS[
-                            ingredient.function_role
-                          ] ?? ingredient.function_role}
-                        </p>
-                      ) : null}
-                      <fieldset
-                        className="flex flex-col gap-3 rounded-md border p-3 sm:col-span-2"
-                        data-invalid={roleInvalid || undefined}
-                      >
-                        <legend className="px-1 text-sm font-medium">
-                          工艺作用（选填，可多选）
-                        </legend>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {PROCESS_ROLE_OPTIONS.map(([value, label]) => (
-                            <Label
-                              key={value}
-                              className="flex items-center gap-2"
-                            >
-                              <Checkbox
-                                checked={processRoles.includes(value)}
-                                disabled={disabled}
-                                onCheckedChange={(checked) =>
-                                  update(loadIndex, {
-                                    ...load,
-                                    ingredients: load.ingredients.map(
-                                      (item, current) =>
-                                        current === ingredientIndex
-                                          ? {
-                                              ...item,
-                                              process_roles:
-                                                checked === true
-                                                  ? [...processRoles, value]
-                                                  : processRoles.filter(
-                                                      (role) => role !== value,
-                                                    ),
-                                              process_role_other:
-                                                value === 'other' &&
-                                                checked !== true
-                                                  ? undefined
-                                                  : item.process_role_other,
-                                            }
-                                          : item,
-                                    ),
-                                  })
-                                }
-                              />
-                              {label}
-                            </Label>
-                          ))}
-                        </div>
-                        {processRoles.includes('other') ? (
-                          <div className="flex flex-col gap-2">
-                            <Label htmlFor={processRoleOtherId}>
-                              其他工艺作用 <RequiredMark />
-                            </Label>
-                            <Input
-                              id={processRoleOtherId}
-                              value={ingredient.process_role_other ?? ''}
-                              disabled={disabled}
-                              aria-invalid={roleInvalid || undefined}
-                              onChange={(event) =>
-                                update(loadIndex, {
-                                  ...load,
-                                  ingredients: load.ingredients.map(
-                                    (item, current) =>
-                                      current === ingredientIndex
-                                        ? {
-                                            ...item,
-                                            process_role_other:
-                                              event.target.value,
-                                          }
-                                        : item,
-                                  ),
-                                })
-                              }
-                            />
-                          </div>
-                        ) : null}
-                        {roleInvalid ? (
-                          <p className="text-destructive text-sm">
-                            请说明其他工艺作用。
-                          </p>
-                        ) : null}
-                      </fieldset>
-                      {!isGasLine ? (
+                      {amountRequired ? (
                         <div className="grid grid-cols-2 gap-3">
                           <div
                             className="flex flex-col gap-2"
                             data-invalid={amountInvalid || undefined}
                           >
                             <Label>
-                              用量 <RequiredMark />
+                              {volumeRequired ? '滴加体积' : '用量'}{' '}
+                              <RequiredMark />
                             </Label>
                             <Input
                               type="number"
@@ -2038,19 +2031,24 @@ export function SimpleSourceLoadsEditor({
                               }
                             />
                             <datalist id={`${unitInputId}-options`}>
-                              {AMOUNT_UNITS.map((unit) => (
+                              {(volumeRequired
+                                ? ['μL', 'mL']
+                                : AMOUNT_UNITS
+                              ).map((unit) => (
                                 <option key={unit} value={unit} />
                               ))}
                             </datalist>
                             {unitInvalid ? (
                               <p className="text-destructive text-sm">
-                                请填写用量单位。
+                                {volumeRequired
+                                  ? '请使用体积单位（μL、mL 或 L）。'
+                                  : '请填写用量单位。'}
                               </p>
                             ) : null}
                           </div>
                         </div>
                       ) : null}
-                      {hasSpinCoating ? (
+                      {hasSolution ? (
                         <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
                           <div
                             className="flex flex-col gap-2"
@@ -2060,7 +2058,9 @@ export function SimpleSourceLoadsEditor({
                           >
                             <Label htmlFor={concentrationValueId}>
                               溶液浓度{' '}
-                              {hasConcentration ? <RequiredMark /> : null}
+                              {hasConcentration || concentrationRequired ? (
+                                <RequiredMark />
+                              ) : null}
                             </Label>
                             <Input
                               id={concentrationValueId}
@@ -2108,7 +2108,9 @@ export function SimpleSourceLoadsEditor({
                           >
                             <Label htmlFor={concentrationUnitId}>
                               浓度单位{' '}
-                              {hasConcentration ? <RequiredMark /> : null}
+                              {hasConcentration || concentrationRequired ? (
+                                <RequiredMark />
+                              ) : null}
                             </Label>
                             <Select
                               value={ingredient.concentration_unit ?? ''}
@@ -2311,10 +2313,15 @@ function substrateTreatmentSteps(item: ModuleValues): TreatmentStep[] | null {
 const substratePlacementTypes = new Set([
   'face_up',
   'face_down',
-  'face_to_face',
   'tilted',
   'upright',
   'other',
+])
+const uprightGrowthFaceDirections = new Set([
+  'downstream',
+  'upstream',
+  'tube_left',
+  'tube_right',
 ])
 
 export function simpleSubstrateIsValid(
@@ -2331,6 +2338,7 @@ export function simpleSubstrateIsValid(
     moduleValueAsString(item['lot_ref']) &&
     Number(placement.length_mm) > 0 &&
     Number(placement.width_mm) > 0 &&
+    Number(placement.length_mm) >= Number(placement.width_mm) &&
     (thickness === undefined ||
       thickness === null ||
       (Number.isFinite(Number(thickness)) && Number(thickness) > 0)) &&
@@ -2343,13 +2351,46 @@ export function simpleSubstrateIsValid(
     Number.isFinite(Number(position.distance_mm)) &&
     substratePlacementTypes.has(placementType) &&
     (placementType !== 'tilted' ||
-      (Number(placement.tilt_angle_deg) > 0 &&
-        Number(placement.tilt_angle_deg) < 90)) &&
+      (Number(placement.tilt_angle_deg) > -90 &&
+        Number(placement.tilt_angle_deg) !== 0 &&
+        Number(placement.tilt_angle_deg) < 90 &&
+        Number(placement.tilt_azimuth_deg) >= 0 &&
+        Number(placement.tilt_azimuth_deg) < 360)) &&
+    (placementType !== 'upright' ||
+      uprightGrowthFaceDirections.has(
+        String(placement.upright_growth_face_direction ?? ''),
+      )) &&
     (placementType !== 'other' ||
       String(placement.placement_other ?? '').trim()) &&
     treatmentSteps &&
     treatmentStepsAreValid('substrate', treatmentSteps),
   )
+}
+
+export function simpleSubstrateRelationsAreValid(
+  substrates: ModuleValues[],
+  relations: SubstratePlacementRelation[],
+): boolean {
+  const pieceLabels = substrates.map((item) =>
+    moduleValueAsString(item['piece_label']),
+  )
+  const labels = new Set(pieceLabels)
+  if (labels.size !== pieceLabels.length) return false
+  const pairs = new Set<string>()
+  return relations.every((relation) => {
+    const pair = [relation.piece_a_label, relation.piece_b_label].sort()
+    const pairKey = pair.join('\u0000')
+    const valid =
+      labels.has(relation.piece_a_label) &&
+      labels.has(relation.piece_b_label) &&
+      relation.piece_a_label !== relation.piece_b_label &&
+      !pairs.has(pairKey) &&
+      (relation.gap_mm == null ||
+        (Number.isFinite(Number(relation.gap_mm)) &&
+          Number(relation.gap_mm) >= 0))
+    pairs.add(pairKey)
+    return valid
+  })
 }
 
 function substrateStackSummary(value: unknown) {
@@ -2378,16 +2419,20 @@ function substrateOrientationSummary(value: string) {
 
 export function SimpleSubstratesEditor({
   substrates,
+  placementRelations,
   zoneCount,
   disabled,
   showErrors,
   onChange,
+  onPlacementRelationsChange,
 }: {
   substrates: ModuleValues[]
+  placementRelations: SubstratePlacementRelation[]
   zoneCount: number | null
   disabled: boolean
   showErrors?: boolean
   onChange: (substrates: ModuleValues[]) => void
+  onPlacementRelationsChange: (relations: SubstratePlacementRelation[]) => void
 }) {
   const { t } = useTranslation()
   const update = (index: number, patch: ModuleValues) =>
@@ -2396,9 +2441,54 @@ export function SimpleSubstratesEditor({
         current === index ? { ...item, ...patch } : item,
       ),
     )
+  const pieceLabels = substrates.map(
+    (item, index) =>
+      moduleValueAsString(item['piece_label']) || `S${index + 1}`,
+  )
+  const usedRelationPairs = new Set(
+    placementRelations.map((relation) =>
+      [relation.piece_a_label, relation.piece_b_label].sort().join('\u0000'),
+    ),
+  )
+  const availableRelationPair = pieceLabels
+    .flatMap((pieceA, index) =>
+      pieceLabels.slice(index + 1).map((pieceB) => [pieceA, pieceB] as const),
+    )
+    .find((pair) => !usedRelationPairs.has([...pair].sort().join('\u0000')))
+  const removeSubstrate = (index: number) => {
+    const removedLabel = pieceLabels[index]
+    const retained = substrates.filter((_, current) => current !== index)
+    const labelMap = new Map(
+      retained.map((item, current) => [
+        moduleValueAsString(item['piece_label']) || `S${current + 1}`,
+        `S${current + 1}`,
+      ]),
+    )
+    onChange(
+      retained.map((item, current) => ({
+        ...item,
+        piece_label: `S${current + 1}`,
+      })),
+    )
+    onPlacementRelationsChange(
+      placementRelations
+        .filter(
+          (relation) =>
+            relation.piece_a_label !== removedLabel &&
+            relation.piece_b_label !== removedLabel,
+        )
+        .map((relation) => ({
+          ...relation,
+          piece_a_label:
+            labelMap.get(relation.piece_a_label) ?? relation.piece_a_label,
+          piece_b_label:
+            labelMap.get(relation.piece_b_label) ?? relation.piece_b_label,
+        })),
+    )
+  }
 
   return (
-    <ModuleCard id="module-substrates" title="衬底与摆放">
+    <ModuleCard id="module-substrates" title="衬底与放置">
       <div className="flex flex-col gap-5">
         {substrates.length === 0 ? (
           <EmptyState
@@ -2421,18 +2511,16 @@ export function SimpleSubstratesEditor({
           const placement = parsedObject(item['size_placement'])
           const position = parsedObject(item['zone_thermocouple_distance_mm'])
           const treatmentSteps = substrateTreatmentSteps(item)
-          const placementMode =
-            placement.placement === 'other' &&
-            placement.placement_other === '面对另一片衬底'
-              ? 'face_to_face'
-              : String(placement.placement ?? '')
+          const placementMode = String(placement.placement ?? '')
           const pieceLabel =
             moduleValueAsString(item['piece_label']) || `S${index + 1}`
           const lengthInvalid = Boolean(
             showErrors && !(Number(placement.length_mm) > 0),
           )
           const widthInvalid = Boolean(
-            showErrors && !(Number(placement.width_mm) > 0),
+            showErrors &&
+            (!(Number(placement.width_mm) > 0) ||
+              Number(placement.width_mm) > Number(placement.length_mm)),
           )
           const thicknessInvalid = Boolean(
             showErrors &&
@@ -2460,8 +2548,23 @@ export function SimpleSubstratesEditor({
           const tiltInvalid = Boolean(
             showErrors &&
             placementMode === 'tilted' &&
-            (!(Number(placement.tilt_angle_deg) > 0) ||
+            (!Number.isFinite(Number(placement.tilt_angle_deg)) ||
+              Number(placement.tilt_angle_deg) <= -90 ||
+              Number(placement.tilt_angle_deg) === 0 ||
               Number(placement.tilt_angle_deg) >= 90),
+          )
+          const tiltAzimuthInvalid = Boolean(
+            showErrors &&
+            placementMode === 'tilted' &&
+            (!(Number(placement.tilt_azimuth_deg) >= 0) ||
+              Number(placement.tilt_azimuth_deg) >= 360),
+          )
+          const uprightDirectionInvalid = Boolean(
+            showErrors &&
+            placementMode === 'upright' &&
+            !uprightGrowthFaceDirections.has(
+              String(placement.upright_growth_face_direction ?? ''),
+            ),
           )
           const otherPlacementInvalid = Boolean(
             showErrors &&
@@ -2508,16 +2611,7 @@ export function SimpleSubstratesEditor({
                     size="sm"
                     variant="ghost"
                     disabled={disabled}
-                    onClick={() =>
-                      onChange(
-                        substrates
-                          .filter((_, current) => current !== index)
-                          .map((current, currentIndex) => ({
-                            ...current,
-                            piece_label: `S${currentIndex + 1}`,
-                          })),
-                      )
-                    }
+                    onClick={() => removeSubstrate(index)}
                   >
                     <Trash2 data-icon="inline-start" />
                     删除本片
@@ -2574,7 +2668,7 @@ export function SimpleSubstratesEditor({
                   data-invalid={lengthInvalid || undefined}
                 >
                   <Label>
-                    长度（mm） <RequiredMark />
+                    长边（mm） <RequiredMark />
                   </Label>
                   <Input
                     type="number"
@@ -2594,7 +2688,7 @@ export function SimpleSubstratesEditor({
                   />
                   {lengthInvalid ? (
                     <p className="text-destructive text-sm">
-                      请填写大于 0 的长度。
+                      请填写大于 0 的长边。
                     </p>
                   ) : null}
                 </div>
@@ -2603,7 +2697,7 @@ export function SimpleSubstratesEditor({
                   data-invalid={widthInvalid || undefined}
                 >
                   <Label>
-                    宽度（mm） <RequiredMark />
+                    短边（mm） <RequiredMark />
                   </Label>
                   <Input
                     type="number"
@@ -2623,7 +2717,7 @@ export function SimpleSubstratesEditor({
                   />
                   {widthInvalid ? (
                     <p className="text-destructive text-sm">
-                      请填写大于 0 的宽度。
+                      请填写大于 0 且不大于长边的短边。
                     </p>
                   ) : null}
                 </div>
@@ -2654,15 +2748,12 @@ export function SimpleSubstratesEditor({
                     </p>
                   ) : null}
                 </div>
-                <p className="text-muted-foreground text-sm sm:col-span-3">
-                  长度按沿气流方向的边长填写，宽度按垂直气流方向的边长填写；若边未与气流方向对齐，请在备注说明。
-                </p>
                 <div className="flex flex-col gap-2">
                   <Label>晶向与抛光</Label>
                   <p className="min-h-9 rounded-md border bg-muted px-3 py-2 text-sm">
                     {substrateOrientationSummary(
                       moduleValueAsString(item['crystal_orientation']),
-                    ) || '批次未标注'}
+                    ) || (reference ? '批次未记录' : '—')}
                   </p>
                 </div>
                 <div
@@ -2720,7 +2811,7 @@ export function SimpleSubstratesEditor({
                   data-invalid={positionInvalid || undefined}
                 >
                   <Label>
-                    热电偶相对位置（mm） <RequiredMark />
+                    相对测温点位置（mm） <RequiredMark />
                   </Label>
                   <Input
                     type="number"
@@ -2742,7 +2833,7 @@ export function SimpleSubstratesEditor({
                   />
                   {positionInvalid ? (
                     <p className="text-destructive text-sm">
-                      请填写相对于所选温区热电偶的位置。
+                      请填写相对于所选温区测温点的位置。
                     </p>
                   ) : null}
                 </div>
@@ -2750,13 +2841,12 @@ export function SimpleSubstratesEditor({
                   id={positionHelpId}
                   className="text-muted-foreground text-sm sm:col-span-3"
                 >
-                  相对于所选温区的热电偶位置：以热电偶为 0
-                  mm；沿气流方向，上游填负值，下游填正值。
+                  以所选温区测温点为 0 mm；上游为负，下游为正。
                 </p>
                 {moduleValueAsString(item['axial_position_mm']).trim() &&
                 !position.zone_index ? (
                   <p className="text-destructive text-sm sm:col-span-3">
-                    此记录使用旧装置原点位置；请按当前规则重新确认温区和相对热电偶位置。
+                    此记录使用旧装置原点位置；请按当前规则重新确认温区和相对测温点位置。
                   </p>
                 ) : null}
                 <div
@@ -2778,11 +2868,18 @@ export function SimpleSubstratesEditor({
                             value === 'tilted'
                               ? placement.tilt_angle_deg
                               : undefined,
+                          tilt_azimuth_deg:
+                            value === 'tilted'
+                              ? placement.tilt_azimuth_deg
+                              : undefined,
+                          upright_growth_face_direction:
+                            value === 'upright'
+                              ? placement.upright_growth_face_direction
+                              : undefined,
                           ...(value === 'other'
                             ? {
                                 placement_other:
-                                  placement.placement === 'other' &&
-                                  placement.placement_other !== '面对另一片衬底'
+                                  placement.placement === 'other'
                                     ? placement.placement_other
                                     : '',
                               }
@@ -2805,9 +2902,6 @@ export function SimpleSubstratesEditor({
                         <SelectItem value="face_down">
                           生长面朝下（倒扣）
                         </SelectItem>
-                        <SelectItem value="face_to_face">
-                          两片生长面相对
-                        </SelectItem>
                         <SelectItem value="tilted">倾斜</SelectItem>
                         <SelectItem value="upright">竖放</SelectItem>
                         <SelectItem value="other">其他</SelectItem>
@@ -2819,37 +2913,119 @@ export function SimpleSubstratesEditor({
                   ) : null}
                 </div>
                 {placementMode === 'tilted' ? (
+                  <>
+                    <div
+                      className="flex flex-col gap-2"
+                      data-invalid={tiltInvalid || undefined}
+                    >
+                      <Label>
+                        倾角 α（°） <RequiredMark />
+                      </Label>
+                      <Input
+                        type="number"
+                        min="-90"
+                        max="90"
+                        step="any"
+                        value={String(placement.tilt_angle_deg ?? '')}
+                        disabled={disabled}
+                        aria-invalid={tiltInvalid || undefined}
+                        onChange={(event) =>
+                          update(index, {
+                            size_placement: jsonValue({
+                              ...placement,
+                              tilt_angle_deg: number(event.target.value),
+                            }),
+                          })
+                        }
+                      />
+                      {tiltInvalid ? (
+                        <p className="text-destructive text-sm">
+                          倾角须大于 -90°、小于 90°且不为 0°。
+                        </p>
+                      ) : null}
+                      <p className="text-muted-foreground text-sm">
+                        绝对值为衬底平面与水平面的夹角；生长面朝上为正，朝下为负。
+                      </p>
+                    </div>
+                    <div
+                      className="flex flex-col gap-2"
+                      data-invalid={tiltAzimuthInvalid || undefined}
+                    >
+                      <Label>
+                        方位角 φ（°） <RequiredMark />
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="359.999"
+                        step="any"
+                        value={String(placement.tilt_azimuth_deg ?? '')}
+                        disabled={disabled}
+                        aria-invalid={tiltAzimuthInvalid || undefined}
+                        onChange={(event) =>
+                          update(index, {
+                            size_placement: jsonValue({
+                              ...placement,
+                              tilt_azimuth_deg: number(event.target.value),
+                            }),
+                          })
+                        }
+                      />
+                      {tiltAzimuthInvalid ? (
+                        <p className="text-destructive text-sm">
+                          请填写 0° 到小于 360° 的方位角。
+                        </p>
+                      ) : null}
+                      <p className="text-muted-foreground text-sm">
+                        生长面法向的水平投影：以下游为 0°，俯视时顺时针为正。
+                      </p>
+                    </div>
+                  </>
+                ) : null}
+                {placementMode === 'upright' ? (
                   <div
                     className="flex flex-col gap-2"
-                    data-invalid={tiltInvalid || undefined}
+                    data-invalid={uprightDirectionInvalid || undefined}
                   >
                     <Label>
-                      倾角（°） <RequiredMark />
+                      生长面朝向 <RequiredMark />
                     </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="90"
-                      step="any"
-                      value={String(placement.tilt_angle_deg ?? '')}
+                    <Select
+                      value={String(
+                        placement.upright_growth_face_direction ?? '',
+                      )}
                       disabled={disabled}
-                      aria-invalid={tiltInvalid || undefined}
-                      onChange={(event) =>
+                      onValueChange={(value) =>
                         update(index, {
                           size_placement: jsonValue({
                             ...placement,
-                            tilt_angle_deg: number(event.target.value),
+                            upright_growth_face_direction: value,
                           }),
                         })
                       }
-                    />
-                    {tiltInvalid ? (
+                    >
+                      <SelectTrigger
+                        className="w-full"
+                        aria-invalid={uprightDirectionInvalid || undefined}
+                      >
+                        <SelectValue placeholder="请选择生长面朝向" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="downstream">朝下游</SelectItem>
+                          <SelectItem value="upstream">朝上游</SelectItem>
+                          <SelectItem value="tube_left">朝炉管左侧</SelectItem>
+                          <SelectItem value="tube_right">朝炉管右侧</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {uprightDirectionInvalid ? (
                       <p className="text-destructive text-sm">
-                        请填写大于 0° 且小于 90° 的倾角。
+                        请选择竖放时的生长面朝向。
                       </p>
                     ) : null}
                     <p className="text-muted-foreground text-sm">
-                      相对水平放置平面；90° 请直接选择“竖放”。
+                      左右以面向下游时为准。
                     </p>
                   </div>
                 ) : null}
@@ -2882,7 +3058,7 @@ export function SimpleSubstratesEditor({
                   </div>
                 ) : null}
                 <div className="flex flex-col gap-2 sm:col-span-3">
-                  <Label>衬底处理（推荐填写）</Label>
+                  <Label>衬底处理</Label>
                   <TreatmentStepsEditor
                     kind="substrate"
                     value={treatmentSteps ?? []}
@@ -2927,6 +3103,145 @@ export function SimpleSubstratesEditor({
             <Plus data-icon="inline-start" />
             添加衬底片
           </Button>
+        ) : null}
+        {substrates.length >= 2 ? (
+          <div className="flex flex-col gap-3 rounded-lg border p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <p className="font-medium">生长面相对放置</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={disabled || !availableRelationPair}
+                onClick={() => {
+                  if (!availableRelationPair) return
+                  onPlacementRelationsChange([
+                    ...placementRelations,
+                    {
+                      piece_a_label: availableRelationPair[0],
+                      piece_b_label: availableRelationPair[1],
+                    },
+                  ])
+                }}
+              >
+                <Plus data-icon="inline-start" />
+                添加一组
+              </Button>
+            </div>
+            {placementRelations.map((relation, relationIndex) => (
+              <div
+                key={`${relation.piece_a_label}-${relation.piece_b_label}-${relationIndex}`}
+                className="grid gap-3 rounded-md bg-muted/40 p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
+              >
+                <div className="flex flex-col gap-2">
+                  <Label>衬底片 A</Label>
+                  <Select
+                    value={relation.piece_a_label}
+                    disabled={disabled}
+                    onValueChange={(value) =>
+                      onPlacementRelationsChange(
+                        placementRelations.map((item, current) =>
+                          current === relationIndex
+                            ? { ...item, piece_a_label: value }
+                            : item,
+                        ),
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {pieceLabels.map((label) => (
+                          <SelectItem key={label} value={label}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>衬底片 B</Label>
+                  <Select
+                    value={relation.piece_b_label}
+                    disabled={disabled}
+                    onValueChange={(value) =>
+                      onPlacementRelationsChange(
+                        placementRelations.map((item, current) =>
+                          current === relationIndex
+                            ? { ...item, piece_b_label: value }
+                            : item,
+                        ),
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {pieceLabels.map((label) => (
+                          <SelectItem key={label} value={label}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>间距（mm）</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0 表示接触"
+                    value={relation.gap_mm ?? ''}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      onPlacementRelationsChange(
+                        placementRelations.map((item, current) =>
+                          current === relationIndex
+                            ? {
+                                ...item,
+                                gap_mm: number(event.target.value),
+                              }
+                            : item,
+                        ),
+                      )
+                    }
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="删除这组生长面相对关系"
+                  disabled={disabled}
+                  onClick={() =>
+                    onPlacementRelationsChange(
+                      placementRelations.filter(
+                        (_, current) => current !== relationIndex,
+                      ),
+                    )
+                  }
+                >
+                  <Trash2 />
+                </Button>
+              </div>
+            ))}
+            {showErrors &&
+            !simpleSubstrateRelationsAreValid(
+              substrates,
+              placementRelations,
+            ) ? (
+              <p className="text-sm text-destructive">
+                每组必须选择两片不同的衬底，且不能重复；间距如填写须大于等于 0。
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </ModuleCard>
@@ -3013,16 +3328,11 @@ export function SimpleGrowthEditor({
   const preparationOperations = settings.preparation_operations ?? []
 
   const syncPresetIntervals = (
-    nextSegments: SimpleSegment[],
+    _nextSegments: SimpleSegment[],
     nextChannels: SimpleChannel[],
     nextSettings: SimpleProcessSettings,
   ) => {
-    const processEnd = simpleProcessEndSeconds(
-      nextSegments,
-      nextChannels,
-      nextSettings.field_params,
-      events,
-    )
+    const processEnd = (nextSettings.process_duration_min ?? 0) * 60
     const wholeProcess = wholeProcessInterval(processEnd)
     return nextChannels.map((channel) =>
       channel.channel_type !== 'flow'
@@ -3070,38 +3380,6 @@ export function SimpleGrowthEditor({
     (item) =>
       item.channel_type === 'pressure' && item.source_type === 'setpoint',
   )
-  const preparationInvalid = Boolean(
-    showErrors &&
-    preparationOperations.some((operation) => {
-      const durationValid =
-        Number.isFinite(operation.duration_min) &&
-        Number(operation.duration_min) > 0
-      const targetPressureValid =
-        Number.isFinite(operation.target_absolute_pressure_Pa) &&
-        Number(operation.target_absolute_pressure_Pa) > 0
-      return (
-        (operation.operation_type === 'pump_down'
-          ? (operation.duration_min !== undefined && !durationValid) ||
-            (operation.target_absolute_pressure_Pa !== undefined &&
-              !targetPressureValid) ||
-            (!durationValid && !targetPressureValid)
-          : !durationValid) ||
-        (operation.operation_type === 'gas_exchange' &&
-          (!operation.cycle_count ||
-            operation.cycle_count < 1 ||
-            !Number.isInteger(operation.cycle_count) ||
-            !operation.gas_sources?.length ||
-            operation.gas_sources.some(
-              (source) =>
-                !source.material_lot_id || !source.material_lot_version,
-            ) ||
-            new Set(
-              operation.gas_sources.map((source) => source.material_lot_id),
-            ).size !== operation.gas_sources.length)) ||
-        (operation.operation_type === 'other' && !operation.other_name?.trim())
-      )
-    }),
-  )
   const pressureInvalid = Boolean(
     showErrors &&
     settings.pressure_regime &&
@@ -3117,12 +3395,7 @@ export function SimpleGrowthEditor({
   const allowedFieldTypes = capabilities.filter((item) =>
     actualFieldTypes.includes(item as (typeof actualFieldTypes)[number]),
   ) as (typeof actualFieldTypes)[number][]
-  const processEnd = simpleProcessEndSeconds(
-    segments,
-    channels,
-    settings.field_params,
-    events,
-  )
+  const processEnd = (settings.process_duration_min ?? 0) * 60
   const addGasChannel = () => {
     const wholeProcess = wholeProcessInterval(processEnd)
     onTimelineChange(segments, [
@@ -3191,15 +3464,46 @@ export function SimpleGrowthEditor({
         {showErrors && validationIssue ? (
           <p className="text-destructive text-sm">{validationIssue}</p>
         ) : null}
+        <div
+          className="flex flex-col gap-2 sm:max-w-sm"
+          data-invalid={(showErrors && !(processEnd > 0)) || undefined}
+        >
+          <Label htmlFor="process-duration">
+            过程总时长（min） <RequiredMark />
+          </Label>
+          <Input
+            id="process-duration"
+            type="number"
+            min="0"
+            step="any"
+            value={settings.process_duration_min ?? ''}
+            disabled={disabled}
+            aria-invalid={(showErrors && !(processEnd > 0)) || undefined}
+            onChange={(event) =>
+              setProcessSettings({
+                ...settings,
+                process_duration_min:
+                  event.target.value === ''
+                    ? undefined
+                    : Number(event.target.value),
+              })
+            }
+          />
+          <p className="text-sm text-muted-foreground">
+            含降温与供气；以实验开始为 0 min。
+          </p>
+        </div>
         <Card size="sm">
           <CardHeader className="border-b">
-            <CardTitle>实验前准备（选填）</CardTitle>
-            <CardDescription>
-              如抽真空、气路置换或检漏；没有这些操作可不添加。
-            </CardDescription>
+            <CardTitle>实验前准备</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {preparationOperations.map((operation, operationIndex) => {
+              const preparationIssue = simplePreparationIssue(operation)
+              const preparationInvalid = Boolean(showErrors && preparationIssue)
+              const cyclic =
+                operation.operation_type === 'gas_exchange' &&
+                operation.exchange_mode === 'evacuation_backfill'
               const durationValid =
                 Number.isFinite(operation.duration_min) &&
                 Number(operation.duration_min) > 0
@@ -3249,9 +3553,11 @@ export function SimpleGrowthEditor({
                       disabled={disabled}
                       onValueChange={(value) =>
                         patchOperation({
-                          operation_type:
-                            value as (typeof operation)['operation_type'],
+                          operation_type: value,
+                          exchange_mode: undefined,
+                          duration_min: undefined,
                           cycle_count: undefined,
+                          backfill_absolute_pressure_Pa: undefined,
                           target_absolute_pressure_Pa:
                             value === 'pump_down'
                               ? operation.target_absolute_pressure_Pa
@@ -3274,19 +3580,67 @@ export function SimpleGrowthEditor({
                       <SelectContent>
                         <SelectGroup>
                           <SelectItem value="pump_down">抽真空</SelectItem>
-                          <SelectItem value="gas_exchange">气路置换</SelectItem>
-                          <SelectItem value="leak_check">检漏</SelectItem>
+                          <SelectItem value="gas_exchange">气氛置换</SelectItem>
                           <SelectItem value="other">其他操作</SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </Select>
                   </div>
-                  {operation.operation_type === 'pump_down' ? (
+                  {operation.operation_type === 'gas_exchange' ? (
+                    <div className="flex flex-col gap-2">
+                      <Label
+                        htmlFor={`preparation-${operationIndex}-exchange-mode`}
+                      >
+                        置换方式 <RequiredMark />
+                      </Label>
+                      <Select
+                        value={operation.exchange_mode ?? ''}
+                        disabled={disabled}
+                        onValueChange={(value) =>
+                          patchOperation({
+                            exchange_mode:
+                              value as SimplePreparationOperation['exchange_mode'],
+                            duration_min: undefined,
+                            cycle_count: undefined,
+                            target_absolute_pressure_Pa: undefined,
+                            backfill_absolute_pressure_Pa: undefined,
+                            gas_sources: operation.gas_sources?.map(
+                              ({ flow_sccm: _flow, ...source }) => source,
+                            ),
+                          })
+                        }
+                      >
+                        <SelectTrigger
+                          id={`preparation-${operationIndex}-exchange-mode`}
+                          className="w-full"
+                          aria-invalid={
+                            (showErrors && !operation.exchange_mode) ||
+                            undefined
+                          }
+                        >
+                          <SelectValue placeholder="请选择" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="continuous_flow">
+                              连续通气
+                            </SelectItem>
+                            <SelectItem value="evacuation_backfill">
+                              抽空—回填
+                            </SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
+                  {operation.operation_type === 'pump_down' || cyclic ? (
                     <div className="flex flex-col gap-2">
                       <Label
                         htmlFor={`preparation-${operationIndex}-target-pressure`}
                       >
-                        抽至绝对压力（Pa，优先填写）
+                        {cyclic
+                          ? '抽空终点绝对压力（Pa）'
+                          : '终点绝对压力（Pa）'}
                       </Label>
                       <Input
                         id={`preparation-${operationIndex}-target-pressure`}
@@ -3305,7 +3659,9 @@ export function SimpleGrowthEditor({
                             ((operation.target_absolute_pressure_Pa !==
                               undefined &&
                               !targetPressureValid) ||
-                              (!targetPressureValid && !durationValid))) ||
+                              (!cyclic &&
+                                !targetPressureValid &&
+                                !durationValid))) ||
                           undefined
                         }
                         onChange={(event) =>
@@ -3319,13 +3675,55 @@ export function SimpleGrowthEditor({
                       />
                     </div>
                   ) : null}
+                  {cyclic ? (
+                    <div className="flex flex-col gap-2">
+                      <Label
+                        htmlFor={`preparation-${operationIndex}-backfill-pressure`}
+                      >
+                        回填终点绝对压力（Pa）
+                      </Label>
+                      <Input
+                        id={`preparation-${operationIndex}-backfill-pressure`}
+                        type="number"
+                        min="0"
+                        step="any"
+                        disabled={disabled}
+                        value={operation.backfill_absolute_pressure_Pa ?? ''}
+                        aria-invalid={
+                          (showErrors &&
+                            operation.backfill_absolute_pressure_Pa !==
+                              undefined &&
+                            (!Number.isFinite(
+                              operation.backfill_absolute_pressure_Pa,
+                            ) ||
+                              operation.backfill_absolute_pressure_Pa <= 0 ||
+                              (operation.target_absolute_pressure_Pa !==
+                                undefined &&
+                                operation.backfill_absolute_pressure_Pa <=
+                                  operation.target_absolute_pressure_Pa))) ||
+                          undefined
+                        }
+                        onChange={(event) =>
+                          patchOperation({
+                            backfill_absolute_pressure_Pa:
+                              event.target.value === ''
+                                ? undefined
+                                : Number(event.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                  ) : null}
                   <div className="flex flex-col gap-2">
                     <Label>
-                      持续时间（min）{' '}
-                      {operation.operation_type !== 'pump_down' ||
-                      !targetPressureValid ? (
-                        <RequiredMark />
-                      ) : null}
+                      {operation.operation_type === 'gas_exchange'
+                        ? '总时长（min）'
+                        : '持续时间（min）'}{' '}
+                      {!cyclic &&
+                        (operation.operation_type !== 'pump_down' ||
+                        !targetPressureValid ? (
+                          <RequiredMark />
+                        ) : null)}
                     </Label>
                     <Input
                       type="number"
@@ -3342,7 +3740,8 @@ export function SimpleGrowthEditor({
                         (showErrors &&
                           ((operation.duration_min !== undefined &&
                             !durationValid) ||
-                            (!durationValid &&
+                            (!cyclic &&
+                              !durationValid &&
                               (operation.operation_type !== 'pump_down' ||
                                 !targetPressureValid)))) ||
                         undefined
@@ -3359,7 +3758,7 @@ export function SimpleGrowthEditor({
                   </div>
                   {operation.operation_type === 'pump_down' ? (
                     <p className="text-sm text-muted-foreground sm:col-span-2">
-                      优先填写实际达到的终点绝对压力；没有压力读数时，持续时间必填。
+                      无压力读数时，填写持续时间。
                     </p>
                   ) : null}
                   {operation.operation_type === 'gas_exchange' ? (
@@ -3378,7 +3777,7 @@ export function SimpleGrowthEditor({
                           (source, sourceIndex) => (
                             <div
                               key={sourceIndex}
-                              className="flex items-center gap-2"
+                              className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_auto]"
                             >
                               <div className="min-w-0 flex-1">
                                 <EntityReferenceSelect
@@ -3397,6 +3796,7 @@ export function SimpleGrowthEditor({
                                       ).map((item, current) =>
                                         current === sourceIndex
                                           ? {
+                                              ...item,
                                               material_lot_id: id,
                                               material_lot_version:
                                                 entity?.latest_version?.version,
@@ -3409,11 +3809,54 @@ export function SimpleGrowthEditor({
                                   }
                                 />
                               </div>
+                              {operation.exchange_mode === 'continuous_flow' ? (
+                                <div className="col-start-1 row-start-2 flex min-w-0 flex-col gap-2 sm:col-start-2 sm:row-start-1">
+                                  <Label
+                                    htmlFor={`preparation-${operationIndex}-flow-${sourceIndex}`}
+                                  >
+                                    流量（sccm）
+                                  </Label>
+                                  <Input
+                                    id={`preparation-${operationIndex}-flow-${sourceIndex}`}
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    disabled={disabled}
+                                    value={source.flow_sccm ?? ''}
+                                    aria-invalid={
+                                      (showErrors &&
+                                        source.flow_sccm !== undefined &&
+                                        (!Number.isFinite(source.flow_sccm) ||
+                                          source.flow_sccm <= 0)) ||
+                                      undefined
+                                    }
+                                    onChange={(event) =>
+                                      patchOperation({
+                                        gas_sources: operation.gas_sources?.map(
+                                          (item, current) =>
+                                            current === sourceIndex
+                                              ? {
+                                                  ...item,
+                                                  flow_sccm:
+                                                    event.target.value === ''
+                                                      ? undefined
+                                                      : Number(
+                                                          event.target.value,
+                                                        ),
+                                                }
+                                              : item,
+                                        ),
+                                      })
+                                    }
+                                  />
+                                </div>
+                              ) : null}
                               <Button
                                 type="button"
                                 size="icon"
                                 variant="ghost"
                                 aria-label={`删除置换气源 ${sourceIndex + 1}`}
+                                className="col-start-2 row-start-1 sm:col-start-3"
                                 disabled={disabled}
                                 onClick={() =>
                                   patchOperation({
@@ -3433,8 +3876,8 @@ export function SimpleGrowthEditor({
                         {operation.gases?.length &&
                         !operation.gas_sources?.length ? (
                           <p className="text-sm text-muted-foreground">
-                            历史记录：{operation.gases.join(' + ')}
-                            。请选择实际使用的气瓶批次后再保存。
+                            旧记录：{operation.gases.join(' + ')}
+                            ；请补选气瓶批次。
                           </p>
                         ) : null}
                         <Button
@@ -3457,34 +3900,39 @@ export function SimpleGrowthEditor({
                           添加气瓶批次
                         </Button>
                       </fieldset>
-                      <div className="flex flex-col gap-2">
-                        <Label>
-                          置换次数 <RequiredMark />
-                        </Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          step="1"
-                          aria-label={`准备操作 ${operationIndex + 1} 置换次数`}
-                          value={operation.cycle_count ?? ''}
-                          disabled={disabled}
-                          aria-invalid={
-                            (showErrors &&
-                              (!operation.cycle_count ||
-                                operation.cycle_count < 1 ||
-                                !Number.isInteger(operation.cycle_count))) ||
-                            undefined
-                          }
-                          onChange={(event) =>
-                            patchOperation({
-                              cycle_count:
-                                event.target.value === ''
-                                  ? undefined
-                                  : Number(event.target.value),
-                            })
-                          }
-                        />
-                      </div>
+                      {cyclic ||
+                      (!operation.exchange_mode &&
+                        operation.cycle_count !== undefined) ? (
+                        <div className="flex flex-col gap-2">
+                          <Label>
+                            {cyclic ? '循环次数' : '旧记录置换次数'}{' '}
+                            <RequiredMark />
+                          </Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            step="1"
+                            aria-label={`准备操作 ${operationIndex + 1} 循环次数`}
+                            value={operation.cycle_count ?? ''}
+                            disabled={disabled}
+                            aria-invalid={
+                              (showErrors &&
+                                (!operation.cycle_count ||
+                                  operation.cycle_count < 1 ||
+                                  !Number.isInteger(operation.cycle_count))) ||
+                              undefined
+                            }
+                            onChange={(event) =>
+                              patchOperation({
+                                cycle_count:
+                                  event.target.value === ''
+                                    ? undefined
+                                    : Number(event.target.value),
+                              })
+                            }
+                          />
+                        </div>
+                      ) : null}
                     </>
                   ) : null}
                   {operation.operation_type === 'other' ? (
@@ -3500,6 +3948,11 @@ export function SimpleGrowthEditor({
                         }
                       />
                     </div>
+                  ) : null}
+                  {preparationInvalid ? (
+                    <p className="text-sm text-destructive sm:col-span-2">
+                      {preparationIssue}
+                    </p>
                   ) : null}
                 </div>
               )
@@ -3529,9 +3982,6 @@ export function SimpleGrowthEditor({
         <Card size="sm">
           <CardHeader className="border-b">
             <CardTitle>温度程序</CardTitle>
-            <CardDescription>
-              先填写初始温度，再按实际顺序添加步骤；系统会自动标记升温、保温或降温。
-            </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             {temperatureChannels.map((channel, zoneIndex) => {
@@ -3550,7 +4000,7 @@ export function SimpleGrowthEditor({
                     <Label
                       htmlFor={`zone-${zoneIndex + 1}-initial-temperature`}
                     >
-                      初始温度（℃） <RequiredMark />
+                      初始设定温度（℃） <RequiredMark />
                     </Label>
                     <Input
                       id={`zone-${zoneIndex + 1}-initial-temperature`}
@@ -3601,6 +4051,22 @@ export function SimpleGrowthEditor({
                             </span>
                             {operation ? (
                               <Badge variant="secondary">{operation}</Badge>
+                            ) : null}
+                            {operation === '降温' &&
+                            point.start_s > series[pointIndex - 1].start_s ? (
+                              <span className="text-sm text-muted-foreground">
+                                设定{' '}
+                                {Number(
+                                  (
+                                    (Number(series[pointIndex - 1].value) -
+                                      Number(point.value)) /
+                                    ((point.start_s -
+                                      series[pointIndex - 1].start_s) /
+                                      60)
+                                  ).toPrecision(4),
+                                )}{' '}
+                                ℃/min
+                              </span>
                             ) : null}
                           </div>
                           <Button
@@ -3661,13 +4127,13 @@ export function SimpleGrowthEditor({
                           </div>
                           <div className="flex flex-col gap-2">
                             <Label>
-                              目标温度（℃） <RequiredMark />
+                              终点设定温度（℃） <RequiredMark />
                             </Label>
                             <Input
                               type="number"
                               step="any"
                               placeholder="例如 750"
-                              aria-label={`温区 ${zoneIndex + 1} 第 ${pointIndex} 步目标温度（℃）`}
+                              aria-label={`温区 ${zoneIndex + 1} 第 ${pointIndex} 步终点设定温度（℃）`}
                               value={String(point.value)}
                               disabled={disabled}
                               aria-invalid={
@@ -3727,7 +4193,7 @@ export function SimpleGrowthEditor({
                   </Button>
                   <details className="text-sm text-muted-foreground">
                     <summary className="cursor-pointer">
-                      上传实测温度曲线（选填）
+                      上传实测温度曲线
                     </summary>
                     <Input
                       className="mt-3"
@@ -3743,7 +4209,8 @@ export function SimpleGrowthEditor({
                       }}
                     />
                     <p className="mt-2 text-sm">
-                      每个温区分别上传 CSV；文件必须包含 time_s 和 value 两列。
+                      每个温区上传一个 CSV：time_s 为距实验开始的秒数，value
+                      为温度（℃）。
                     </p>
                     {channels.some(
                       (item) =>
@@ -3772,7 +4239,7 @@ export function SimpleGrowthEditor({
                             )
                           }
                         >
-                          移除引用
+                          取消关联
                         </Button>
                       </div>
                     ) : null}
@@ -3788,14 +4255,11 @@ export function SimpleGrowthEditor({
             <CardTitle>
               气体程序 <RequiredMark />
             </CardTitle>
-            <CardDescription>
-              按本炉实际使用的气体逐种填写气瓶批次、流量和供气时段。
-            </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {gasChannels.length === 0 ? (
               <EmptyState
-                description="尚未添加气体；至少添加一种本炉实际使用的气体。"
+                description="尚未添加气体"
                 action={
                   <Button
                     type="button"
@@ -3804,7 +4268,7 @@ export function SimpleGrowthEditor({
                     onClick={addGasChannel}
                   >
                     <Plus data-icon="inline-start" />
-                    添加一种气体
+                    添加气体
                   </Button>
                 }
               />
@@ -3815,7 +4279,7 @@ export function SimpleGrowthEditor({
                     key={channel.channel_key}
                     className="flex flex-col gap-4 rounded-lg border p-4"
                   >
-                    <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                       <div
                         className="flex flex-col gap-2"
                         data-invalid={
@@ -3859,6 +4323,7 @@ export function SimpleGrowthEditor({
                                   {species}
                                 </SelectItem>
                               ))}
+                              <SelectItem value="premixed">预混气</SelectItem>
                             </SelectGroup>
                           </SelectContent>
                         </Select>
@@ -3893,6 +4358,7 @@ export function SimpleGrowthEditor({
                             updateChannel(channel.channel_key, {
                               ...channel,
                               gas_lot_id: id || undefined,
+                              subject_instance_ref: `setup:${setupId}:gas:${id || channel.channel_key}`,
                               gas_lot_version:
                                 entity?.latest_version?.version ?? undefined,
                               subject_snapshot: entity?.latest_version?.data,
@@ -3918,6 +4384,8 @@ export function SimpleGrowthEditor({
                               ...channel,
                               measurement_source:
                                 value as SimpleChannel['measurement_source'],
+                              source_type:
+                                value === 'mfc' ? 'setpoint' : 'measured',
                               measurement_source_other:
                                 value === 'other'
                                   ? channel.measurement_source_other
@@ -3941,11 +4409,9 @@ export function SimpleGrowthEditor({
                                 质量流量控制器（MFC）
                               </SelectItem>
                               <SelectItem value="rotameter">
-                                转子流量计
+                                {localizedOption('rotameter', 'zh')}
                               </SelectItem>
-                              <SelectItem value="other">
-                                其他测量方式
-                              </SelectItem>
+                              <SelectItem value="other">其他</SelectItem>
                             </SelectGroup>
                           </SelectContent>
                         </Select>
@@ -3980,8 +4446,37 @@ export function SimpleGrowthEditor({
                         />
                       </div>
                     ) : null}
+                    <div className="flex flex-col gap-2 sm:max-w-xs">
+                      <Label>
+                        流量单位 <RequiredMark />
+                      </Label>
+                      <Select
+                        value={channel.unit}
+                        disabled={disabled}
+                        onValueChange={(unit) =>
+                          updateChannel(channel.channel_key, {
+                            ...channel,
+                            unit,
+                          })
+                        }
+                      >
+                        <SelectTrigger aria-label="流量单位" className="w-full">
+                          <SelectValue placeholder="请选择" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {['sccm', 'slm', 'mL/min', 'L/min'].map((unit) => (
+                              <SelectItem key={unit} value={unit}>
+                                {unit}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="flex flex-col gap-3">
                       {(channel.series ?? []).map((interval, intervalIndex) => {
+                        const flowLabel = `${channel.gas_species_code === 'premixed' ? '预混气总流量' : '流量'}${channel.source_type === 'setpoint' ? '设定值' : channel.source_type === 'inferred' ? '推导值' : '读数'}（${channel.unit}）`
                         const timingPreset =
                           interval.timing_preset === 'whole_process'
                             ? 'whole_process'
@@ -4005,7 +4500,7 @@ export function SimpleGrowthEditor({
                           >
                             <div className="flex flex-col gap-2">
                               <Label>
-                                使用时段 <RequiredMark />
+                                供气时段 <RequiredMark />
                               </Label>
                               <Select
                                 value={timingPreset}
@@ -4039,7 +4534,9 @@ export function SimpleGrowthEditor({
                                             !wholeProcessInterval(processEnd)
                                           }
                                         >
-                                          {label}
+                                          {processEnd > 0
+                                            ? `${label}（0–${minuteValue(processEnd)} min）`
+                                            : label}
                                         </SelectItem>
                                       ),
                                     )}
@@ -4052,13 +4549,13 @@ export function SimpleGrowthEditor({
                             </div>
                             <div className="flex flex-col gap-2">
                               <Label>
-                                流量（sccm） <RequiredMark />
+                                {flowLabel} <RequiredMark />
                               </Label>
                               <Input
                                 type="number"
                                 min="0"
                                 step="any"
-                                aria-label="流量（sccm）"
+                                aria-label={flowLabel}
                                 value={String(interval.value)}
                                 disabled={disabled}
                                 aria-invalid={
@@ -4085,7 +4582,7 @@ export function SimpleGrowthEditor({
                                 type="button"
                                 size="icon"
                                 variant="ghost"
-                                aria-label="删除供气区间"
+                                aria-label="删除供气时段"
                                 disabled={disabled}
                                 onClick={() =>
                                   updateChannel(channel.channel_key, {
@@ -4103,8 +4600,8 @@ export function SimpleGrowthEditor({
                               <div className="grid gap-3 sm:col-span-3 sm:grid-cols-2">
                                 {(
                                   [
-                                    ['start_s', '从实验开始后（min）'],
-                                    ['end_s', '至实验开始后（min）'],
+                                    ['start_s', '起始时间（min）'],
+                                    ['end_s', '结束时间（min）'],
                                   ] as const
                                 ).map(([field, label]) => (
                                   <div
@@ -4158,7 +4655,7 @@ export function SimpleGrowthEditor({
                         }}
                       >
                         <Plus data-icon="inline-start" />
-                        添加供气区间
+                        添加供气时段
                       </Button>
                       <Button
                         type="button"
@@ -4175,7 +4672,7 @@ export function SimpleGrowthEditor({
                         }
                       >
                         <Trash2 data-icon="inline-start" />
-                        删除这种气体
+                        删除该气体
                       </Button>
                     </div>
                   </div>
@@ -4187,7 +4684,7 @@ export function SimpleGrowthEditor({
                   onClick={addGasChannel}
                 >
                   <Plus data-icon="inline-start" />
-                  添加一种气体
+                  添加气体
                 </Button>
               </>
             )}
@@ -4243,9 +4740,9 @@ export function SimpleGrowthEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value="atmospheric">常压（APCVD）</SelectItem>
-                    <SelectItem value="low_pressure">低压（LPCVD）</SelectItem>
-                    <SelectItem value="ultra_high_vacuum">超高真空</SelectItem>
+                    <SelectItem value="low_pressure">减压（含真空）</SelectItem>
+                    <SelectItem value="atmospheric">常压</SelectItem>
+                    <SelectItem value="high_pressure">加压</SelectItem>
                     {settings.pressure_regime === 'other' ? (
                       <SelectItem value="other">其他（历史记录）</SelectItem>
                     ) : null}
@@ -4326,18 +4823,17 @@ export function SimpleGrowthEditor({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {['Pa', 'kPa', 'mbar', 'Torr'].map((unit) => (
-                            <SelectItem key={unit} value={unit}>
-                              {unit}
-                            </SelectItem>
-                          ))}
+                          {['Pa', 'kPa', 'MPa', 'bar', 'mbar', 'Torr'].map(
+                            (unit) => (
+                              <SelectItem key={unit} value={unit}>
+                                {unit}
+                              </SelectItem>
+                            ),
+                          )}
                         </SelectGroup>
                       </SelectContent>
                     </Select>
                   </div>
-                  <p className="text-sm text-muted-foreground sm:col-span-2">
-                    填写相对于绝对真空的压力，不填写相对于大气压的表压。
-                  </p>
                 </div>
               ) : null}
             </CardContent>
@@ -4363,6 +4859,10 @@ export function SimpleGrowthEditor({
                     ...settings,
                     cooling_method:
                       value as SimpleProcessSettings['cooling_method'],
+                    cooling_sequence:
+                      value === 'staged_cooling'
+                        ? [{ method: '' }, { method: '' }]
+                        : [],
                     cooling_other:
                       value === 'other' ? settings.cooling_other : undefined,
                     cooling_rate_C_per_min:
@@ -4391,49 +4891,173 @@ export function SimpleGrowthEditor({
                     <SelectItem value="furnace_cooling">随炉冷却</SelectItem>
                     <SelectItem value="open_lid_cooling">开盖冷却</SelectItem>
                     <SelectItem value="rapid_furnace_move_cooling">
-                      移炉快速冷却
+                      移炉冷却
                     </SelectItem>
-                    <SelectItem value="controlled_cooling">受控降温</SelectItem>
-                    <SelectItem value="other">其他降温方式</SelectItem>
+                    <SelectItem value="controlled_cooling">程序降温</SelectItem>
+                    <SelectItem value="staged_cooling">分段降温</SelectItem>
+                    <SelectItem value="other">其他</SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              {settings.cooling_method === 'controlled_cooling' ? (
-                <div
-                  className="flex flex-col gap-2"
-                  data-invalid={
-                    (showErrors &&
-                      (!Number.isFinite(settings.cooling_rate_C_per_min) ||
-                        (settings.cooling_rate_C_per_min ?? 0) <= 0)) ||
-                    undefined
-                  }
-                >
-                  <Label>
-                    降温速率（℃/min） <RequiredMark />
-                  </Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={settings.cooling_rate_C_per_min ?? ''}
+              {settings.cooling_method === 'staged_cooling' ? (
+                <div className="flex flex-col gap-3">
+                  {(settings.cooling_sequence ?? []).map((step, index) => (
+                    <div
+                      key={index}
+                      className="flex flex-col gap-2 rounded-md border p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>
+                          第 {index + 1} 段 <RequiredMark />
+                        </Label>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          disabled={disabled}
+                          aria-label={`删除第 ${index + 1} 段降温`}
+                          onClick={() =>
+                            onSettingsChange({
+                              ...settings,
+                              cooling_sequence:
+                                settings.cooling_sequence?.filter(
+                                  (_, current) => current !== index,
+                                ),
+                            })
+                          }
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                      <Select
+                        value={step.method}
+                        disabled={disabled}
+                        onValueChange={(method) =>
+                          onSettingsChange({
+                            ...settings,
+                            cooling_sequence: settings.cooling_sequence?.map(
+                              (item, current) =>
+                                current === index ? { method } : item,
+                            ),
+                          })
+                        }
+                      >
+                        <SelectTrigger
+                          aria-label={`第 ${index + 1} 段降温方式`}
+                          aria-invalid={
+                            (showErrors && !step.method) || undefined
+                          }
+                          className="w-full"
+                        >
+                          <SelectValue placeholder="请选择" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="controlled_cooling">
+                              程序降温
+                            </SelectItem>
+                            <SelectItem value="furnace_cooling">
+                              随炉冷却
+                            </SelectItem>
+                            <SelectItem value="open_lid_cooling">
+                              开盖冷却
+                            </SelectItem>
+                            <SelectItem value="rapid_furnace_move_cooling">
+                              移炉冷却
+                            </SelectItem>
+                            <SelectItem value="other">其他</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {step.method === 'open_lid_cooling' ||
+                      step.method === 'other' ? (
+                        <>
+                          <Label htmlFor={`cooling-detail-${index}`}>
+                            {step.method === 'other'
+                              ? '其他降温方式'
+                              : '开盖温度（℃）'}{' '}
+                            <RequiredMark />
+                          </Label>
+                          <Input
+                            id={`cooling-detail-${index}`}
+                            type={step.method === 'other' ? 'text' : 'number'}
+                            step="any"
+                            disabled={disabled}
+                            value={
+                              step.method === 'other'
+                                ? (step.other_name ?? '')
+                                : (step.lid_open_temperature_C ?? '')
+                            }
+                            aria-invalid={
+                              (showErrors &&
+                                (step.method === 'other'
+                                  ? !step.other_name?.trim()
+                                  : !Number.isFinite(
+                                      step.lid_open_temperature_C,
+                                    ))) ||
+                              undefined
+                            }
+                            onChange={(event) =>
+                              onSettingsChange({
+                                ...settings,
+                                cooling_sequence:
+                                  settings.cooling_sequence?.map(
+                                    (item, current) =>
+                                      current !== index
+                                        ? item
+                                        : {
+                                            ...item,
+                                            ...(step.method === 'other'
+                                              ? {
+                                                  other_name:
+                                                    event.target.value,
+                                                }
+                                              : {
+                                                  lid_open_temperature_C:
+                                                    event.target.value === ''
+                                                      ? undefined
+                                                      : Number(
+                                                          event.target.value,
+                                                        ),
+                                                }),
+                                          },
+                                  ),
+                              })
+                            }
+                          />
+                        </>
+                      ) : null}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
                     disabled={disabled}
-                    aria-invalid={
-                      (showErrors &&
-                        (!Number.isFinite(settings.cooling_rate_C_per_min) ||
-                          (settings.cooling_rate_C_per_min ?? 0) <= 0)) ||
-                      undefined
-                    }
-                    onChange={(event) =>
+                    onClick={() =>
                       onSettingsChange({
                         ...settings,
-                        cooling_rate_C_per_min:
-                          event.target.value === ''
-                            ? undefined
-                            : Number(event.target.value),
+                        cooling_sequence: [
+                          ...(settings.cooling_sequence ?? []),
+                          { method: '' },
+                        ],
                       })
                     }
-                  />
+                  >
+                    <Plus data-icon="inline-start" />
+                    添加降温操作
+                  </Button>
                 </div>
+              ) : null}
+              {settings.cooling_method === 'controlled_cooling' ||
+              settings.cooling_sequence?.some(
+                (step) => step.method === 'controlled_cooling',
+              ) ? (
+                <p className="text-sm text-muted-foreground">
+                  降温步骤填写在温度程序中。
+                  {settings.cooling_rate_C_per_min !== undefined
+                    ? `旧记录设定速率：${settings.cooling_rate_C_per_min} ℃/min。`
+                    : ''}
+                </p>
               ) : null}
               {settings.cooling_method === 'open_lid_cooling' ? (
                 <div
@@ -4513,7 +5137,10 @@ export function SimpleGrowthEditor({
                 allowedTypes={allowedFieldTypes}
                 disabled={disabled}
                 showErrors={showErrors}
-                labels={buildFieldParamsEditorLabels(t)}
+                labels={buildFieldParamsEditorLabels(
+                  t,
+                  String(setupSnapshot?.field_device_other_name ?? ''),
+                )}
                 onChange={(field_params) =>
                   onSettingsChange({
                     ...settings,
@@ -4529,9 +5156,7 @@ export function SimpleGrowthEditor({
         <Card size="sm">
           <CardHeader className="border-b">
             <CardTitle>异常记录</CardTitle>
-            <CardDescription>
-              勾选后填写异常详情；未勾选表示本炉无异常。
-            </CardDescription>
+            <CardDescription>未勾选表示本炉无异常。</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="flex items-center gap-3 rounded-md border p-3">
@@ -4621,6 +5246,7 @@ export function SimpleGrowthEditor({
                     >
                       <SelectTrigger
                         className="w-full"
+                        aria-label="异常类型"
                         aria-invalid={eventTypeInvalid || undefined}
                       >
                         <SelectValue placeholder="请选择异常类型" />

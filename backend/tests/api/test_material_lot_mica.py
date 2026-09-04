@@ -9,6 +9,7 @@ def test_mica_type_is_required_and_controls_the_formula(db_session, admin_user) 
     base = {
         "lot_category": "substrate",
         "substance_name": "云母",
+        "batch_number_availability": "batch_number_reported",
         "batch_number": "MICA-1",
         "substrate_material": "mica",
     }

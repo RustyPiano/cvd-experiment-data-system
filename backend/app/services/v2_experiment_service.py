@@ -23,6 +23,8 @@ from app.schemas.generated.v2_module_payload import validate_v2_module_payload
 from app.schemas.scientific import (
     RunRevisionListResponse,
     RunRevisionRead,
+    normalize_process_event_for_read,
+    normalize_process_preparation_for_read,
     normalize_source_loads_for_read,
 )
 from app.schemas.v2 import (
@@ -1587,6 +1589,15 @@ class V2ExperimentService:
         payload_json = payload.payload_json
         if payload.module_key == "precursors":
             payload_json = normalize_source_loads_for_read(payload_json)
+        elif payload.module_key == "process_steps":
+            payload_json = normalize_process_preparation_for_read(payload_json)
+        elif payload.module_key == "process_events":
+            payload_json = {
+                **payload_json,
+                "items": [
+                    normalize_process_event_for_read(item) for item in payload_json.get("items", [])
+                ],
+            }
         return V2ModulePayloadRead(
             id=payload.id,
             experiment_run_id=payload.experiment_run_id,

@@ -412,17 +412,17 @@ def test_method_modes_gate_composition_and_power_is_structured() -> None:
             },
             "raw_file_ids": [str(uuid4())],
         },
-        "assertions": [
+        "properties": [
             {
-                "assertion_type": "composition",
-                "value": {
+                "property_code": "elemental_composition",
+                "structured_value": {
                     "basis": "atomic_fraction",
-                    "components": [{"species": "MoS2", "fraction": 1}],
+                    "components": [{"species": "Mo", "fraction": 1}],
                 },
             }
         ],
     }
-    with pytest.raises(ValueError, match="SEM composition requires"):
+    with pytest.raises(ValueError, match="does not apply to mode"):
         MeasurementBundleCreate.model_validate(payload)
     payload["measurement"]["typed_conditions"]["mode"] = "EDS"
     assert (
@@ -1107,12 +1107,14 @@ def _optical_measurement(
     if property_quality != "valid":
         payload["properties"][0]["quality_note"] = "result requires review"
     if growth_state is not None:
-        payload["assertions"] = [
+        payload["properties"].append(
             {
-                "assertion_type": "growth_presence",
-                "value": {"state": growth_state},
+                "property_code": "observation_note",
+                "text_value": "No visible islands"
+                if growth_state == "absent"
+                else "Visible islands",
             }
-        ]
+        )
     return payload
 
 
@@ -1164,7 +1166,7 @@ def test_measurement_api_rejects_below_detection_limit_for_text_property(
     assert response.status_code == 422
 
 
-def test_equivalent_assertion_writes_do_not_create_a_false_conflict(
+def test_new_measurements_reject_material_verdicts(
     active_user,
     db_session,
 ) -> None:
@@ -1175,10 +1177,10 @@ def test_equivalent_assertion_writes_do_not_create_a_false_conflict(
         payload = _optical_measurement(sample.id)
         payload["assertions"] = [{"assertion_type": "growth_presence", "value": {"state": state}}]
         response = client.post("/api/v1/measurements", json=payload, headers=headers)
-        assert response.status_code == 201, response.text
+        assert response.status_code == 422, response.text
 
     db_session.refresh(sample)
-    assert sample.actual_state == "growth_present"
+    assert sample.actual_state == "unknown"
 
 
 def test_measurement_api_rejects_boolean_scientific_numbers(active_user, db_session) -> None:
@@ -1304,7 +1306,7 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     db_session.refresh(sample)
     assert run.not_characterized_at is None
     assert run.result_missing_todo is False
-    assert sample.actual_state == "growth_present"
+    assert sample.actual_state == "unknown"
     present_query = {
         "filters": [{"field": "growth_presence", "operator": "eq", "value": "present"}]
     }
@@ -1315,7 +1317,7 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
             json=present_query,
             headers=headers,
         ).json()["items"]
-    ] == [str(run.id)]
+    ] == []
 
     detail = client.get(
         f"/api/v1/measurements/{valid.json()['id']}",
@@ -1326,8 +1328,8 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     assert detail.json()["revision_number"] == 1
     assert detail.json()["can_invalidate"] is True
     assert detail.json()["performed_by_name"] == active_user.name
-    assert detail.json()["properties"][0]["property_code"] == "coverage_percent"
-    assert detail.json()["assertions"][0]["value"] == {"state": "present"}
+    assert any(prop["property_code"] == "coverage_percent" for prop in detail.json()["properties"])
+    assert detail.json()["assertions"] == []
 
     observer = User(
         email="measurement-observer@example.com",
@@ -1393,14 +1395,14 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     assert repeated.status_code == 409
 
 
-def test_measurement_summary_accepts_active_assertion_only(
+def test_measurement_summary_accepts_observation_only(
     active_user,
     db_session,
 ) -> None:
     run, sample = _locked_sample(db_session, active_user, "15")
     headers = _headers(active_user.email)
     payload = _optical_measurement(sample.id, growth_state="absent")
-    payload["properties"] = []
+    payload["properties"] = [payload["properties"][-1]]
 
     created = client.post("/api/v1/measurements", json=payload, headers=headers)
 
@@ -1412,8 +1414,8 @@ def test_measurement_summary_accepts_active_assertion_only(
     )
     assert detail.status_code == 200, detail.text
     assert detail.json()["evidence_present"] is True
-    assert detail.json()["property_count"] == 0
-    assert detail.json()["assertion_count"] == 1
+    assert detail.json()["property_count"] == 1
+    assert detail.json()["assertion_count"] == 0
     listed = client.get(f"/api/v1/measurements?run_id={run.id}", headers=headers)
     assert listed.status_code == 200, listed.text
     assert listed.json()["items"][0]["evidence_present"] is True
@@ -2287,11 +2289,6 @@ def test_measurement_freezes_calibration_state(active_user, db_session) -> None:
             "instrument_id": str(instrument.id),
             "instrument_version": 1,
             "measured_at": "2026-07-29T10:00:00+00:00",
-            "sample_region": {
-                "geometry_type": "point",
-                "label": "center",
-                "coordinate_system": "sample_local",
-            },
             "typed_conditions": {
                 "laser_wavelength_nm": 532,
                 "excitation_power_value": 1,
@@ -2302,12 +2299,22 @@ def test_measurement_freezes_calibration_state(active_user, db_session) -> None:
             },
             "raw_file_ids": [str(raw_file.id)],
         },
-        "assertions": [
+        "properties": [
             {
-                "assertion_type": "phase_identity",
-                "value": {"phase": "2H-MoS2"},
+                "property_code": "spectral_peaks",
+                "structured_value": {
+                    "status": "recorded",
+                    "position_unit": "cm⁻¹",
+                    "intensity_unit": "counts",
+                    "source_file_id": str(raw_file.id),
+                    "peaks": [
+                        {"id": 1, "position": 384.2, "fwhm": 4.1},
+                        {"id": 2, "position": 405.6, "fwhm": 5.2},
+                    ],
+                },
             }
         ],
+        "assertions": [],
     }
     headers = _headers(active_user.email)
     wrong_method = client.post(
@@ -2347,5 +2354,121 @@ def test_measurement_freezes_calibration_state(active_user, db_session) -> None:
     assert snapshot["expanded_uncertainty"] == 0.5
     db_session.refresh(sample)
     assert sample.actual_state == "unknown"
-    assert sample.identity_state == "asserted"
-    assert sample.actual_material_summary == "2H-MoS2"
+    assert sample.identity_state == "unknown"
+    assert sample.actual_material_summary is None
+
+    detail = client.get(f"/api/v1/measurements/{response.json()['id']}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["sample_region"] == {}
+    assert (
+        detail.json()["properties"][0]["structured_value"]
+        == payload["properties"][0]["structured_value"]
+    )
+    exported = client.get(
+        f"/api/v1/experiments/{run.id}/export",
+        params={"revision_id": str(run.current_revision_id)},
+        headers=headers,
+    )
+    assert exported.status_code == 200, exported.text
+    exported_measurement = exported.json()["scientific_record"]["measurements"][0]
+    assert (
+        exported_measurement["properties"][0]["structured_value"]
+        == payload["properties"][0]["structured_value"]
+    )
+    assert exported_measurement["assertions"] == []
+
+
+@pytest.mark.parametrize(
+    "method,capability,conditions",
+    [
+        (
+            "SHG",
+            "SHG",
+            {
+                "data_type": "polarization_scan",
+                "excitation_wavelength_nm": 800,
+                "excitation_mode": "pulsed",
+                "pulse_width_fs": 100,
+                "polarization_scan_axis": "input_polarization",
+                "angle_reference": "实验室水平",
+            },
+        ),
+        (
+            "Raman",
+            "low_frequency_raman",
+            {
+                "laser_wavelength_nm": 532,
+                "raman_shift_range_cm1": {"start": -50, "end": 500},
+                "filter_configuration": "ULF",
+            },
+        ),
+    ],
+)
+def test_new_method_conditions_survive_save_detail_and_export(
+    active_user, db_session, method, capability, conditions
+):
+    run, sample = _locked_sample(db_session, active_user, "a36")
+    instrument = Instrument()
+    db_session.add(instrument)
+    db_session.flush()
+    version = InstrumentVersion(
+        entity_id=instrument.id,
+        version=1,
+        instrument_code="ALPHA36-QA",
+        name_type=capability,
+        attrs={},
+    )
+    db_session.add(version)
+    db_session.flush()
+    db_session.add(
+        InstrumentCapability(
+            instrument_version_id=version.id, capability_code=capability, configuration_json={}
+        )
+    )
+    raw_file = FileAsset(
+        experiment_run_id=run.id,
+        sample_id=sample.id,
+        uploaded_by_id=active_user.id,
+        original_name="alpha36-raw.txt",
+        storage_path=f"test/{sample.id}_alpha36.txt",
+        content_type="text/plain",
+        size_bytes=12,
+        sha256="d" * 64,
+        method=method,
+        file_category="raw",
+        asset_role="characterization_file",
+        metadata_json={},
+    )
+    db_session.add(raw_file)
+    db_session.commit()
+    headers = _headers(active_user.email)
+    response = client.post(
+        "/api/v1/measurements",
+        headers=headers,
+        json={
+            "measurement": {
+                "sample_id": str(sample.id),
+                "method_profile": method,
+                "instrument_id": str(instrument.id),
+                "instrument_version": 1,
+                "measured_at": "2026-09-04T10:00:00+08:00",
+                "typed_conditions": conditions,
+                "raw_file_ids": [str(raw_file.id)],
+            }
+        },
+    )
+    assert response.status_code == 201, response.text
+    detail = client.get(f"/api/v1/measurements/{response.json()['id']}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    assert {
+        key: value for key, value in detail.json()["typed_conditions"].items() if value is not None
+    } == conditions
+    assert detail.json()["assertions"] == []
+    exported = client.get(
+        f"/api/v1/experiments/{run.id}/export",
+        params={"revision_id": str(run.current_revision_id)},
+        headers=headers,
+    )
+    assert exported.status_code == 200, exported.text
+    exported_measurement = exported.json()["scientific_record"]["measurements"][0]
+    assert exported_measurement["typed_conditions"] == conditions

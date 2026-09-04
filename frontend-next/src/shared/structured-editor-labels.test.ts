@@ -50,8 +50,8 @@ describe('structured editor label factories', () => {
 
       expect(treatment.step(2)).toBe(treatmentStep)
       expect(treatment.types.spin_coat).toBe(spinCoat)
-      expect(Object.keys(treatment.types)).toHaveLength(14)
-      expect(Object.keys(treatment.fields)).toHaveLength(11)
+      expect(Object.keys(treatment.types)).toHaveLength(15)
+      expect(Object.keys(treatment.fields)).toHaveLength(14)
       expect(temperature.zone(2)).toBe(zone)
       expect(gasFeeds.feed(2)).toBe(gas)
       expect(gasFeeds.speciesOptions.Ar).toBe(argon)

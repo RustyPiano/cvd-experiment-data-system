@@ -329,6 +329,13 @@ def _scientific_contract_checks(
         ingredient
         for load in source_loads
         if load.get("loading_method") != "gas_line"
+        and not (
+            any(step.get("step_type") == "dip_coat" for step in load.get("preparation_steps") or [])
+            and not any(
+                step.get("step_type") in {"drop_cast", "spin_coat"}
+                for step in load.get("preparation_steps") or []
+            )
+        )
         for ingredient in load.get("ingredients") or []
         if isinstance(ingredient, dict)
     ]
@@ -443,7 +450,7 @@ def _scientific_contract_checks(
         _semantic_item(
             "process_steps",
             "preparation_gas_sources",
-            "气路置换使用实际气瓶批次",
+            "气氛置换使用实际气瓶批次",
             bool(preparation_gas_sources)
             and _preparation_gas_references_valid(
                 db,
@@ -504,7 +511,7 @@ def _scientific_contract_checks(
         if item.get("channel_type") == "pressure" and item.get("source_type") == "setpoint"
     ]
     pressure_valid = pressure_regime == "atmospheric" and not pressure_channels
-    if pressure_regime in {"low_pressure", "ultra_high_vacuum", "other"}:
+    if pressure_regime in {"low_pressure", "ultra_high_vacuum", "high_pressure", "other"}:
         pressure_valid = len(pressure_channels) == 1 and (
             pressure_channels[0].get("pressure_type") == "absolute"
             and pressure_channels[0].get("data_kind") == "scalar"

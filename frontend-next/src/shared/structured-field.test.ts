@@ -266,42 +266,62 @@ describe('structured scientific fields', () => {
           tilt_angle_deg: 90,
         }),
       ),
-    ).toThrow(/less than 90/)
+    ).toThrow(/between -90 and 90/)
+    expect(() =>
+      structuredPayload(
+        'size_placement',
+        encodeStructuredValue({
+          length_mm: 10,
+          width_mm: 10,
+          placement: 'tilted',
+          tilt_angle_deg: 0,
+          tilt_azimuth_deg: 180,
+        }),
+      ),
+    ).toThrow(/non-zero/)
   })
 
   it('round-trips the conditional substrate placement fields', () => {
     const encoded = structuredValueFromRaw('size_placement', {
-      length_mm: 10,
-      width_mm: 12,
+      length_mm: 12,
+      width_mm: 10,
       thickness_mm: 0.5,
       placement: 'tilted',
-      tilt_angle_deg: 15,
+      tilt_angle_deg: -15,
+      tilt_azimuth_deg: 180,
     })
     expect(parseStructuredValue(encoded)).toEqual({
-      length_mm: 10,
-      width_mm: 12,
+      length_mm: 12,
+      width_mm: 10,
       thickness_mm: 0.5,
       placement: 'tilted',
-      tilt_angle_deg: 15,
+      tilt_angle_deg: -15,
+      tilt_azimuth_deg: 180,
     })
     expect(structuredPayload('size_placement', encoded)).toEqual({
-      length_mm: 10,
-      width_mm: 12,
+      length_mm: 12,
+      width_mm: 10,
       thickness_mm: 0.5,
       placement: 'tilted',
-      tilt_angle_deg: 15,
+      tilt_angle_deg: -15,
+      tilt_azimuth_deg: 180,
+      upright_growth_face_direction: null,
       placement_other: null,
     })
     expect(
       structuredPayload(
         'size_placement',
         encodeStructuredValue({
-          length_mm: 10,
-          width_mm: 12,
-          placement: 'face_to_face',
+          length_mm: 12,
+          width_mm: 10,
+          placement: 'upright',
+          upright_growth_face_direction: 'downstream',
         }),
       ),
-    ).toMatchObject({ placement: 'face_to_face' })
+    ).toMatchObject({
+      placement: 'upright',
+      upright_growth_face_direction: 'downstream',
+    })
   })
 
   it.each([

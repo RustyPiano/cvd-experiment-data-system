@@ -64,20 +64,28 @@ describe('StructuredObjectControl v3.7 objects', () => {
     const user = userEvent.setup()
     render(<ControlledObject fieldKey="size_placement" />)
 
-    await user.type(screen.getByLabelText(/^Length \(mm\)/), '10')
-    await user.type(screen.getByLabelText(/^Width \(mm\)/), '10')
+    await user.type(screen.getByLabelText(/^Long edge \(mm\)/), '10')
+    await user.type(screen.getByLabelText(/^Short edge \(mm\)/), '10')
     await user.click(screen.getByRole('combobox', { name: 'Placement' }))
     await user.click(screen.getByRole('option', { name: 'Tilted' }))
-    await user.type(screen.getByLabelText(/^Tilt angle \(°\)/), '15')
+    await user.type(screen.getByLabelText(/^Tilt angle \(°\)/), '-15')
+    await user.type(screen.getByLabelText(/^Tilt azimuth \(°\)/), '180')
 
     expect(
       parseStructuredValue(screen.getByTestId('value').textContent ?? ''),
-    ).toMatchObject({ placement: 'tilted', tilt_angle_deg: '15' })
+    ).toMatchObject({
+      placement: 'tilted',
+      tilt_angle_deg: '-15',
+      tilt_azimuth_deg: '180',
+    })
 
     await user.click(screen.getByRole('combobox', { name: 'Placement' }))
     await user.click(screen.getByRole('option', { name: 'Face up' }))
 
     expect(screen.queryByLabelText(/^Tilt angle \(°\)/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByLabelText(/^Tilt azimuth \(°\)/),
+    ).not.toBeInTheDocument()
     expect(
       parseStructuredValue(screen.getByTestId('value').textContent ?? ''),
     ).toEqual({ length_mm: '10', width_mm: '10', placement: 'face_up' })
@@ -228,7 +236,9 @@ describe('StructuredObjectControl v3.7 objects', () => {
     expect(screen.getByRole('option', { name: 'Zone 1' })).toBeInTheDocument()
     await user.click(screen.getByRole('option', { name: 'Zone 2' }))
     await user.type(
-      screen.getByLabelText(/^Position relative to thermocouple/),
+      screen.getByLabelText(
+        /^Position relative to temperature measurement point/,
+      ),
       '-5',
     )
 

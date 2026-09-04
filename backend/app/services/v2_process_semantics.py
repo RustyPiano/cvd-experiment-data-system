@@ -101,6 +101,8 @@ def valid_frozen_gas_reference(item: dict[str, Any]) -> bool:
         return False
     if missing(item.get("species")):
         return True
+    if item.get("species") == "premixed":
+        return len(components) > 1
     if _snapshot_value(snapshot, "gas_components") is None:
         return gas_identity_matches(item.get("species"), item.get("other_name"), snapshot)
     if len(components) != 1:

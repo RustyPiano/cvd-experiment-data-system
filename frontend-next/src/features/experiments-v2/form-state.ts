@@ -1,7 +1,10 @@
 import { structuredValueFromRaw } from '@/shared/structured-field'
 
 import type { V2ExperimentRead, V2ModulePayloadRead } from './api'
-import { substratesFromPayload } from './field-logic'
+import {
+  substratePlacementRelationsFromPayload,
+  substratesFromPayload,
+} from './field-logic'
 import type { ExperimentV2FormState } from './form-types'
 
 function snapshotFromRun(
@@ -34,8 +37,9 @@ export function buildStateFromLoaded(
         equipment?.['tube_usage_history'],
       ),
     },
-    substrates: substratesFromPayload(
-      modules['substrates']?.payload_json ?? null,
+    substrates: substratesFromPayload(modules['substrates']?.payload_json),
+    substratePlacementRelations: substratePlacementRelationsFromPayload(
+      modules['substrates']?.payload_json,
     ),
   }
 }

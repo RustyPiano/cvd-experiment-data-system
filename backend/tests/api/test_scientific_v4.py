@@ -177,6 +177,27 @@ def test_target_phase_catalog_accepts_known_and_custom_phases() -> None:
         TargetSpecPayload.model_validate(invalid)
 
 
+def test_target_planar_outline_requires_discrete_planar_crystal() -> None:
+    target = {
+        "architecture_type": "single_region",
+        "material_regions": [
+            {
+                "region_key": "film",
+                "formula": "MoS2",
+                "spatial_role": "single_region",
+            }
+        ],
+        "composition_relations": [],
+        "dimensional_form": "discrete_planar_crystal",
+        "in_plane_outline": "triangle",
+    }
+    assert TargetSpecPayload.model_validate(target).in_plane_outline == "triangle"
+
+    target["dimensional_form"] = "continuous_film"
+    with pytest.raises(ValueError, match="requires discrete_planar_crystal"):
+        TargetSpecPayload.model_validate(target)
+
+
 def test_source_position_uses_selected_zone_thermocouple() -> None:
     payload = {
         "items": [
@@ -236,7 +257,7 @@ def test_source_preparation_parameters_are_typed_and_atmosphere_is_canonical() -
     anneal = SourceLoadsPayload.model_validate(
         payload(
             {
-                "step_type": "pre_anneal",
+                "step_type": "dry",
                 "sequence": 1,
                 "parameters": {
                     "temperature_C": 500,
@@ -255,7 +276,7 @@ def test_source_preparation_parameters_are_typed_and_atmosphere_is_canonical() -
     custom = SourceLoadsPayload.model_validate(
         payload(
             {
-                "step_type": "pre_anneal",
+                "step_type": "dry",
                 "sequence": 1,
                 "parameters": {
                     "temperature_C": 500,
@@ -357,6 +378,59 @@ def test_instrument_create_rejects_non_finite_capability_json(
         headers={**_headers(admin_user.email), "Content-Type": "application/json"},
     )
 
+    assert response.status_code == 422, response.text
+
+
+def test_other_instrument_methods_round_trip_and_preserve_versions(admin_user, db_session) -> None:
+    from sqlalchemy import select
+
+    from app.models.v2_entities import InstrumentCapability
+
+    headers = _headers(admin_user.email)
+    payload = {
+        "instrument_code": "CUSTOM-METHODS-01",
+        "name_type": "other",
+        "capabilities": [
+            {"code": "Raman", "configuration": {}},
+            {"code": "other", "configuration": {"method_names": [" XPS ", "FTIR"]}},
+        ],
+    }
+    created = client.post("/api/v1/instruments", json=payload, headers=headers)
+    assert created.status_code == 201, created.text
+    entity_id = created.json()["id"]
+    expected = ["XPS", "FTIR"]
+    assert (
+        created.json()["latest_version"]["data"]["capabilities"][1]["configuration"]["method_names"]
+        == expected
+    )
+    stored = db_session.scalar(
+        select(InstrumentCapability).where(InstrumentCapability.capability_code == "other")
+    )
+    assert stored.configuration_json == {"method_names": expected}
+    payload["capabilities"][1]["configuration"]["method_names"] = ["XPS", "UPS"]
+    updated = client.post(
+        f"/api/v1/instruments/{entity_id}/versions", json=payload, headers=headers
+    )
+    assert updated.status_code == 201, updated.text
+    versions = client.get(f"/api/v1/instruments/{entity_id}/versions", headers=headers)
+    assert versions.status_code == 200, versions.text
+    old = next(item for item in versions.json()["items"] if item["version"] == 1)
+    assert old["data"]["capabilities"][1]["configuration"]["method_names"] == expected
+
+
+@pytest.mark.parametrize(
+    "names", [None, [], [""], ["  "], ["XPS", " xps "], ["X" * 129], [123], "XPS"]
+)
+def test_other_instrument_methods_reject_invalid_names(admin_user, names) -> None:
+    response = client.post(
+        "/api/v1/instruments",
+        json={
+            "instrument_code": "CUSTOM-INVALID",
+            "name_type": "other",
+            "capabilities": [{"code": "other", "configuration": {"method_names": names}}],
+        },
+        headers=_headers(admin_user.email),
+    )
     assert response.status_code == 422, response.text
 
 
@@ -540,9 +614,8 @@ def test_scientific_revision_measurement_and_query_chain(
                 }
             ],
             "composition_relations": [],
-            "dimensional_form": "sheet",
-            "coverage_state": "continuous",
-            "orientation": "in_plane",
+            "dimensional_form": "discrete_planar_crystal",
+            "in_plane_outline": "triangle",
         },
     )
     _put_module(
@@ -729,11 +802,12 @@ def test_scientific_revision_measurement_and_query_chain(
                 {
                     "operation_type": "gas_exchange",
                     "duration_min": 10,
-                    "cycle_count": 3,
+                    "exchange_mode": "continuous_flow",
                     "gas_sources": [
                         {
                             "material_lot_id": gas_lot["id"],
                             "material_lot_version": 1,
+                            "flow_sccm": 120,
                         }
                     ],
                 }
@@ -880,13 +954,7 @@ def test_scientific_revision_measurement_and_query_chain(
                     "statistic": "single_observation",
                 }
             ],
-            "assertions": [
-                {
-                    "assertion_type": "growth_presence",
-                    "value": {"state": "absent"},
-                    "confidence": 0.95,
-                }
-            ],
+            "assertions": [],
         },
         headers=headers,
     )
@@ -941,7 +1009,7 @@ def test_scientific_revision_measurement_and_query_chain(
 
     sample_after = client.get(f"/api/v1/samples/{sample['id']}", headers=headers)
     assert sample_after.status_code == 200, sample_after.text
-    assert sample_after.json()["actual_state"] == "no_growth"
+    assert sample_after.json()["actual_state"] == "unknown"
     assert sample_after.json()["material_system"] is None
     assert sample_after.json()["target_material_system"] == "MoS2"
 
@@ -949,11 +1017,6 @@ def test_scientific_revision_measurement_and_query_chain(
         "/api/v1/datasets/query",
         json={
             "filters": [
-                {
-                    "field": "growth_presence",
-                    "operator": "eq",
-                    "value": "absent",
-                },
                 {
                     "field": "property",
                     "property_code": "coverage_percent",
@@ -1027,6 +1090,10 @@ def test_scientific_revision_measurement_and_query_chain(
     projected_target = (
         db_session.query(TargetSpec).filter_by(run_revision_id=UUID(revision_1)).one()
     )
+    assert (
+        projected_target.dimensional_form,
+        projected_target.in_plane_outline,
+    ) == ("discrete_planar_crystal", "triangle")
     projected_region = (
         db_session.query(TargetMaterialRegion).filter_by(target_spec_id=projected_target.id).one()
     )
@@ -1044,6 +1111,9 @@ def test_scientific_revision_measurement_and_query_chain(
         "manual_estimate"
     )
     exported_operation = export_json["modules"]["process_steps"]["preparation_operations"][0]
+    assert exported_operation["exchange_mode"] == "continuous_flow"
+    assert exported_operation["gas_sources"][0]["flow_sccm"] == 120
+    assert "cycle_count" not in exported_operation
     assert "gases" not in exported_operation
     assert exported_operation["gas_sources"][0]["snapshot"]["attrs"]["gas_components"] == [
         {"species": "Ar", "volume_percent": 100.0}
@@ -1101,12 +1171,7 @@ def test_scientific_revision_measurement_and_query_chain(
                     "illumination_mode": "bright_field",
                 },
             },
-            "assertions": [
-                {
-                    "assertion_type": "growth_presence",
-                    "value": {"state": "present"},
-                }
-            ],
+            "properties": [{"property_code": "observation_note", "text_value": "Visible islands"}],
         },
         headers=headers,
     )
@@ -1115,7 +1180,7 @@ def test_scientific_revision_measurement_and_query_chain(
         f"/api/v1/samples/{sample['id']}",
         headers=headers,
     )
-    assert sample_with_conflict.json()["actual_state"] == "uncertain"
+    assert sample_with_conflict.json()["actual_state"] == "unknown"
 
     transformed = client.post(
         "/api/v1/transformations",
@@ -1214,7 +1279,7 @@ def test_scientific_revision_measurement_and_query_chain(
     assert {
         str(item.run_revision_id): (item.growth_state, item.identity_state) for item in states
     } == {
-        revision_1: ("uncertain", "unknown"),
+        revision_1: ("unknown", "unknown"),
         revision_2: ("unknown", "unknown"),
     }
     sample_in_revision_2 = client.get(
@@ -1573,12 +1638,12 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
                     },
                     "typed_conditions": {},
                 },
-                "assertions": [
+                "properties": [
                     {
-                        "assertion_type": "growth_presence",
-                        "value": {
-                            "state": ("absent" if expected_state == "no_growth" else "present")
-                        },
+                        "property_code": "observation_note",
+                        "text_value": "No visible islands"
+                        if expected_state == "no_growth"
+                        else "Visible islands",
                     }
                 ],
             },
@@ -1587,5 +1652,5 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
         assert measured.status_code == 201, measured.text
         sample = client.get(f"/api/v1/samples/{sample_id}", headers=headers)
         assert sample.status_code == 200, sample.text
-        assert sample.json()["actual_state"] == expected_state
+        assert sample.json()["actual_state"] == "unknown"
         assert sample.json()["characterization_count"] == 1

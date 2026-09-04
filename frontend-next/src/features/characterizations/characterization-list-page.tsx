@@ -108,7 +108,6 @@ export function CharacterizationListPage({
               ? 'characterizations.run.readOnlyTitle'
               : 'characterizations.run.title',
           )}
-          subtitle={t('characterizations.run.subtitle')}
         />
         {runQuery.isError ? (
           <Alert variant="destructive">
@@ -162,10 +161,7 @@ export function CharacterizationListPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title={t('characterizations.list.title')}
-        subtitle={t('characterizations.list.subtitle')}
-      />
+      <PageHeader title={t('characterizations.list.title')} />
 
       {itemsQuery.isError ? (
         <Alert variant="destructive">

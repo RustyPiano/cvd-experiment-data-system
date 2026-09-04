@@ -165,7 +165,12 @@ export interface CoolingParamsEditorProps {
   labels: CoolingParamsEditorLabels
 }
 
-export const actualFieldTypes = ['plasma', 'light', 'electric_field'] as const
+export const actualFieldTypes = [
+  'plasma',
+  'light',
+  'electric_field',
+  'other',
+] as const
 
 export type ActualFieldType = (typeof actualFieldTypes)[number]
 
@@ -296,6 +301,7 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
       required: true,
     },
   ],
+  other: [],
 }
 
 export interface ActualField {
@@ -316,6 +322,7 @@ export interface FieldParamsEditorLabels {
   removeField: string
   parameterGroups: Record<ActualFieldType, string>
   explicitParameters: Record<ActualFieldParameterKey, string>
+  magnitudeHints: Record<'light' | 'electric_field', string>
   otherParameters: string
   parameters: NamedParameterEditorLabels
 }
@@ -1469,50 +1476,72 @@ function ExplicitFieldParameters({
 
   return (
     <div className="flex flex-col gap-4">
-      <fieldset className="grid gap-3 sm:grid-cols-2">
-        <legend className="mb-1 text-sm font-medium">
-          {labels.parameterGroups[field.field_type]}
-        </legend>
-        {definitions.map((definition) => {
-          const parameterIndex = matches.get(definition.key)
-          const parameter =
-            parameterIndex == null
-              ? undefined
-              : field.parameters[parameterIndex]
-          return (
-            <div key={definition.key} className="flex flex-col gap-1">
-              <Label htmlFor={`${baseId}-${definition.key}`}>
-                {labels.explicitParameters[definition.key]}
-                {definition.required ? <RequiredMark /> : null}
-              </Label>
-              <Input
-                id={`${baseId}-${definition.key}`}
-                type={definition.kind === 'number' ? 'number' : 'text'}
-                inputMode={definition.kind === 'number' ? 'decimal' : undefined}
-                min={definition.kind === 'number' ? 0 : undefined}
-                step={definition.kind === 'number' ? 'any' : undefined}
-                value={parameter == null ? '' : String(parameter.value)}
-                aria-invalid={
-                  (explicitInvalid &&
-                    (definition.required
-                      ? parameter == null ||
-                        (definition.kind === 'number' &&
-                          !(Number(parameter.value) > 0))
-                      : definition.alternativeGroup === 'magnitude' &&
-                        selectedAlternatives !== 1)) ||
-                  undefined
-                }
-                disabled={disabled}
-                onChange={(event) =>
-                  onChange(
-                    setExplicitParameter(field, definition, event.target.value),
-                  )
-                }
-              />
-            </div>
-          )
-        })}
-      </fieldset>
+      {definitions.length > 0 ? (
+        <fieldset className="grid gap-3 sm:grid-cols-2">
+          <legend className="mb-1 text-sm font-medium">
+            {labels.parameterGroups[field.field_type]}
+          </legend>
+          {field.field_type === 'light' ||
+          field.field_type === 'electric_field' ? (
+            <p
+              id={`${baseId}-magnitude-hint`}
+              className="text-sm text-muted-foreground sm:col-span-2"
+            >
+              {labels.magnitudeHints[field.field_type]}
+            </p>
+          ) : null}
+          {definitions.map((definition) => {
+            const parameterIndex = matches.get(definition.key)
+            const parameter =
+              parameterIndex == null
+                ? undefined
+                : field.parameters[parameterIndex]
+            return (
+              <div key={definition.key} className="flex flex-col gap-1">
+                <Label htmlFor={`${baseId}-${definition.key}`}>
+                  {labels.explicitParameters[definition.key]}
+                  {definition.required ? <RequiredMark /> : null}
+                </Label>
+                <Input
+                  id={`${baseId}-${definition.key}`}
+                  type={definition.kind === 'number' ? 'number' : 'text'}
+                  inputMode={
+                    definition.kind === 'number' ? 'decimal' : undefined
+                  }
+                  min={definition.kind === 'number' ? 0 : undefined}
+                  step={definition.kind === 'number' ? 'any' : undefined}
+                  value={parameter == null ? '' : String(parameter.value)}
+                  aria-describedby={
+                    definition.alternativeGroup === 'magnitude'
+                      ? `${baseId}-magnitude-hint`
+                      : undefined
+                  }
+                  aria-invalid={
+                    (explicitInvalid &&
+                      (definition.required
+                        ? parameter == null ||
+                          (definition.kind === 'number' &&
+                            !(Number(parameter.value) > 0))
+                        : definition.alternativeGroup === 'magnitude' &&
+                          selectedAlternatives !== 1)) ||
+                    undefined
+                  }
+                  disabled={disabled}
+                  onChange={(event) =>
+                    onChange(
+                      setExplicitParameter(
+                        field,
+                        definition,
+                        event.target.value,
+                      ),
+                    )
+                  }
+                />
+              </div>
+            )
+          })}
+        </fieldset>
+      ) : null}
       <NamedParametersEditor
         value={otherParameters}
         onChange={(nextOtherParameters) => {

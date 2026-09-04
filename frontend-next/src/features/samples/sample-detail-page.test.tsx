@@ -151,7 +151,7 @@ describe('sample detail product view', () => {
     expect(screen.getByText('2H-MoS₂')).toBeInTheDocument()
     expect(screen.getByText('SUB-DEMO-01')).toBeInTheDocument()
     expect(screen.getByText('10 × 10 × 0.5 mm')).toBeInTheDocument()
-    expect(screen.getByText('温区 1；相对热电偶 +12 mm')).toBeInTheDocument()
+    expect(screen.getByText('温区 1；相对测温点 +12 mm')).toBeInTheDocument()
     expect(screen.getByText('朝上')).toBeInTheDocument()
     expect(screen.getByText('丙酮与异丙醇清洗')).toBeInTheDocument()
     expect(screen.getByText('已有表征记录')).toBeInTheDocument()

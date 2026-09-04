@@ -12,6 +12,11 @@ import { normalizeChemicalFormula } from './formula'
 
 export type ModuleFieldValue = string | string[]
 export type ModuleValues = Record<string, ModuleFieldValue>
+export interface SubstratePlacementRelation {
+  piece_a_label: string
+  piece_b_label: string
+  gap_mm?: number | null
+}
 
 export function moduleValueAsString(
   value: ModuleFieldValue | undefined,
@@ -20,7 +25,9 @@ export function moduleValueAsString(
 }
 
 export function getModuleFields(moduleKey: string): FieldMetadata[] {
-  return experimentModules[moduleKey] ?? []
+  return (experimentModules[moduleKey] ?? []).filter(
+    (field) => !field.moduleLevel,
+  )
 }
 
 export function emptySubstrateValues(): ModuleValues {
@@ -60,6 +67,15 @@ export function substratesFromPayload(
   })
 }
 
+export function substratePlacementRelationsFromPayload(
+  payload: Record<string, unknown> | null | undefined,
+): SubstratePlacementRelation[] {
+  const relations = payload?.['placement_relations']
+  return Array.isArray(relations)
+    ? (relations as SubstratePlacementRelation[])
+    : []
+}
+
 function substrateValueForPayload(
   field: FieldMetadata,
   value: ModuleFieldValue | undefined,
@@ -80,8 +96,12 @@ function substrateValueForPayload(
   return text
 }
 
-export function buildSubstratesPayload(items: ModuleValues[]): {
+export function buildSubstratesPayload(
+  items: ModuleValues[],
+  placementRelations: SubstratePlacementRelation[] = [],
+): {
   items: Record<string, unknown>[]
+  placement_relations: SubstratePlacementRelation[]
 } {
   return {
     items: items
@@ -102,5 +122,6 @@ export function buildSubstratesPayload(items: ModuleValues[]): {
           ? { source_id: moduleValueAsString(values['source_id']) }
           : {}),
       })),
+    placement_relations: placementRelations,
   }
 }

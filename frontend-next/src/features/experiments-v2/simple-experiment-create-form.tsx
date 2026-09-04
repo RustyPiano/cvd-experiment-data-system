@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -108,11 +107,8 @@ export function SimpleExperimentCreateForm() {
 
   return (
     <Card className="mx-auto w-full max-w-3xl">
-      <CardHeader>
-        <CardTitle className="sr-only">
-          {t('experimentsV2.new.formTitle')}
-        </CardTitle>
-        <CardDescription>{t('experimentsV2.new.cvdOnly')}</CardDescription>
+      <CardHeader className="sr-only">
+        <CardTitle>{t('experimentsV2.new.formTitle')}</CardTitle>
       </CardHeader>
       <CardContent>
         <form

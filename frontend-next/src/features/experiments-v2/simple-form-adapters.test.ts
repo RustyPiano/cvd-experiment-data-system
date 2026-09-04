@@ -7,6 +7,7 @@ import {
   compositionValueForDisplay,
   compositionValueForPayload,
   simpleGrowthIssue,
+  simplePreparationIssue,
   simpleCreateIssue,
   simpleProcessEventsIssue,
   splitEventDescription,
@@ -23,6 +24,7 @@ const valid = {
 }
 
 const validProcessSettings = {
+  process_duration_min: 60,
   pressure_regime: 'atmospheric',
   cooling_method: 'furnace_cooling',
 } as const
@@ -104,6 +106,8 @@ describe('simple product form adapters', () => {
             {
               material_lot_id: 'lot-1',
               function_role: 'metal_source',
+              process_roles: ['flux_or_salt_assistant'],
+              process_role_other: 'legacy inference',
               snapshot: { substance_name: 'MoO3' },
             },
           ],
@@ -121,7 +125,7 @@ describe('simple product form adapters', () => {
               },
             },
           ],
-          ingredients: [{ material_lot_id: 'lot-1', process_roles: [] }],
+          ingredients: [{ material_lot_id: 'lot-1' }],
         },
       ],
     })
@@ -146,6 +150,7 @@ describe('simple product form adapters', () => {
       gas_lot_id: 'lot-1',
       gas_lot_version: 1,
       measurement_source: 'mfc',
+      unit: 'sccm',
       series: [{ start_s: 0, end_s: 3600, value: 100 }],
     }
     expect(
@@ -158,7 +163,9 @@ describe('simple product form adapters', () => {
         validProcessSettings,
         1,
       ),
-    ).toBe('请填写温区 1 的初始温度，并检查各温度步骤的持续时间和目标温度。')
+    ).toBe(
+      '请填写温区 1 的初始设定温度，并检查各温度步骤的持续时间和终点设定温度。',
+    )
   })
 
   it('accepts either target pressure or duration for pump down', () => {
@@ -176,6 +183,7 @@ describe('simple product form adapters', () => {
         gas_lot_id: 'lot-1',
         gas_lot_version: 1,
         measurement_source: 'mfc',
+        unit: 'sccm',
         series: [{ start_s: 0, end_s: 60, value: 100 }],
       },
     ]
@@ -215,7 +223,7 @@ describe('simple product form adapters', () => {
         },
         1,
       ),
-    ).toContain('抽至绝对压力')
+    ).toContain('终点绝对压力')
   })
 
   it('requires physical cylinder references for gas exchange', () => {
@@ -232,6 +240,7 @@ describe('simple product form adapters', () => {
       gas_lot_id: 'lot-1',
       gas_lot_version: 1,
       measurement_source: 'mfc',
+      unit: 'sccm',
       series: [{ start_s: 0, end_s: 60, value: 100 }],
     }
     const preparation = {
@@ -239,6 +248,7 @@ describe('simple product form adapters', () => {
       preparation_operations: [
         {
           operation_type: 'gas_exchange',
+          exchange_mode: 'evacuation_backfill' as const,
           duration_min: 5,
           cycle_count: 3,
           gas_sources: [
@@ -263,7 +273,7 @@ describe('simple product form adapters', () => {
         },
         1,
       ),
-    ).toContain('置换次数')
+    ).toContain('循环次数')
     expect(
       simpleGrowthIssue(
         [],
@@ -284,6 +294,42 @@ describe('simple product form adapters', () => {
     ).toContain('气瓶批次')
   })
 
+  it('validates continuous and cyclic preparation without inventing missing readings', () => {
+    const continuous = {
+      operation_type: 'gas_exchange',
+      exchange_mode: 'continuous_flow' as const,
+      duration_min: 5,
+      gas_sources: [{ material_lot_id: 'gas', material_lot_version: 1 }],
+    }
+    expect(simplePreparationIssue(continuous)).toBeNull()
+    expect(simplePreparationIssue({ ...continuous, cycle_count: 1 })).toContain(
+      '循环次数',
+    )
+    expect(
+      simplePreparationIssue({
+        ...continuous,
+        gas_sources: [{ ...continuous.gas_sources[0], flow_sccm: -1 }],
+      }),
+    ).toContain('流量')
+    expect(
+      simplePreparationIssue({ ...continuous, exchange_mode: undefined }),
+    ).toContain('置换方式')
+    const cyclic = {
+      ...continuous,
+      exchange_mode: 'evacuation_backfill' as const,
+      duration_min: undefined,
+      cycle_count: 3,
+    }
+    expect(simplePreparationIssue(cyclic)).toBeNull()
+    expect(
+      simplePreparationIssue({
+        ...cyclic,
+        target_absolute_pressure_Pa: 10,
+        backfill_absolute_pressure_Pa: 5,
+      }),
+    ).toContain('回填压力')
+  })
+
   it('rejects blank generated temperature and gas values', () => {
     const segments = [{ segment_type: 'growth', start_s: 0, end_s: 3600 }]
     const temperature = {
@@ -294,7 +340,9 @@ describe('simple product form adapters', () => {
     }
     expect(
       simpleGrowthIssue(segments, [temperature], validProcessSettings, 1),
-    ).toBe('请填写温区 1 的初始温度，并检查各温度步骤的持续时间和目标温度。')
+    ).toBe(
+      '请填写温区 1 的初始设定温度，并检查各温度步骤的持续时间和终点设定温度。',
+    )
     expect(
       simpleGrowthIssue(
         segments,
@@ -322,6 +370,7 @@ describe('simple product form adapters', () => {
       series: [{ start_s: 0, value: 700 }],
     }
     const settings = {
+      process_duration_min: 60,
       pressure_regime: 'low_pressure',
       cooling_method: 'furnace_cooling',
     }
@@ -332,6 +381,7 @@ describe('simple product form adapters', () => {
       gas_lot_id: 'lot-1',
       gas_lot_version: 1,
       measurement_source: 'mfc',
+      unit: 'sccm',
       series: [{ start_s: 0, end_s: 3600, value: 100 }],
     }
 
@@ -391,6 +441,7 @@ describe('simple product form adapters', () => {
       gas_lot_id: 'lot-1',
       gas_lot_version: 1,
       measurement_source: 'mfc',
+      unit: 'sccm',
       series: [{ start_s: 0, end_s: 300, value: 0 }],
     }
     const settings = validProcessSettings
@@ -413,7 +464,7 @@ describe('simple product form adapters', () => {
         settings,
         1,
       ),
-    ).toBe('同一种气体的供气区间不能重叠。')
+    ).toBe('同一气瓶的供气时段不能重叠。')
     expect(
       simpleGrowthIssue(
         segments,
@@ -430,7 +481,7 @@ describe('simple product form adapters', () => {
         settings,
         1,
       ),
-    ).toBe('请按开始时间顺序填写供气区间。')
+    ).toBe('请按开始时间顺序填写供气时段。')
     expect(
       simpleGrowthIssue(
         segments,
@@ -459,7 +510,7 @@ describe('simple product form adapters', () => {
         },
         1,
       ),
-    ).toBe('请填写大于 0 的受控降温速率。')
+    ).toBe('请在温度程序中填写降温步骤。')
   })
 
   it('keeps duration-based temperature steps and whole-process gas timing stable', () => {

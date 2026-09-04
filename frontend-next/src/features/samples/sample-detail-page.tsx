@@ -90,7 +90,7 @@ function substrateRows(
     [
       '所在温区与位置',
       zonePosition?.zone_index != null && zonePosition.distance_mm != null
-        ? `温区 ${String(zonePosition.zone_index)}；相对热电偶 ${Number(zonePosition.distance_mm) > 0 ? '+' : ''}${String(zonePosition.distance_mm)} mm`
+        ? `温区 ${String(zonePosition.zone_index)}；相对测温点 ${Number(zonePosition.distance_mm) > 0 ? '+' : ''}${String(zonePosition.distance_mm)} mm`
         : substrate.axial_position_mm != null
           ? `旧装置原点 ${String(substrate.axial_position_mm)} mm`
           : '—',

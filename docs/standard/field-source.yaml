@@ -5,9 +5,9 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v4.0-alpha.25
+  version: v4.0-alpha.40
   status: INTERNAL_VALIDATION
-  updated: '2026-09-02'
+  updated: '2026-09-04'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
@@ -56,15 +56,6 @@ scientific_contract:
   source_load:
     identity: physical loading instance
     ingredients: one or more MaterialLot version references
-    ingredient_process_roles:
-    - reaction_or_nucleation_promoter
-    - flux_or_salt_assistant
-    - transport_agent
-    - solvent_or_dispersion_medium
-    - reducing_agent
-    - oxidizing_agent
-    - etchant
-    - other
     concentration_units:
     - mol_per_L
     - mmol_per_L
@@ -134,18 +125,36 @@ scientific_contract:
       legacy_read_only: [system_preparation, pre_reaction, reaction, post_reaction, cooling, other, purge, ramp, nucleation, growth, anneal, transfer]
     preparation_operations:
       optional: true
-      types: [pump_down, gas_exchange, leak_check, other]
+      types: [pump_down, gas_exchange, other]
+      exchange_modes: [continuous_flow, evacuation_backfill]
+      legacy_read: old leak_check becomes named other; absent exchange_mode remains unspecified, never inferred from cycle_count
       required_fields: [operation_type]
       conditional_fields:
         pump_down: [target_absolute_pressure_Pa or duration_min]
-        gas_exchange: [duration_min, gas_sources, cycle_count]
-        leak_check: [duration_min]
+        gas_exchange: [exchange_mode, gas_sources]
+        continuous_flow: [duration_min]
+        evacuation_backfill: [cycle_count]
         other: [duration_min, other_name]
+      optional_measurements: [gas_sources.flow_sccm, target_absolute_pressure_Pa, backfill_absolute_pressure_Pa]
+      duration_basis: total duration of the operation, not per cycle
       gas_source_identity: frozen MaterialLot gas-cylinder version; one premixed cylinder is one source, while on-site mixing references each physical cylinder
     temperature_program:
       entry: initial_setpoint_then_step_duration_and_target_setpoint
       per_zone: true
       absolute_times: derived
+      cooling: programmed cooling uses the same temperature steps; rates are derived per descending segment and remain setpoint values
+    duration: process_duration_min is explicitly entered once; whole_process spans zero to this endpoint, including recorded cooling; legacy records without it remain unspecified
+    gas_supply:
+      identity: physical cylinder lot and version; premixed is a supply category, not a chemical species
+      premixed: reference the commercial cylinder composition and record its total flow once; on-site mixing references separate cylinders
+      flow_units: [sccm, slm, mL/min, L/min]
+      raw_readings: retain original values and units; never convert mL/min or L/min to sccm without calibration and reference conditions
+      value_source: MFC setpoints use setpoint; float-meter readings use measured; old source types are preserved until explicitly changed
+    pressure_conditions:
+      codes: [low_pressure, atmospheric, high_pressure]
+      reference: prevailing ambient atmospheric pressure; do not assume an exact ambient pressure or universal 80000 Pa boundary
+      legacy_read: ultra_high_vacuum maps to low_pressure without changing raw historical revisions
+    cooling_sequence: staged_cooling expands an ordered list of methods; programmed segments reference temperature steps, never a single average cooling rate
     gas_timing_presets:
     - whole_process
     - custom
@@ -165,16 +174,21 @@ scientific_contract:
     - shutter_state
   process_event:
     observed_deviations:
-    - line_blockage
-    - pressure_excursion
-    - signal_anomaly
-    - manual_intervention
-    - equipment_alarm
-    - manual_stop
     - power_interruption
     - water_interruption
     - gas_interruption
+    - line_blockage
+    - pressure_excursion
+    - equipment_alarm
+    - signal_anomaly
     - plan_changed
+    - other
+    option_order: supply interruptions → line/pressure deviations → equipment/signals → plan changes → other
+    plan_changed: includes manual intervention and manual stop; reuse intervention actions and outcome without adding required fields
+    legacy_deviation_labels:
+      manual_intervention: 人工干预
+      manual_stop: 人工停止
+    legacy_read: merge legacy manual types into plan_changed, preserve original type labels in description; never rewrite immutable revisions
     intervention_actions:
     - adjust_flow
     - adjust_pressure
@@ -200,6 +214,15 @@ scientific_contract:
     - process_instability
     - unknown
     - other
+  characterization_entry:
+    policy: 只保留定义明确的采集参数与有文件依据的结果；legacy_only 仅从新录入表单移除，历史 API、详情与导出保留。
+    deferred: 图像统计、粗糙度、元素定量、通用分析面板、统计与不确定度编辑器
+    result_source: 峰参数、台阶高度与晶格间距填写对应数据文件中已有的结果，不自动推断统计方式。
+    peak_entry: 不显示状态下拉；空白不生成峰结果，添加峰后自动记为 recorded，仅显式勾选未检出记为 not_detected；历史 not_analyzed 保留。
+  instrument_other_methods:
+    storage: capabilities[code=other].configuration.method_names
+    validation: 非空字符串列表；每个名称去除首尾空白后长度 1–128，忽略大小写不得重复。
+    history: 不改既有仪器版本；新建或新增版本选择其他时须填写名称。
   result_chain: Sample → MeasurementRun (instrument + calibration-at-measurement snapshot) → AnalysisRun → PropertyValue / MaterialAssertion
   sample_actual_states:
   - unknown
@@ -207,6 +230,10 @@ scientific_contract:
   - no_growth
   - uncertain
   property_units:
+    spectral_peaks: —
+    elemental_composition: —
+    image_object_size_um: μm
+    image_object_density_cm2: cm⁻²
     afm_ra_roughness: nm
     raman_e2g_peak_position: cm⁻¹
     raman_a1g_peak_position: cm⁻¹
@@ -267,7 +294,85 @@ gas_species:
     label_en: Carbon dioxide
     aliases: [CO2, co2, CO₂, carbon dioxide, 二氧化碳]
 characterization_properties:
+  spectral_peaks:
+    label_zh: 峰参数
+    label_en: Spectral peak records
+    value_type: structured
+    validation: {}
+    structured_schema:
+      type: object
+      additionalProperties: false
+      required: [status, position_unit, intensity_unit, peaks]
+      properties:
+        status: {enum: [recorded, not_detected, not_analyzed]}
+        position_unit: {enum: [cm⁻¹, nm, eV, '° 2θ', '° ω', '° φ', '° χ']}
+        intensity_unit: {enum: [a.u., counts, counts/s]}
+        source_file_id: {type: string, format: uuid}
+        extraction_method: {type: string, minLength: 1, maxLength: 256, pattern: '\S'}
+        baseline_method: {type: string, minLength: 1, maxLength: 256, pattern: '\S'}
+        peaks:
+          type: array
+          maxItems: 200
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, position]
+            properties:
+              id: {type: integer, minimum: 1}
+              position: {type: number}
+              fwhm: {type: number, exclusiveMinimum: 0}
+              height: {type: number, minimum: 0}
+              area: {type: number, minimum: 0}
+              d_spacing_nm: {type: number, exclusiveMinimum: 0}
+      allOf:
+      - if: {properties: {status: {const: recorded}}}
+        then:
+          required: [source_file_id]
+          properties: {peaks: {minItems: 1}}
+        else: {properties: {peaks: {maxItems: 0}}}
+      - if: {properties: {status: {const: not_detected}}}
+        then: {required: [source_file_id]}
+      - if: {properties: {position_unit: {enum: [nm, eV]}}}
+        then: {properties: {peaks: {items: {properties: {position: {exclusiveMinimum: 0}}}}}}
+      - if: {properties: {position_unit: {const: '° 2θ'}}}
+        then: {properties: {peaks: {items: {properties: {position: {minimum: 0, maximum: 180}}}}}}
+  elemental_composition:
+    legacy_only: true
+    label_zh: 元素定量
+    label_en: Elemental quantification
+    value_type: structured
+    validation: {}
+    structured_schema:
+      type: object
+      additionalProperties: false
+      required: [basis, components]
+      properties:
+        basis: {enum: [atomic_fraction, mass_fraction]}
+        components:
+          type: array
+          minItems: 1
+          maxItems: 118
+          items:
+            type: object
+            additionalProperties: false
+            required: [species, fraction]
+            properties:
+              species: {type: string, pattern: '^[A-Z][a-z]?$'}
+              fraction: {type: number, minimum: 0, maximum: 1}
+  image_object_size_um:
+    legacy_only: true
+    label_zh: 图像对象尺寸
+    label_en: Image object size
+    value_type: numeric
+    validation: {gt: 0}
+  image_object_density_cm2:
+    legacy_only: true
+    label_zh: 图像对象数量密度
+    label_en: Image object number density
+    value_type: numeric
+    validation: {ge: 0}
   coverage_percent:
+    legacy_only: true
     label_zh: 覆盖率
     label_en: Coverage
     value_type: numeric
@@ -338,11 +443,13 @@ characterization_properties:
     value_type: numeric
     validation: {gt: 0}
   afm_ra_roughness:
+    legacy_only: true
     label_zh: AFM 算术平均粗糙度
     label_en: AFM arithmetic roughness
     value_type: numeric
     validation: {ge: 0}
   afm_rms_roughness:
+    legacy_only: true
     label_zh: AFM 均方根粗糙度
     label_en: AFM RMS roughness
     value_type: numeric
@@ -379,22 +486,57 @@ characterization_properties:
     validation: {min_length: 1, max_length: 2000}
 characterization_profiles:
   optical_microscopy:
-    label_zh: 光学显微镜
-    label_en: Optical microscopy
+    legacy_property_codes: [domain_size_um, nucleation_density_cm2]
+    legacy_assertion_types: [growth_presence]
+    label_zh: OM
+    label_en: OM
     instrument_required: false
     raw_files_required: false
-    show_growth_presence: true
-    raw_file_guidance_zh: 建议上传原始图像；仅记录直接观察结论时可不上传。
+    show_growth_presence: false
+    raw_file_guidance_zh: 可上传原始图像。
     allowed_region_types: [point, area, whole_sample, selected_area]
     required_condition_keys: []
-    optional_condition_keys: [objective, illumination_mode]
+    optional_condition_keys: [objective, illumination_mode, image_object_type, image_size_metric, image_scale_um_per_px]
     condition_fields:
-    - {key: objective, label_zh: 物镜, label_en: Objective, value_type: text, validation: {max_length: 128}}
-    - {key: illumination_mode, label_zh: 照明模式, label_en: Illumination mode, value_type: text, validation: {max_length: 128}}
-    allowed_property_codes: [coverage_percent, domain_size_um, nucleation_density_cm2, observation_note]
-    default_property_codes: [coverage_percent]
-    allowed_assertion_types: [growth_presence]
+    - key: image_object_type
+      legacy_only: true
+      label_zh: 统计对象
+      label_en: Counted objects
+      value_type: text
+      validation: {max_length: 128}
+      section: results
+    - key: image_size_metric
+      legacy_only: true
+      label_zh: 尺寸定义
+      label_en: Size definition
+      value_type: select
+      options:
+      - {value: maximum_length, label_zh: 最大长度, label_en: Maximum length}
+      - {value: equivalent_diameter, label_zh: 等效圆直径, label_en: Equivalent circular diameter}
+      - {value: width, label_zh: 宽度, label_en: Width}
+      section: results
+    - key: objective
+      label_zh: 物镜规格
+      label_en: Objective specification
+      value_type: text
+      validation: {max_length: 128}
+      placeholder_zh: 100×，NA 0.9
+      placeholder_en: 100×, NA 0.9
+    - key: illumination_mode
+      legacy_only: true
+      label_zh: 照明模式
+      label_en: Illumination mode
+      value_type: text
+      validation: {max_length: 128}
+    - {key: image_scale_um_per_px, legacy_only: true, label_zh: 图像标尺, label_en: Image scale, value_type: number, unit: μm/px, section: results}
+    allowed_property_codes: [coverage_percent, image_object_size_um, image_object_density_cm2, observation_note]
+    default_property_codes: [observation_note]
+    allowed_assertion_types: []
+    common_condition_keys: [objective]
   Raman:
+    legacy_property_codes: [raman_e2g_peak_position, raman_a1g_peak_position, raman_peak_separation, raman_peak_fwhm,
+      raman_intensity_ratio]
+    legacy_assertion_types: [phase_identity, polytype, stacking_order, layer_count]
     label_zh: Raman
     label_en: Raman spectroscopy
     instrument_required: true
@@ -403,24 +545,51 @@ characterization_profiles:
     raw_file_guidance_zh: 请上传原始光谱或仪器导出文件。
     allowed_region_types: [point, line, whole_sample, selected_area]
     required_condition_keys: [laser_wavelength_nm]
-    optional_condition_keys: [excitation_power_value, excitation_power_basis, objective, integration_time_s, accumulations]
+    optional_condition_keys: [excitation_power_value, excitation_power_basis, objective, integration_time_s, accumulations,
+      raman_shift_range_cm1, filter_configuration, temperature_K]
     condition_fields:
     - {key: laser_wavelength_nm, label_zh: 激光波长, label_en: Laser wavelength, value_type: number, unit: nm}
-    - {key: excitation_power_value, label_zh: 激光功率数值, label_en: Laser power value, value_type: number, help_zh: 请配合功率口径填写；优先记录样品处实测功率。, help_en: Use with the power basis; prefer measured power at the sample.}
+    - {key: excitation_power_value, label_zh: 激光功率, label_en: Laser power, value_type: number}
     - key: excitation_power_basis
-      label_zh: 激光功率口径
-      label_en: Laser power basis
+      label_zh: 功率单位
+      label_en: Power unit
       value_type: select
       options:
       - {value: sample_plane_mW, label_zh: 样品处功率（mW）, label_en: At-sample power (mW)}
       - {value: instrument_percent, label_zh: 仪器设置（%）, label_en: Instrument setting (%)}
-    - {key: objective, label_zh: 物镜, label_en: Objective, value_type: text, validation: {max_length: 128}}
-    - {key: integration_time_s, label_zh: 积分时间, label_en: Integration time, value_type: number, unit: s}
-    - {key: accumulations, label_zh: 累加次数, label_en: Accumulations, value_type: integer}
-    allowed_property_codes: [raman_e2g_peak_position, raman_a1g_peak_position, raman_peak_separation, raman_peak_fwhm, raman_intensity_ratio, observation_note]
-    default_property_codes: [raman_e2g_peak_position, raman_a1g_peak_position, raman_peak_separation]
-    allowed_assertion_types: [phase_identity, polytype, stacking_order, layer_count]
+    - key: objective
+      label_zh: 物镜规格
+      label_en: Objective specification
+      value_type: text
+      validation: {max_length: 128}
+      placeholder_zh: 100×，NA 0.9
+      placeholder_en: 100×, NA 0.9
+    - {key: integration_time_s, label_zh: 单次采集时间, label_en: Time per acquisition, value_type: number, unit: s}
+    - {key: accumulations, label_zh: 光谱累积次数, label_en: Spectral accumulations, value_type: integer}
+    - key: raman_shift_range_cm1
+      label_zh: 采集范围
+      label_en: Acquired Raman shift range
+      value_type: range
+      unit: cm⁻¹
+      components:
+      - {key: start, label_zh: 起点, label_en: Start}
+      - {key: end, label_zh: 终点, label_en: End}
+      signed: true
+    - key: filter_configuration
+      legacy_only: true
+      label_zh: 滤光配置
+      label_en: Filter configuration
+      value_type: text
+      validation: {max_length: 128}
+    - {key: temperature_K, label_zh: 测量温度, label_en: Measurement temperature, value_type: number, unit: K}
+    allowed_property_codes: [spectral_peaks, observation_note]
+    default_property_codes: []
+    allowed_assertion_types: []
+    peak_position_units: [cm⁻¹]
+    common_condition_keys: [excitation_power_value, excitation_power_basis, integration_time_s, accumulations]
   low_frequency_raman:
+    legacy_property_codes: [shear_mode_peak_position, low_frequency_peak_fwhm]
+    legacy_assertion_types: [polytype, stacking_order, layer_count]
     label_zh: 低频 Raman
     label_en: Low-frequency Raman spectroscopy
     instrument_required: true
@@ -432,21 +601,31 @@ characterization_profiles:
     optional_condition_keys: [excitation_power_value, excitation_power_basis, objective, integration_time_s, accumulations]
     condition_fields:
     - {key: laser_wavelength_nm, label_zh: 激光波长, label_en: Laser wavelength, value_type: number, unit: nm}
-    - {key: excitation_power_value, label_zh: 激光功率数值, label_en: Laser power value, value_type: number, help_zh: 请配合功率口径填写；优先记录样品处实测功率。, help_en: Use with the power basis; prefer measured power at the sample.}
+    - {key: excitation_power_value, label_zh: 激光功率, label_en: Laser power, value_type: number}
     - key: excitation_power_basis
-      label_zh: 激光功率口径
-      label_en: Laser power basis
+      label_zh: 功率单位
+      label_en: Power unit
       value_type: select
       options:
       - {value: sample_plane_mW, label_zh: 样品处功率（mW）, label_en: At-sample power (mW)}
       - {value: instrument_percent, label_zh: 仪器设置（%）, label_en: Instrument setting (%)}
-    - {key: objective, label_zh: 物镜, label_en: Objective, value_type: text, validation: {max_length: 128}}
-    - {key: integration_time_s, label_zh: 积分时间, label_en: Integration time, value_type: number, unit: s}
-    - {key: accumulations, label_zh: 累加次数, label_en: Accumulations, value_type: integer}
-    allowed_property_codes: [shear_mode_peak_position, low_frequency_peak_fwhm]
-    default_property_codes: [shear_mode_peak_position]
-    allowed_assertion_types: [polytype, stacking_order, layer_count]
+    - key: objective
+      label_zh: 物镜规格
+      label_en: Objective specification
+      value_type: text
+      validation: {max_length: 128}
+      placeholder_zh: 100×，NA 0.9
+      placeholder_en: 100×, NA 0.9
+    - {key: integration_time_s, label_zh: 单次采集时间, label_en: Time per acquisition, value_type: number, unit: s}
+    - {key: accumulations, label_zh: 光谱累积次数, label_en: Spectral accumulations, value_type: integer}
+    allowed_property_codes: [spectral_peaks, observation_note]
+    default_property_codes: []
+    allowed_assertion_types: []
+    peak_position_units: [cm⁻¹]
+    legacy_only: true
   PL:
+    legacy_property_codes: [pl_a_exciton_peak_energy, pl_b_exciton_peak_energy, pl_integrated_intensity, pl_peak_fwhm]
+    legacy_assertion_types: [phase_identity, layer_count]
     label_zh: PL
     label_en: Photoluminescence
     instrument_required: true
@@ -455,29 +634,44 @@ characterization_profiles:
     raw_file_guidance_zh: 请上传原始光谱。
     allowed_region_types: [point, line, whole_sample, selected_area]
     required_condition_keys: [excitation_wavelength_nm]
-    optional_condition_keys: [excitation_power_value, excitation_power_basis, integration_time_s, spectral_range_nm, temperature_K]
+    optional_condition_keys: [excitation_power_value, excitation_power_basis, integration_time_s, spectral_range_nm,
+      temperature_K, objective, accumulations]
     condition_fields:
     - {key: excitation_wavelength_nm, label_zh: 激发波长, label_en: Excitation wavelength, value_type: number, unit: nm}
-    - {key: excitation_power_value, label_zh: 激发功率数值, label_en: Excitation power value, value_type: number, help_zh: 请配合功率口径填写；优先记录样品处实测功率。, help_en: Use with the power basis; prefer measured power at the sample.}
+    - {key: excitation_power_value, label_zh: 激光功率, label_en: Laser power, value_type: number}
     - key: excitation_power_basis
-      label_zh: 激发功率口径
-      label_en: Excitation power basis
+      label_zh: 功率单位
+      label_en: Power unit
       value_type: select
       options:
       - {value: sample_plane_mW, label_zh: 样品处功率（mW）, label_en: At-sample power (mW)}
       - {value: instrument_percent, label_zh: 仪器设置（%）, label_en: Instrument setting (%)}
-    - {key: integration_time_s, label_zh: 积分时间, label_en: Integration time, value_type: number, unit: s}
+    - {key: integration_time_s, label_zh: 单次采集时间, label_en: Time per acquisition, value_type: number, unit: s}
     - key: spectral_range_nm
       label_zh: 光谱范围
       label_en: Spectral range
       value_type: range
       unit: nm
-      components: [{key: min, label_zh: 最小值, label_en: Minimum}, {key: max, label_zh: 最大值, label_en: Maximum}]
+      components:
+      - {key: min, label_zh: 最小值, label_en: Minimum}
+      - {key: max, label_zh: 最大值, label_en: Maximum}
     - {key: temperature_K, label_zh: 测量温度, label_en: Measurement temperature, value_type: number, unit: K}
-    allowed_property_codes: [pl_a_exciton_peak_energy, pl_b_exciton_peak_energy, pl_integrated_intensity, pl_peak_fwhm]
-    default_property_codes: [pl_a_exciton_peak_energy, pl_b_exciton_peak_energy]
-    allowed_assertion_types: [phase_identity, layer_count]
+    - key: objective
+      label_zh: 物镜规格
+      label_en: Objective specification
+      value_type: text
+      validation: {max_length: 128}
+      placeholder_zh: 100×，NA 0.9
+      placeholder_en: 100×, NA 0.9
+    - {key: accumulations, label_zh: 光谱累积次数, label_en: Spectral accumulations, value_type: integer}
+    allowed_property_codes: [spectral_peaks, observation_note]
+    default_property_codes: []
+    allowed_assertion_types: []
+    peak_position_units: [nm, eV]
+    common_condition_keys: [excitation_power_value, excitation_power_basis, integration_time_s, accumulations]
   AFM:
+    legacy_property_codes: []
+    legacy_assertion_types: [layer_count]
     label_zh: AFM
     label_en: Atomic force microscopy
     instrument_required: true
@@ -486,44 +680,90 @@ characterization_profiles:
     raw_file_guidance_zh: 请上传原始高度数据及导出图。
     allowed_region_types: [point, area, whole_sample, selected_area]
     required_condition_keys: [scan_size_um]
-    optional_condition_keys: [mode, probe, resolution_px, scan_rate_hz, height_processing]
+    optional_condition_keys: [mode, probe, resolution_px, scan_rate_hz, height_processing, mode_other]
     condition_fields:
-    - {key: mode, label_zh: 模式, label_en: Mode, value_type: text, validation: {max_length: 128}}
-    - {key: probe, label_zh: 探针, label_en: Probe, value_type: text, validation: {max_length: 128}}
+    - key: mode
+      label_zh: 扫描模式
+      label_en: Scan mode
+      value_type: select
+      options:
+      - {value: tapping, label_zh: 轻敲, label_en: Tapping}
+      - {value: contact, label_zh: 接触, label_en: Contact}
+      - {value: non_contact, label_zh: 非接触, label_en: Non-contact}
+      - {value: peak_force, label_zh: 峰值力, label_en: Peak force}
+      - {value: other, label_zh: 其他, label_en: Other}
+    - key: probe
+      label_zh: 探针型号
+      label_en: Probe model
+      value_type: text
+      validation: {max_length: 128}
     - key: scan_size_um
       label_zh: 扫描尺寸
       label_en: Scan size
       value_type: size
       unit: μm
-      components: [{key: x, label_zh: X, label_en: X}, {key: y, label_zh: Y, label_en: Y}]
+      components:
+      - {key: x, label_zh: X, label_en: X}
+      - {key: y, label_zh: Y, label_en: Y}
     - key: resolution_px
-      label_zh: 分辨率
-      label_en: Resolution
+      label_zh: 采样点数
+      label_en: Sampling points
       value_type: resolution
-      unit: px
-      components: [{key: width, label_zh: 宽, label_en: Width}, {key: height, label_zh: 高, label_en: Height}]
-    - {key: scan_rate_hz, label_zh: 扫描速率, label_en: Scan rate, value_type: number, unit: Hz}
+      components:
+      - {key: width, label_zh: 宽, label_en: Width}
+      - {key: height, label_zh: 高, label_en: Height}
+    - {key: scan_rate_hz, label_zh: 扫描频率, label_en: Scan frequency, value_type: number, unit: Hz}
     - key: height_processing
+      legacy_only: true
       label_zh: 高度数据处理
       label_en: Height-data processing
       value_type: text
       help_zh: 例如逐行校平、平面拟合或未处理。
       help_en: 'For example: line leveling, plane fitting, or unprocessed.'
       validation: {max_length: 1000}
-    allowed_property_codes: [afm_ra_roughness, afm_rms_roughness, afm_step_height]
-    default_property_codes: [afm_rms_roughness, afm_step_height]
-    allowed_assertion_types: [layer_count]
+      section: results
+    - key: mode_other
+      label_zh: 其他扫描模式
+      label_en: Other scan mode
+      value_type: text
+      validation: {max_length: 128}
+      when:
+        mode: [other]
+    allowed_property_codes: [afm_ra_roughness, afm_rms_roughness, afm_step_height, observation_note]
+    default_property_codes: [afm_step_height, observation_note]
+    allowed_assertion_types: []
+    common_condition_keys: [mode]
   SEM:
+    legacy_property_codes: [domain_size_um, nucleation_density_cm2]
+    legacy_assertion_types: [growth_presence, composition]
     label_zh: SEM
     label_en: Scanning electron microscopy
     instrument_required: true
     raw_files_required: true
-    show_growth_presence: true
+    show_growth_presence: false
     raw_file_guidance_zh: 请上传原始图像与仪器元数据。
     allowed_region_types: [point, area, whole_sample, selected_area]
     required_condition_keys: [accelerating_voltage_kV, mode]
-    optional_condition_keys: [working_distance_mm, beam_current_nA, detector, stage_tilt_deg, sample_preparation, field_of_view_um]
+    optional_condition_keys: [working_distance_mm, beam_current_nA, detector, stage_tilt_deg, sample_preparation,
+      field_of_view_um, image_object_type, image_size_metric]
     condition_fields:
+    - key: image_object_type
+      legacy_only: true
+      label_zh: 统计对象
+      label_en: Counted objects
+      value_type: text
+      validation: {max_length: 128}
+      section: results
+    - key: image_size_metric
+      legacy_only: true
+      label_zh: 尺寸定义
+      label_en: Size definition
+      value_type: select
+      options:
+      - {value: maximum_length, label_zh: 最大长度, label_en: Maximum length}
+      - {value: equivalent_diameter, label_zh: 等效圆直径, label_en: Equivalent circular diameter}
+      - {value: width, label_zh: 宽度, label_en: Width}
+      section: results
     - {key: accelerating_voltage_kV, label_zh: 加速电压, label_en: Accelerating voltage, value_type: number, unit: kV}
     - key: mode
       label_zh: 成像或分析模式
@@ -535,19 +775,44 @@ characterization_profiles:
       - {value: EDS, label_zh: 能谱分析（EDS/EDX）, label_en: Energy-dispersive spectroscopy (EDS/EDX)}
     - {key: working_distance_mm, label_zh: 工作距离, label_en: Working distance, value_type: number, unit: mm}
     - {key: beam_current_nA, label_zh: 束流, label_en: Beam current, value_type: number, unit: nA}
-    - {key: detector, label_zh: 探测器, label_en: Detector, value_type: text, validation: {max_length: 128}}
-    - {key: stage_tilt_deg, label_zh: 样品台倾角, label_en: Stage tilt, value_type: number, unit: °, validation: {ge: -90, le: 90}}
-    - {key: sample_preparation, label_zh: 导电处理或镀膜, label_en: Conductive treatment or coating, value_type: text, validation: {max_length: 1000}}
+    - key: detector
+      legacy_only: true
+      label_zh: 探测器
+      label_en: Detector
+      value_type: text
+      validation: {max_length: 128}
+    - key: stage_tilt_deg
+      label_zh: 样品台倾角
+      label_en: Stage tilt
+      value_type: number
+      unit: °
+      validation: {ge: -90, le: 90}
+    - key: sample_preparation
+      legacy_only: true
+      label_zh: 导电处理或镀膜
+      label_en: Conductive treatment or coating
+      value_type: text
+      validation: {max_length: 1000}
     - key: field_of_view_um
-      label_zh: 视场
-      label_en: Field of view
+      label_zh: 图像视场尺寸
+      label_en: Image field of view
       value_type: size
       unit: μm
-      components: [{key: width, label_zh: 宽, label_en: Width}, {key: height, label_zh: 高, label_en: Height}]
-    allowed_property_codes: [coverage_percent, domain_size_um, nucleation_density_cm2]
-    default_property_codes: [coverage_percent, domain_size_um]
-    allowed_assertion_types: [growth_presence, composition]
+      components:
+      - {key: width, label_zh: 宽, label_en: Width}
+      - {key: height, label_zh: 高, label_en: Height}
+    allowed_property_codes: [coverage_percent, image_object_size_um, image_object_density_cm2, elemental_composition,
+      observation_note]
+    default_property_codes: [observation_note]
+    allowed_assertion_types: []
+    property_modes:
+      coverage_percent: [secondary_electron, backscattered_electron]
+      image_object_size_um: [secondary_electron, backscattered_electron]
+      image_object_density_cm2: [secondary_electron, backscattered_electron]
+      elemental_composition: [EDS]
   XRD:
+    legacy_property_codes: [xrd_peak_2theta, xrd_peak_fwhm, xrd_d_spacing]
+    legacy_assertion_types: [phase_identity, polytype, stacking_order, orientation_relationship]
     label_zh: XRD
     label_en: X-ray diffraction
     instrument_required: true
@@ -555,26 +820,100 @@ characterization_profiles:
     show_growth_presence: false
     raw_file_guidance_zh: 请上传原始衍射数据。
     allowed_region_types: [whole_sample, area, selected_area]
-    required_condition_keys: [radiation_source, source_wavelength_nm, scan_range_2theta_deg, step_size_deg]
-    optional_condition_keys: [count_time_s, scan_rate_deg_min, incident_angle_deg, geometry]
+    required_condition_keys: [radiation_source, source_wavelength_nm, scan_axis, scan_range_deg]
+    optional_condition_keys: [scan_range_2theta_deg, step_size_deg, count_time_s, scan_rate_deg_min, incident_angle_deg,
+      geometry, scan_mode, geometry_other]
     condition_fields:
-    - {key: radiation_source, label_zh: 辐射源, label_en: Radiation source, value_type: text, validation: {max_length: 128}}
+    - key: geometry
+      label_zh: 扫描几何
+      label_en: Scan geometry
+      value_type: select
+      options:
+      - {value: symmetric, label_zh: 对称扫描, label_en: Symmetric}
+      - {value: grazing_incidence, label_zh: 掠入射, label_en: Grazing incidence}
+      - {value: rocking_curve, label_zh: 摇摆曲线, label_en: Rocking curve}
+      - {value: in_plane, label_zh: 面内扫描, label_en: In-plane}
+      - {value: other, label_zh: 其他, label_en: Other}
+    - key: scan_axis
+      label_zh: 扫描轴
+      label_en: Scan axis
+      value_type: select
+      options:
+      - {value: two_theta, label_zh: 2θ, label_en: 2θ}
+      - {value: omega, label_zh: ω, label_en: ω}
+      - {value: phi, label_zh: φ, label_en: φ}
+      - {value: chi, label_zh: χ, label_en: χ}
+    - key: scan_range_deg
+      label_zh: 扫描范围
+      label_en: Scan range
+      value_type: range
+      unit: °
+      components:
+      - {key: start, label_zh: 起点, label_en: Start}
+      - {key: end, label_zh: 终点, label_en: End}
+      signed: true
+    - key: radiation_source
+      label_zh: 辐射源
+      label_en: Radiation source
+      placeholder_zh: Cu Kα
+      placeholder_en: Cu Kα
+      value_type: text
+      validation: {max_length: 128}
     - {key: source_wavelength_nm, label_zh: X 射线波长, label_en: X-ray wavelength, value_type: number, unit: nm}
     - key: scan_range_2theta_deg
       label_zh: 2θ 扫描范围
       label_en: 2-theta scan range
       value_type: range
       unit: °
-      components: [{key: start, label_zh: 起点, label_en: Start}, {key: end, label_zh: 终点, label_en: End}]
+      components:
+      - {key: start, label_zh: 起点, label_en: Start}
+      - {key: end, label_zh: 终点, label_en: End}
+      legacy_only: true
     - {key: step_size_deg, label_zh: 步长, label_en: Step size, value_type: number, unit: °}
-    - {key: count_time_s, label_zh: 每步计数时间, label_en: Count time per step, value_type: number, unit: s}
-    - {key: scan_rate_deg_min, label_zh: 扫描速率, label_en: Scan rate, value_type: number, unit: °/min}
-    - {key: incident_angle_deg, label_zh: 入射角, label_en: Incident angle, value_type: number, unit: °, validation: {ge: 0, le: 90}}
-    - {key: geometry, label_zh: 几何构型, label_en: Geometry, value_type: text, validation: {max_length: 128}}
-    allowed_property_codes: [xrd_peak_2theta, xrd_peak_fwhm, xrd_d_spacing]
-    default_property_codes: [xrd_peak_2theta, xrd_d_spacing]
-    allowed_assertion_types: [phase_identity, polytype, stacking_order, orientation_relationship]
+    - key: count_time_s
+      label_zh: 每步计数时间
+      label_en: Count time per step
+      value_type: number
+      unit: s
+      when:
+        scan_mode: [step]
+    - key: scan_rate_deg_min
+      label_zh: 扫描速率
+      label_en: Scan rate
+      value_type: number
+      unit: °/min
+      when:
+        scan_mode: [continuous]
+    - key: incident_angle_deg
+      label_zh: 入射角
+      label_en: Incident angle
+      value_type: number
+      unit: °
+      validation: {ge: 0, le: 90}
+      when:
+        geometry: [grazing_incidence, in_plane]
+    - key: scan_mode
+      label_zh: 采集方式
+      label_en: Acquisition mode
+      value_type: select
+      options:
+      - {value: step, label_zh: 步进扫描, label_en: Step scan}
+      - {value: continuous, label_zh: 连续扫描, label_en: Continuous scan}
+    - key: geometry_other
+      label_zh: 其他扫描几何
+      label_en: Other scan geometry
+      value_type: text
+      validation: {max_length: 128}
+      when:
+        geometry: [other]
+    allowed_property_codes: [spectral_peaks, observation_note]
+    default_property_codes: []
+    allowed_assertion_types: []
+    peak_position_units: [° 2θ, ° ω, ° φ, ° χ]
+    common_condition_keys: [scan_mode, geometry, step_size_deg, count_time_s, scan_rate_deg_min, incident_angle_deg]
   TEM:
+    legacy_property_codes: []
+    legacy_assertion_types: [phase_identity, composition, polytype, stacking_order, orientation_relationship, layer_count]
     label_zh: TEM
     label_en: Transmission electron microscopy
     instrument_required: true
@@ -582,9 +921,17 @@ characterization_profiles:
     show_growth_presence: false
     raw_file_guidance_zh: 请上传原始图像、衍射或 EDS 数据。
     allowed_region_types: [lamella, particle, whole_sample, selected_area]
-    required_condition_keys: [accelerating_voltage_kV, mode]
-    optional_condition_keys: [sample_preparation]
+    required_condition_keys: [accelerating_voltage_kV, data_type]
+    optional_condition_keys: [sample_preparation, mode, acquisition_mode, image_mode, diffraction_mode, spectrum_mode]
     condition_fields:
+    - key: data_type
+      label_zh: 数据类型
+      label_en: Data type
+      value_type: select
+      options:
+      - {value: image, label_zh: 图像, label_en: Image}
+      - {value: diffraction, label_zh: 衍射, label_en: Diffraction}
+      - {value: spectrum, label_zh: 能谱, label_en: Spectrum}
     - {key: accelerating_voltage_kV, label_zh: 加速电压, label_en: Accelerating voltage, value_type: number, unit: kV}
     - key: mode
       label_zh: 成像或分析模式
@@ -597,10 +944,62 @@ characterization_profiles:
       - {value: STEM, label_zh: 扫描透射（STEM）, label_en: Scanning TEM (STEM)}
       - {value: EDS, label_zh: 能谱分析（EDS/EDX）, label_en: Energy-dispersive spectroscopy (EDS/EDX)}
       - {value: EELS, label_zh: 电子能量损失谱（EELS）, label_en: Electron energy-loss spectroscopy (EELS)}
-    - {key: sample_preparation, label_zh: 样品制备, label_en: Sample preparation, value_type: text, validation: {max_length: 1000}}
-    allowed_property_codes: [tem_lattice_spacing]
-    default_property_codes: [tem_lattice_spacing]
-    allowed_assertion_types: [phase_identity, composition, polytype, stacking_order, orientation_relationship, layer_count]
+      legacy_only: true
+    - key: sample_preparation
+      legacy_only: true
+      label_zh: 表征前制样
+      label_en: Preparation for characterization
+      value_type: text
+      validation: {max_length: 1000}
+    - key: acquisition_mode
+      label_zh: 采集模式
+      label_en: Acquisition mode
+      value_type: select
+      options:
+      - {value: TEM, label_zh: TEM, label_en: TEM}
+      - {value: STEM, label_zh: STEM, label_en: STEM}
+    - key: image_mode
+      label_zh: 成像模式
+      label_en: Imaging mode
+      value_type: select
+      options:
+      - {value: bright_field, label_zh: 明场, label_en: Bright field}
+      - {value: dark_field, label_zh: 暗场, label_en: Dark field}
+      - {value: HRTEM, label_zh: HRTEM, label_en: HRTEM}
+      - {value: HAADF, label_zh: HAADF, label_en: HAADF}
+      - {value: other, label_zh: 其他, label_en: Other}
+      when:
+        data_type: [image]
+    - key: diffraction_mode
+      label_zh: 衍射模式
+      label_en: Diffraction mode
+      value_type: select
+      options:
+      - {value: SAED, label_zh: SAED, label_en: SAED}
+      - {value: NBED, label_zh: NBED, label_en: NBED}
+      - {value: CBED, label_zh: CBED, label_en: CBED}
+      - {value: other, label_zh: 其他, label_en: Other}
+      when:
+        data_type: [diffraction]
+    - key: spectrum_mode
+      label_zh: 能谱方法
+      label_en: Spectroscopy method
+      value_type: select
+      options:
+      - {value: EDS, label_zh: EDS, label_en: EDS}
+      - {value: EELS, label_zh: EELS, label_en: EELS}
+      when:
+        data_type: [spectrum]
+    allowed_property_codes: [tem_lattice_spacing, elemental_composition, observation_note]
+    default_property_codes: [tem_lattice_spacing, observation_note]
+    allowed_assertion_types: []
+    common_condition_keys: [acquisition_mode, image_mode, diffraction_mode, spectrum_mode]
+    property_conditions:
+      tem_lattice_spacing:
+        data_type: [image, diffraction]
+      elemental_composition:
+        data_type: [spectrum]
+        spectrum_mode: [EDS, EELS]
   other:
     label_zh: 其他
     label_en: Other
@@ -612,10 +1011,125 @@ characterization_profiles:
     required_condition_keys: [method_description]
     optional_condition_keys: []
     condition_fields:
-    - {key: method_description, label_zh: 方法说明, label_en: Method description, value_type: text, validation: {min_length: 1, max_length: 1000}}
+    - key: method_description
+      label_zh: 方法说明
+      label_en: Method description
+      value_type: text
+      validation: {min_length: 1, max_length: 1000}
     allowed_property_codes: [observation_note]
     default_property_codes: [observation_note]
     allowed_assertion_types: []
+  SHG:
+    label_zh: SHG
+    label_en: SHG
+    instrument_required: true
+    raw_files_required: true
+    show_growth_presence: false
+    raw_file_guidance_zh: 上传原始光谱、扫描数据或图像。
+    allowed_region_types: [point, area, selected_area, whole_sample]
+    required_condition_keys: [data_type, excitation_wavelength_nm]
+    optional_condition_keys: [excitation_power_value, excitation_power_basis, integration_time_s, objective, excitation_mode,
+      pulse_width_fs, repetition_rate_MHz, input_polarization, analyzer_polarization, angle_reference, polarization_scan_axis,
+      angle_range_deg]
+    common_condition_keys: [excitation_power_value, excitation_power_basis, integration_time_s, excitation_mode,
+      polarization_scan_axis]
+    condition_fields:
+    - key: data_type
+      label_zh: 数据类型
+      label_en: Data type
+      value_type: select
+      options:
+      - {value: spectrum, label_zh: 光谱, label_en: Spectrum}
+      - {value: polarization_scan, label_zh: 偏振扫描, label_en: Polarization scan}
+      - {value: image, label_zh: 图像, label_en: Image}
+      - {value: power_scan, label_zh: 功率扫描, label_en: Power scan}
+    - {key: excitation_wavelength_nm, label_zh: 激发波长, label_en: Excitation wavelength, value_type: number, unit: nm}
+    - {key: excitation_power_value, label_zh: 激光功率, label_en: Laser power, value_type: number}
+    - key: excitation_power_basis
+      label_zh: 功率单位
+      label_en: Power unit
+      value_type: select
+      options:
+      - {value: sample_plane_mW, label_zh: 样品处功率（mW）, label_en: At-sample power (mW)}
+      - {value: instrument_percent, label_zh: 仪器设置（%）, label_en: Instrument setting (%)}
+    - {key: integration_time_s, label_zh: 单次采集时间, label_en: Time per acquisition, value_type: number, unit: s}
+    - key: objective
+      label_zh: 物镜规格
+      label_en: Objective specification
+      value_type: text
+      validation: {max_length: 128}
+      placeholder_zh: 100×，NA 0.9
+      placeholder_en: 100×, NA 0.9
+    - key: excitation_mode
+      label_zh: 激光输出
+      label_en: Laser output
+      value_type: select
+      options:
+      - {value: continuous, label_zh: 连续, label_en: Continuous-wave}
+      - {value: pulsed, label_zh: 脉冲, label_en: Pulsed}
+    - key: pulse_width_fs
+      label_zh: 脉冲宽度
+      label_en: Pulse duration
+      value_type: number
+      unit: fs
+      when:
+        excitation_mode: [pulsed]
+    - key: repetition_rate_MHz
+      label_zh: 重复频率
+      label_en: Repetition rate
+      value_type: number
+      unit: MHz
+      when:
+        excitation_mode: [pulsed]
+    - key: input_polarization
+      legacy_only: true
+      label_zh: 入射偏振
+      label_en: Input polarization
+      value_type: text
+      validation: {max_length: 128}
+    - key: analyzer_polarization
+      legacy_only: true
+      label_zh: 检偏设置
+      label_en: Analyzer setting
+      value_type: text
+      validation: {max_length: 128}
+    - key: angle_reference
+      legacy_only: true
+      label_zh: 角度零点
+      label_en: Angular zero reference
+      value_type: text
+      validation: {max_length: 128}
+      when:
+        data_type: [polarization_scan]
+    - key: polarization_scan_axis
+      label_zh: 旋转对象
+      label_en: Rotated element
+      value_type: select
+      options:
+      - {value: input_polarization, label_zh: 入射偏振, label_en: Input polarization}
+      - {value: analyzer, label_zh: 检偏器, label_en: Analyzer}
+      - {value: sample, label_zh: 样品, label_en: Sample}
+      when:
+        data_type: [polarization_scan]
+    - key: angle_range_deg
+      legacy_only: true
+      label_zh: 角度范围
+      label_en: Angular range
+      value_type: range
+      unit: °
+      components:
+      - {key: start, label_zh: 起点, label_en: Start}
+      - {key: end, label_zh: 终点, label_en: End}
+      when:
+        data_type: [polarization_scan]
+      signed: true
+    allowed_property_codes: [spectral_peaks, observation_note]
+    default_property_codes: []
+    allowed_assertion_types: []
+    peak_position_units: [nm, eV]
+    property_conditions:
+      spectral_peaks:
+        data_type: [spectrum]
 field_ui_defaults:
   input_placeholder: 请输入
   input_placeholder_en: Enter a value
@@ -656,6 +1170,21 @@ option_labels_en:
   横向异质结: Lateral heterostructure
   未指定: Not specified
   连续膜: Continuous film
+  分立片状晶体/晶畴: Isolated planar crystal/domain
+  带状: Ribbon
+  线状: Wire
+  管状: Tube
+  棒状: Rod
+  块状晶体: Bulk crystal
+  三角形: Triangle
+  截角三角形: Truncated triangle
+  六边形: Hexagon
+  四边形（矩形/平行四边形/菱形）: Quadrilateral (rectangle/parallelogram/rhombus)
+  其他规则多边形: Other regular polygon
+  圆形/椭圆形: Circular/elliptical
+  星形/多裂片状: Star-shaped/multi-lobed
+  枝晶状/分形: Dendritic/fractal
+  不规则: Irregular
   纳米片(flake): Nanoflake
   纳米带: Nanoribbon
   纳米管: Nanotube
@@ -677,6 +1206,8 @@ option_labels_en:
   实测值: Measured
   光: Light
   电: Electric field
+  光照: Illumination
+  电场: Electric field
   固: Solid
   气: Gas
   液: Liquid
@@ -715,24 +1246,45 @@ option_labels_en:
   两片生长面相对: Growth faces opposed
   倾角: Tilted
   竖放: Vertical
+  朝下游: Toward downstream
+  朝上游: Toward upstream
+  朝炉管左侧: Toward tube left
+  朝炉管右侧: Toward tube right
   清洗: Clean
-  丙酮清洗: Acetone cleaning
-  异丙醇清洗: Isopropanol cleaning
+  溶剂清洗: Solvent cleaning
   氮气吹干: Nitrogen blow-drying
   等离子体: Plasma treatment
-  亲水处理: Hydrophilic treatment
-  亲水化: Hydrophilic treatment
+  紫外/臭氧处理: UV/ozone treatment
+  有批号: Lot number provided
+  未提供批号: Lot number not provided
+  超声: Ultrasonic cleaning
+  浸泡: Soaking
+  冲洗: Rinsing
+  擦拭: Wiping
+  丙酮: Acetone
+  异丙醇: Isopropanol
+  乙醇: Ethanol
+  甲醇: Methanol
+  去离子水: Deionized water
   温区1…: Zone 1
   温区2…: Zone 2
   抽气: Pump down
   预处理: Preparation
   反应条件: Reaction conditions
   其他记录: Other record
-  气路置换: Gas-line exchange
+  气氛置换: Atmosphere exchange
+  连续通气: Continuous gas flow
+  抽空—回填: Evacuation-backfill cycles
   随炉冷却: Furnace cooling
   开盖冷却: Open-lid cooling
-  移炉快速冷却: Rapid cooling by moving furnace
-  受控降温: Controlled cooling
+  移炉冷却: Cooling by moving furnace
+  程序降温: Programmed cooling
+  分段降温: Sequential cooling
+  减压（含真空）: Reduced pressure (including vacuum)
+  加压: Elevated pressure
+  预混气: Premixed gas
+  浮子流量计（转子流量计）: Variable-area flowmeter (rotameter)
+  浮子流量计: Variable-area flowmeter
   常压(APCVD): Atmospheric pressure (APCVD)
   低压(LPCVD): Low pressure (LPCVD)
   超高真空: Ultra-high vacuum
@@ -760,6 +1312,7 @@ option_labels_en:
   圆形: Round
   方形: Square
   矩形: Rectangular
+  OM: OM
   光镜: Optical microscopy
   低波数Raman: Low-frequency Raman
   无生长: No growth
@@ -850,6 +1403,8 @@ option_codes:
   实测值: measured
   光: light
   电: electric_field
+  光照: light
+  电场: electric_field
   固: solid
   气: gas
   液: liquid
@@ -888,24 +1443,48 @@ option_codes:
   两片生长面相对: face_to_face
   倾角: tilted
   竖放: upright
+  朝下游: downstream
+  朝上游: upstream
+  朝炉管左侧: tube_left
+  朝炉管右侧: tube_right
   清洗: clean
-  丙酮清洗: acetone_clean
-  异丙醇清洗: isopropanol_clean
+  溶剂清洗: solvent_cleaning
   氮气吹干: nitrogen_dry
   等离子体: plasma_treatment
-  亲水处理: hydrophilic_treatment
-  亲水化: hydrophilic_treatment
+  紫外/臭氧处理: uv_ozone_treatment
+  有批号: batch_number_reported
+  未提供批号: batch_number_not_provided
+  超声: ultrasonic
+  浸泡: soak
+  冲洗: rinse
+  擦拭: wipe
+  丙酮: acetone
+  异丙醇: isopropanol
+  乙醇: ethanol
+  甲醇: methanol
+  去离子水: deionized_water
   温区1…: zone_1
   温区2…: zone_2
   抽气: pump_down
   预处理: preparation
   反应条件: reaction_conditions
   其他记录: other
+  气氛置换: gas_exchange
   气路置换: gas_exchange
+  连续通气: continuous_flow
+  抽空—回填: evacuation_backfill
   随炉冷却: furnace_cooling
   开盖冷却: open_lid_cooling
+  移炉冷却: rapid_furnace_move_cooling
   移炉快速冷却: rapid_furnace_move_cooling
+  程序降温: controlled_cooling
   受控降温: controlled_cooling
+  分段降温: staged_cooling
+  减压（含真空）: low_pressure
+  加压: high_pressure
+  预混气: premixed
+  浮子流量计（转子流量计）: rotameter
+  浮子流量计: rotameter
   常压(APCVD): atmospheric_pressure
   常压: atmospheric_pressure
   低压(LPCVD): low_pressure
@@ -938,6 +1517,7 @@ option_codes:
   圆形: round
   方形: square
   矩形: rectangular
+  OM: optical_microscopy
   光镜: optical_microscopy
   低波数Raman: low_frequency_raman
   无生长: no_growth
@@ -999,7 +1579,29 @@ option_codes:
   wt%: wt_percent
   vol%: vol_percent
 field_option_codes:
+  dimensional_form:
+    连续膜: continuous_film
+    分立片状晶体/晶畴: discrete_planar_crystal
+    带状: ribbon
+    线状: wire
+    管状: tube
+    棒状: rod
+    颗粒: particle
+    块状晶体: bulk_crystal
+    其他: other
+  in_plane_outline:
+    三角形: triangle
+    截角三角形: truncated_triangle
+    六边形: hexagon
+    四边形（矩形/平行四边形/菱形）: quadrilateral
+    其他规则多边形: other_regular_polygon
+    圆形/椭圆形: circular_elliptical
+    星形/多裂片状: lobed_star
+    枝晶状/分形: dendritic_fractal
+    不规则: irregular
+    其他: other
   loading_method:
+    衬底: substrate_surface
     气路供给: gas_line
     鼓泡器: bubbler
     其他容器: other
@@ -1013,6 +1615,9 @@ field_option_codes:
     等离子: plasma_treatment
     等离子体: plasma_treatment
 preferred_option_labels_zh:
+  atmospheric: 常压
+  light: 光照
+  electric_field: 电场
   plasma: 等离子体
   reported: 有规格数值
   not_provided: 供应商未提供
@@ -1047,7 +1652,7 @@ stage_types:
   note: 旧过程步编辑器的兼容映射；当前新建表单以 scientific_contract.process_timeline 的操作与持续时间模型为准。历史类型继续可读，禁止静默丢弃。
   groups:
     common: 所有记录共用（记录类型）
-    preparation: 预处理操作（抽气、气路置换）
+    preparation: 预处理操作（抽真空、气氛置换）
     reaction: 反应条件（温度、实测温度、逐气体供气、压力、时长、降温）
     external_field: 装置具备对应能力时才显示的本炉实际外场
     other: 具名其他记录
@@ -1291,10 +1896,10 @@ experiment_record:
       note: 成分关系与空间架构正交；不再将掺杂或合金写成结构类型
       r0: true
     - module: 目标产物
-      label: 目标原子层数
-      label_en: Target atomic-layer count
+      label: 目标层数
+      label_en: Target material-layer count
       key: target_layer_count
-      meaning: 单一材料体系期望的原子层数；异质结构按材料层或区域记录，不显示本全局字段
+      meaning: 层状材料各目标区域期望的材料层数；例如单层 MoS₂ 记为 1，不按三个原子面计数；非层状材料留空
       ui:
         visibility_gated: true
       input: 数值
@@ -1307,8 +1912,10 @@ experiment_record:
         raw: 推荐
         level: recommended
       example: 1（单层）
-      source: 会议
-      note: 目标与实测分开
+      source: 2026-09-03用户目标材料复核
+      note: 目标与实测分开；不用于记录非层状材料的厚度
+      help: 仅层状材料填写；例如单层 MoS₂ 填 1，非层状材料留空。
+      help_en: Complete only for layered materials; enter 1 for monolayer MoS₂ and leave blank for non-layered materials.
     - module: 目标产物
       label: 目标体相空间群
       label_en: Target bulk space group
@@ -1330,47 +1937,35 @@ experiment_record:
       help: 输入化学式后，先从常见物相中选择；没有合适候选时，可搜索全部空间群编号或符号。
       help_en: After entering the formula, choose a common phase first. If none fits, search all space-group numbers or symbols.
     - module: 目标产物
-      label: 目标形态
-      label_en: Target morphology
+      label: 目标产物形态
+      label_en: Target product form
       key: dimensional_form
-      meaning: 目标材料的几何维度形态
+      meaning: 实验前希望制备出的主要宏观形态；连续膜与分立片状晶体作为互斥的目标产物形式
       input: 下拉
-      options: 片状/带状/线状/管状/棒状/颗粒/其他
+      options: 连续膜·分立片状晶体/晶畴·带状·线状·管状·棒状·颗粒·块状晶体·其他
       unit: —
       requirement:
         raw: 选填
         level: optional
-      example: 片状
-      source: 科学修订契约
-      note: 与覆盖状态分开；不作R0必填
+      example: 分立片状晶体/晶畴
+      source: 2026-09-03用户目标材料复核
+      note: 只记实验前可设定的目标形态，不记未知的覆盖率或实测覆盖状态；不作R0必填
     - module: 目标产物
-      label: 目标覆盖状态
-      label_en: Target coverage state
-      key: coverage_state
-      meaning: 片状或晶畴在衬底表面的空间连通与覆盖状态
+      label: 目标平面轮廓
+      label_en: Target in-plane outline
+      key: in_plane_outline
+      meaning: 分立片状晶体或晶畴的目标平面几何轮廓
+      ui:
+        visibility_gated: true
       input: 下拉
-      options: 孤立/不连续/贯通/连续
+      options: 三角形·截角三角形·六边形·四边形（矩形/平行四边形/菱形）·其他规则多边形·圆形/椭圆形·星形/多裂片状·枝晶状/分形·不规则·其他
       unit: —
       requirement:
         raw: 选填
         level: optional
-      example: 不连续
-      source: 科学修订契约
-      note: 与几何维度形态分开；不将“连续膜”继续当作一个混合类别
-    - module: 目标产物
-      label: 目标生长取向
-      label_en: Target growth orientation
-      key: orientation
-      meaning: 目标材料相对衬底的主要生长取向
-      input: 下拉
-      options: 面内/垂直/混合
-      unit: —
-      requirement:
-        raw: 选填
-        level: optional
-      example: 面内
-      source: 科学修订契约
-      note: 未设定明确取向目标时留空
+      example: 三角形
+      source: 2026-09-03用户目标材料复核
+      note: 仅当目标产物形态=分立片状晶体/晶畴时显示；连续膜不要求预设晶畴轮廓
     - module: 目标产物
       label: 实验目标
       label_en: Target performance
@@ -1632,9 +2227,9 @@ experiment_record:
       label: 外场能力
       label_en: External field capabilities
       key: field_devices
-      meaning: 所引用装置是否具备等离子体、光或电场能力；本炉实际使用情况在反应条件中记录
+      meaning: 所引用装置是否具备等离子体、光、电场或其他外场能力；本炉实际使用情况在反应条件中记录
       input: 多选
-      options: 无/等离子体/光/电
+      options: 无/等离子体/光/电/其他
       unit: —
       requirement:
         raw: 选填
@@ -1642,6 +2237,24 @@ experiment_record:
       example: 无
       source: 2026-07-24导师走查
       note: 只读投影；不得当成本炉实际使用记录
+    - module: 设备
+      label: 其他外场能力名称
+      label_en: Other external-field capability name
+      key: field_device_other_name
+      meaning: 所引用装置登记的其他外场能力名称，只读带出
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件必填(装置外场能力含其他)
+        level: conditional_required
+        condition:
+          field: 设备.外场能力
+          op: eq
+          value: 其他
+      example: 磁场
+      source: 2026-09-03用户在线复核
+      note: 只读投影；实际使用时仍需记录时间区间和具名参数
     - module: 设备
       label: 装置示意图与描述
       label_en: Setup diagram and description
@@ -1734,42 +2347,10 @@ experiment_record:
       note: 用户选择批次时由系统自动带入
       r0: true
     - module: 前驱体
-      label: 工艺作用
-      label_en: Process roles
-      key: process_roles
-      meaning: 本物料在本炉次中承担、且不能仅由物料和目标化学式确定的工艺功能
-      input: 多选
-      options: 促进反应或成核·助熔或盐辅助·输运·溶剂或分散介质·还原·氧化·刻蚀·其他
-      unit: —
-      requirement:
-        raw: 选填
-        level: optional
-      example: 助熔或盐辅助·促进反应或成核
-      source: 2026-08-12师兄试填复核
-      note: 可多选或留空；不再要求选择金属源、硫族元素源或掺杂源等与成分交叉的单一分类
-    - module: 前驱体
-      label: 其他工艺作用
-      label_en: Other process role
-      key: process_role_other
-      meaning: 选择其他工艺作用时填写的具体名称
-      input: 文本
-      options: —
-      unit: —
-      requirement:
-        raw: 条件必填(工艺作用包含其他)
-        level: conditional_required
-        condition:
-          field: 前驱体.工艺作用
-          op: eq
-          value: 其他
-      example: 晶面选择剂
-      source: 2026-08-12师兄试填复核
-      note: 仅在工艺作用包含其他时显示
-    - module: 前驱体
       label: 使用量
       label_en: Amount used
       key: amount
-      meaning: 投料量（只记投料，不记残余）
+      meaning: 本次投料量；滴涂记录滴加体积，不代表干燥后负载量
       input: 数值
       ui:
         visibility_gated: true
@@ -1778,7 +2359,7 @@ experiment_record:
       validation:
         gt: 0
       requirement:
-        raw: 条件必填(装载方式≠气路供给)
+        raw: 条件必填（非气路供给且非仅浸渍；复合条件由科学载荷校验）
         level: conditional_required
         condition:
           field: 前驱体.装载方式
@@ -1786,7 +2367,7 @@ experiment_record:
           value: 气路供给
       example: '20'
       source: 会议/复审
-      note: 相态≠气时必填；固态按mg、液态按µL；气体流量归实验过程
+      note: 气路供给不填；仅浸渍（可含干燥）不要求用量；滴涂必须为体积单位μL、mL或L；其他非气态装载填写实际投料量
       r0: true
     - module: 前驱体
       label: 使用量单位
@@ -1797,7 +2378,7 @@ experiment_record:
       options: mg·g·μL·mL等
       unit: —
       requirement:
-        raw: 条件必填(装载方式≠气路供给)
+        raw: 条件必填（填写使用量时；仅浸渍不要求使用量）
         level: conditional_required
         condition:
           field: 前驱体.装载方式
@@ -1805,23 +2386,23 @@ experiment_record:
           value: 气路供给
       example: mg
       source: 科学修订契约
-      note: 数值和单位必须同时填写；气路供给的量由过程流量通道表达
+      note: 数值和单位成对填写；仅浸渍不要求用量；滴涂限体积单位；气路供给的量由过程流量通道表达
     - module: 前驱体
       label: 溶液浓度
       label_en: Solution concentration
       key: concentration_value
-      meaning: 本次旋涂使用的该物料在溶液中的浓度数值
+      meaning: 本次旋涂、滴涂或浸渍所用该物料的溶液浓度
       input: 数值
       options: —
       unit: —
       validation:
         gt: 0
       requirement:
-        raw: 选填（该装载包含旋涂时显示；填写后单位必填）
+        raw: 滴涂或浸渍必填；旋涂选填；填写后单位必填
         level: optional
       example: '0.5'
       source: 2026-08-12师兄试填复核
-      note: 浓度属于本次使用的物料，不属于旋涂转速阶段；不替代本次使用量
+      note: 按物料记录浓度；不从浸渍浓度和时长推算实际负载量；溶剂记录在对应处理步骤
     - module: 前驱体
       label: 浓度单位
       label_en: Concentration unit
@@ -1873,12 +2454,12 @@ experiment_record:
       status: pending-alignment
       pending: 待与俊杰确认组内常见异常状态词表
     - module: 前驱体
-      label: 使用前处理
-      label_en: Pre-loading treatment
+      label: 处理方式
+      label_en: Treatment method
       key: preparation_steps
-      meaning: 投料前处理（可多步，选了再展开参数）
+      meaning: 前驱体准备与装载操作，按装载方式展开；本炉热处理记录在生长条件
       input: 前驱体处理步骤数组
-      options: '{type: 直接加载|熔融凝固|压片|旋涂|退火|研磨|其他, other_name?, parameters: 固定参数对象}'
+      options: '{step_type: 直接加载|研磨|压片|熔融|旋涂|滴涂|浸渍|干燥|其他, sequence, parameters: 固定参数对象}'
       unit: —
       ui:
         visibility_gated: true
@@ -1887,7 +2468,7 @@ experiment_record:
         level: optional
       example: '[{type: 旋涂, parameters: {stages: [{speed_rpm: 1000, duration_s: 10}, {speed_rpm: 6000, duration_s: 30}]}}]'
       source: 2026-07-24导师走查·2026-07-28前驱体复核
-      note: 有序可重复；直接加载与其他处理互斥；一次旋涂内按顺序记录多个转速阶段；压片暂用压力、保压时间、模具直径三个固定参数
+      note: 舟和坩埚可选直接加载/研磨/压片/熔融/干燥/其他；衬底可选直接加载/旋涂/滴涂/浸渍/干燥/其他；气路供给不显示；其他装载仅具名处理。有序可重复，直接加载互斥；滴涂记录溶剂、物料浓度与滴加体积，浸渍记录溶剂、物料浓度与浸渍时长；干燥记录温度和时长；熔融记录温度及选填时长。旧混合/预退火读取为具名其他，保留原参数，不修改历史原文
     - module: 前驱体
       label: 装载方式
       label_en: Loading arrangement
@@ -1896,14 +2477,14 @@ experiment_record:
         visibility_gated: true
       meaning: 前驱体实际进入反应器的方式，决定物料类别、用量和位置的适用规则
       input: 下拉
-      options: 舟/坩埚/涂覆在衬底表面/气路供给/鼓泡器/其他容器
+      options: 舟/坩埚/衬底/气路供给/其他
       unit: —
       requirement:
         raw: 必填
         level: required
       example: 舟
       source: 2026-07-28前驱体复核
-      note: 气路供给只引用气瓶批次且不重复填用量；涂覆在衬底表面时必须关联本炉具体衬底片
+      note: 气路供给只引用气瓶批次且不重复填用量；衬底装载必须关联本炉具体衬底片；其他装载名称保存在attrs.loading_other
     - module: 前驱体
       label: 涂覆衬底片
       label_en: Coated substrate pieces
@@ -1913,12 +2494,12 @@ experiment_record:
       options: 本炉已填写的衬底片
       unit: —
       requirement:
-        raw: 条件必填(装载方式=涂覆在衬底表面)
+        raw: 条件必填(装载方式=衬底)
         level: conditional_required
         condition:
           field: 前驱体.装载方式
           op: eq
-          value: 涂覆在衬底表面
+          value: 衬底
       example: 衬底片 S1
       source: 2026-08-12师兄试填复核
       note: 使用 source_id 关联，界面显示样片标记、温区和位置；删除或重排衬底时关联不得暗中转向其他片
@@ -1939,17 +2520,17 @@ experiment_record:
       source: 科学修订契约
       note: 不为普通试填增加容器尺寸和履历负担；仅在课题组确实管理具体容器时引用
     - module: 前驱体
-      label: 热电偶相对位置
+      label: 相对测温点位置
       label_en: Precursor source position
       key: initial_position
       ui:
         visibility_gated: true
-      meaning: 独立前驱体源相对所选温区热电偶的有符号轴向距离
+      meaning: 独立前驱体源相对所选温区测温点的有符号轴向距离
       input: 源位置对象
       options: '{reference: zone_thermocouple, axial_mm}'
       unit: mm
       requirement:
-        raw: 条件必填(装载方式=舟/坩埚/其他容器)
+        raw: 条件必填(装载方式=舟/坩埚/其他)
         level: conditional_required
         condition:
           field: 前驱体.装载方式
@@ -1957,22 +2538,22 @@ experiment_record:
           value:
           - 舟
           - 坩埚
-          - 其他容器
+          - 其他
       example: '{reference: zone_thermocouple, axial_mm: -20}'
       source: 会议·科学修订契约
-      note: 温区由heating_zone_ref单独保存；不在此对象重复保存温区或估计温度
-      help: 以所选温区热电偶为0 mm；沿气流方向，上游填负值，下游填正值。
-      help_en: Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.
+      note: 温区由heating_zone_ref单独保存；zone_thermocouple 为保留的历史机器码，当前指所选温区测温点，不限定传感器类型
+      help: 以所选温区测温点为0 mm；沿气流方向，上游填负值，下游填正值。
+      help_en: Use the temperature measurement point in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.
     - module: 前驱体
       label: 前驱体所在温区
       label_en: Precursor zone
       key: heating_zone_ref
-      meaning: 独立前驱体源所属的加热温区，同时是轴向位置的热电偶参照
+      meaning: 独立前驱体源所属的加热温区，同时是轴向位置的测温点参照
       input: 温区选择
       options: zone_1·zone_2·…
       unit: —
       requirement:
-        raw: 条件必填(装载方式=舟/坩埚/其他容器)
+        raw: 条件必填(装载方式=舟/坩埚/其他)
         level: conditional_required
         condition:
           field: 前驱体.装载方式
@@ -1980,7 +2561,7 @@ experiment_record:
           value:
           - 舟
           - 坩埚
-          - 其他容器
+          - 其他
       example: zone_2
       source: 科学修订契约
       note: 选择涂覆在衬底表面时继承关联衬底的温区与位置
@@ -2181,36 +2762,51 @@ experiment_record:
       help: 选择“有规格数值”并填批次 Ra/RMS；供应商没给就选“供应商未提供”。本片 AFM 实测值填在表征结果。
       help_en: Choose “Specification reported” and enter the lot Ra/RMS, or “Supplier did not provide”. Record AFM measurements as characterization results.
     - module: 衬底
-      label: 本片实际尺寸与放置方式
-      label_en: Actual piece size and placement
+      label: 本片实际尺寸与姿态
+      label_en: Actual piece size and pose
       key: size_placement
-      meaning: 本次实验实际放入炉内的这一片衬底尺寸、放置方式及条件角度；长度为沿气流方向的边长，宽度为垂直气流方向的边长
+      meaning: 本次实验实际放入炉内的这一片衬底的本体尺寸与空间姿态；长度和宽度按样片自身尺寸记录，不随摆放方向换名
       input: 衬底尺寸放置对象
-      options: '{length_mm, width_mm, thickness_mm?, placement: 正放|倒扣|两片生长面相对|倾角|竖放|其他, tilt_angle_deg?, placement_other?}'
+      options: '{length_mm, width_mm, thickness_mm?, placement: 正放|倒扣|倾角|竖放|其他, tilt_angle_deg?, tilt_azimuth_deg?, upright_growth_face_direction?: 朝下游|朝上游|朝炉管左侧|朝炉管右侧, placement_other?}'
       unit: mm
       requirement:
         raw: 必填
         level: required
-      example: '{length_mm: 10, width_mm: 10, thickness_mm: 0.5, placement: 倾角, tilt_angle_deg: 15}'
-      source: 2026-07-24导师走查
-      note: 每片可能经过切割，故不得用批次来料尺寸替代；placement=倾角时tilt_angle_deg条件必填且相对水平放置平面大于0°、小于90°；placement=其他时placement_other条件必填
-      help: 填本次实际放入炉内的单片尺寸和放置方式；长度沿气流方向、宽度垂直气流方向，未对齐时在备注说明；倾角相对水平放置平面。
-      help_en: Enter the actual piece dimensions and placement for this run. Length follows the gas-flow direction and width is perpendicular; note any misalignment. Measure tilt from the horizontal support plane.
+      example: '{length_mm: 10, width_mm: 5, thickness_mm: 0.5, placement: 倾角, tilt_angle_deg: -15, tilt_azimuth_deg: 180}'
+      source: 2026-09-03用户复核
+      note: 每片可能经过切割，故不得用批次来料尺寸替代；length_mm必须大于等于width_mm；placement=倾角时tilt_angle_deg和tilt_azimuth_deg同时条件必填，倾角大于-90°、小于90°且不等于0°，方位角大于等于0°且小于360°；placement=竖放时upright_growth_face_direction条件必填；placement=其他时placement_other条件必填
+      help: 倾角绝对值为衬底平面与水平面的夹角，生长面朝上为正、朝下为负；方位角按生长面法向的水平投影，以下游为0°，俯视时顺时针为正。
+      help_en: The absolute tilt is the angle between the substrate plane and the horizontal plane; positive means the growth face points upward and negative downward. Azimuth follows the horizontal projection of the growth-face normal, with downstream as 0° and clockwise positive when viewed from above.
       r0: true
+    - module: 衬底
+      scope: module
+      label: 片间生长面相对关系
+      label_en: Opposed growth-face relations between pieces
+      key: placement_relations
+      meaning: 两片衬底的生长面相对摆放关系；与单片空间姿态分开记录
+      input: 衬底片间关系数组
+      options: '[{piece_a_label, piece_b_label, gap_mm?}]'
+      unit: mm
+      requirement:
+        raw: 选填（仅多片衬底且存在该关系时）
+        level: optional
+      example: '[{piece_a_label: S1, piece_b_label: S2, gap_mm: 0}]'
+      source: 2026-09-03用户复核
+      note: 只在衬底片数不少于2且确实生长面相对时记录；两端必须引用本炉次不同的piece_label，同一无序对不得重复；gap_mm选填且大于等于0，0表示接触
     - module: 衬底
       label: 衬底处理（有序步骤）
       label_en: Pretreatment steps (ordered)
       key: pretreatment_steps
       meaning: 预处理步骤序列（记顺序，展开参数）
       input: 衬底预处理步骤数组
-      options: '{type: 丙酮清洗|异丙醇清洗|氮气吹干|退火|等离子体|亲水处理|其他, other_name?, parameters: 具名参数对象}'
+      options: '{type: 溶剂清洗|氮气吹干|退火|等离子体|紫外/臭氧处理|其他, other_name?, parameters: 溶剂清洗[solvent: 丙酮|异丙醇|乙醇|甲醇|去离子水|其他, solvent_other?, cleaning_method: 超声|浸泡|冲洗|擦拭|其他, cleaning_method_other?, duration_min?]；紫外/臭氧处理[duration_min]；其余为对应参数对象}'
       unit: —
       requirement:
         raw: 推荐
         level: recommended
-      example: '[{type: 丙酮清洗}, {type: 异丙醇清洗}, {type: 氮气吹干}]'
+      example: '[{type: 溶剂清洗, parameters: {solvent: 丙酮, cleaning_method: 超声, duration_min: 10}}, {type: 溶剂清洗, parameters: {solvent: 异丙醇, cleaning_method: 冲洗}}, {type: 氮气吹干}]'
       source: 2026-07-24导师走查
-      note: 有序可重复；等离子体展开power_W、gas_species、pressure_Pa和duration_min；其他步骤必须具名并至少填写一个参数
+      note: 有序可重复且每步只记录一种溶剂；连续使用多种溶剂应拆成多步。溶剂清洗选择超声或浸泡时duration_min必填，冲洗或擦拭时选填；紫外/臭氧处理duration_min必填；等离子体展开power_W、gas_species、pressure_Pa和duration_min；其他步骤必须具名并至少填写一个参数
     - module: 衬底
       label: 预处理后等待时间
       label_en: Wait time after pretreatment
@@ -2242,9 +2838,10 @@ experiment_record:
       source: 2026-07-24整改
       note: 与时间间隔独立保存
     - module: 衬底
-      label: 所在温区与热电偶相对位置
-      label_en: Zone and distance to thermocouple
+      label: 所在温区与相对测温点位置
+      label_en: Zone and position relative to temperature measurement point
       key: zone_thermocouple_distance_mm
+      note: 保留历史 API 键名；当前指所选温区测温点，不限定传感器类型
       meaning: 第几温区、距离(±)
       input: 温区距离对象
       options: '{zone_index, distance_mm}'
@@ -2255,8 +2852,8 @@ experiment_record:
       example: 温区2，+15
       source: 会议
       note: 上游为负、下游为正
-      help: 以所选温区热电偶为 0 mm；沿气流方向，上游填负值，下游填正值。
-      help_en: Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.
+      help: 以所选温区测温点为 0 mm；沿气流方向，上游填负值，下游填正值。
+      help_en: Use the temperature measurement point in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.
     - module: 衬底
       label: 轴向位置
       label_en: Axial position
@@ -2270,7 +2867,7 @@ experiment_record:
         level: none
       example: '120'
       source: 2026-07-30产品简化
-      note: 仅兼容旧记录；新记录统一填写所在温区与热电偶距离，不再使用未定义物理原点的全局轴向位置
+      note: 仅兼容旧记录；新记录统一填写所在温区与测温点距离，不再使用未定义物理原点的全局轴向位置
     - module: 衬底
       label: 备注
       label_en: Notes
@@ -2319,6 +2916,23 @@ experiment_record:
       note: 每个Setup温区必须有且仅有一条设定温度通道；至少一条正流量气体通道
       r0: true
     - module: 过程通道
+      label: 过程总时长
+      label_en: Total process duration
+      key: process_duration_min
+      group: current
+      meaning: 从统一实验开始时间到本次制备过程结束的总时长，包含记录的降温与供气
+      input: 数值
+      options: —
+      unit: min
+      validation:
+        gt: 0
+      requirement:
+        raw: 必填（历史记录可缺省，不推算补值）
+        level: required
+      example: '100'
+      source: 2026-09-04用户确认
+      note: 全程供气的起止为0至该时长；温度、供气、外场和事件不得超出，不以最后一个温度步骤代替过程终点
+    - module: 过程通道
       label: 本炉发生过异常
       label_en: Process anomaly occurred
       key: process_events_confirmed
@@ -2338,9 +2952,9 @@ experiment_record:
       label_en: Reaction pressure regime
       key: pressure_regime
       group: current
-      meaning: 本炉是常压、低压、超高真空或其他压力条件
+      meaning: 相对于当地环境大气压的减压、常压或加压条件
       input: 下拉
-      options: atmospheric/low_pressure/ultra_high_vacuum/other
+      options: atmospheric/low_pressure/high_pressure
       unit: —
       requirement:
         raw: 必填
@@ -2356,15 +2970,34 @@ experiment_record:
       group: current
       meaning: 本炉实际采用的降温方式
       input: 下拉
-      options: furnace_cooling/open_lid_cooling/rapid_furnace_move_cooling/controlled_cooling/other
+      options: furnace_cooling/open_lid_cooling/rapid_furnace_move_cooling/controlled_cooling/staged_cooling/other
       unit: —
       requirement:
         raw: 必填
         level: required
       example: furnace_cooling
       source: 2026-08-13现行科学契约校对
-      note: 随炉冷却和移炉快速冷却不额外要求虚构参数
+      note: 程序降温复用温度步骤；分段降温按cooling_sequence记录先后顺序；随炉冷却和移炉冷却不要求虚构速率
       r0: true
+    - module: 步·降温
+      label: 降温顺序
+      label_en: Cooling sequence
+      key: cooling_sequence
+      group: current
+      meaning: 两种或更多降温操作的实际先后顺序；程序降温的温度和时长仍只记录在温度程序
+      input: 有序降温操作数组
+      options: '{method, lid_open_temperature_C?, other_name?}'
+      unit: —
+      requirement:
+        raw: 条件必填(降温方式=staged_cooling)
+        level: conditional_required
+        condition:
+          field: 步·降温.降温方式
+          op: eq
+          value: staged_cooling
+      example: '[{method: controlled_cooling}, {method: furnace_cooling}]'
+      source: 2026-09-04用户确认
+      note: 至少两段；开盖段填写开盖温度，其他段填写名称；不自动推断未记录的自然冷却温度曲线
     - module: 步·降温
       label: 其他降温方式
       label_en: Other cooling method
@@ -2386,27 +3019,23 @@ experiment_record:
       note: 仅选择其他时保存
       r0: true
     - module: 步·降温
-      label: 受控降温速率
-      label_en: Controlled cooling rate
+      label: 旧记录设定降温速率
+      label_en: Legacy programmed cooling rate
       key: cooling_rate_C_per_min
       group: current
-      meaning: 受控降温时的设定降温速率
+      meaning: 保留旧记录独立填写的设定降温速率；新记录按温度程序各降温段派生
       input: 数值
       options: —
       unit: ℃/min
       validation:
         gt: 0
       requirement:
-        raw: 条件必填(降温方式=controlled_cooling)
-        level: conditional_required
-        condition:
-          field: 步·降温.降温方式
-          op: eq
-          value: controlled_cooling
+        raw: 未发布（历史兼容）
+        level: none
       example: '10'
       source: 2026-08-13现行科学契约校对
-      note: 仅受控降温时保存
-      r0: true
+      note: 不再要求新记录填写单一降温速率；旧记录保留，不解释为实测值
+      r0: false
     - module: 步·降温
       label: 开盖温度
       label_en: Lid-opening temperature
@@ -2448,16 +3077,16 @@ experiment_record:
       label_en: Pre-run preparation operations
       key: preparation_operations
       group: current
-      meaning: 选填的实验前操作；抽真空优先记录终点绝对压力，无压力读数时记录持续时间，气路置换引用实际气瓶版本
+      meaning: 按实际添加抽真空、气氛置换或其他操作；检漏属于设备操作规程，不设状态或自动确认。气氛置换按连续通气或抽空—回填展开，引用实际气瓶版本
       input: 预处理操作数组
-      options: '{operation_type: pump_down|gas_exchange|leak_check|other, duration_min?, target_absolute_pressure_Pa?, cycle_count?, gas_sources?: [{material_lot_id, material_lot_version, snapshot?}], other_name?}'
+      options: '{operation_type: pump_down|gas_exchange|other, exchange_mode?: continuous_flow|evacuation_backfill, duration_min?, target_absolute_pressure_Pa?, backfill_absolute_pressure_Pa?, cycle_count?, gas_sources?: [{material_lot_id, material_lot_version, flow_sccm?, snapshot?}], other_name?}'
       unit: —
       requirement:
         raw: 选填
         level: optional
-      example: '[{operation_type: pump_down, target_absolute_pressure_Pa: 10}, {operation_type: gas_exchange, duration_min: 10, cycle_count: 3, gas_sources: [{material_lot_id: UUID, material_lot_version: 2}]}]'
+      example: '[{operation_type: gas_exchange, exchange_mode: continuous_flow, duration_min: 10, gas_sources: [{material_lot_id: UUID, material_lot_version: 2, flow_sccm: 100}]}]'
       source: 2026-08-13师兄试填复核
-      note: 抽真空的 target_absolute_pressure_Pa 与 duration_min 至少填一项，已填项必须大于 0；置换可引用一瓶预混气或多瓶现场混合气，固定组成仅在气瓶版本登记
+      note: 抽真空终点压力与时长至少一项；连续通气要求总时长，不填循环次数；抽空—回填要求循环次数，总时长和两端绝对压力选填，已知回填压力应高于抽空压力。流量按每瓶记录且选填，混气组成不重复录入。旧检漏转为具名其他且保留时长；旧置换方式不推断，编辑时需确认
       r0: false
     - module: 步·温度
       label: 设定温度程序
@@ -2599,14 +3228,14 @@ experiment_record:
       group: current
       meaning: 本炉实际启用的外场、时间区间与按类型展开的参数
       input: 实际外场数组
-      options: '{field_type: 等离子体|光|电, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；other_parameters?}'
+      options: '{field_type: 等离子体|光|电|其他, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；其他[至少一个具名参数]；other_parameters?}'
       unit: 按参数
       requirement:
         raw: 选填
         level: optional
       example: '[{field_type: 等离子体, start_min: 10, end_min: 40, parameters: [{name: power_W, value: 50, unit: W}, {name: gas_species, value: Ar, unit: —}, {name: pressure_Pa, value: 50, unit: Pa}]}]'
       source: 2026-07-24导师走查
-      note: 未添加表示本炉未使用外场；添加后field_type必须属于Setup能力，并填写时间区间及对应类型的必要参数
+      note: 未添加表示本炉未使用外场；添加后field_type必须属于Setup能力，并填写时间区间及对应类型的必要参数；其他外场名称由Setup版本快照带出
     - module: 过程步
       label: 其他记录名称
       label_en: Other record name
@@ -2645,7 +3274,7 @@ experiment_record:
       example: 第30分钟将源舟向下游移动10 mm
       source: 2026-07-24整改
       note: 必须持久化，绝不静默过滤
-  - title: §6 过程事件 Process Events（记录异常、中断与人工干预等客观事件；只记客观事实，不判成败）
+  - title: §6 过程事件 Process Events（记录异常、中断与计划变更等客观事件；只记客观事实，不判成败）
     fields:
     - module: 过程事件
       label: 事件标识
@@ -2665,16 +3294,16 @@ experiment_record:
       label: 观察到的偏差
       label_en: Observed deviations
       key: observed_deviations
-      meaning: 过程中直接观察到的异常或人工干预，可同时选择多项
+      meaning: 过程中直接观察到的异常或计划变更；人工干预、人工停止统一归为计划变更
       input: 多选+其他
-      options: 管路堵塞/压力超限/信号异常/人工干预/设备报警/人工停止/供电中断/供水中断/供气中断/计划改变/其他
+      options: 供电中断/供水中断/供气中断/管路堵塞/压力突变/设备报警/信号异常/计划变更/其他
       unit: —
       requirement:
         raw: 必填
         level: required
       example: 供气中断
       source: 科学修订契约
-      note: 异常现象、怀疑原因、干预动作和受影响对象分开表达
+      note: 按供给中断、管路/压力、设备/信号、计划变更、其他排序；具体干预写采取的处理，是否终止写处理结果；旧类型读取时归并并保留原类型文字，不修改历史原文
     - module: 过程事件
       label: 受影响对象
       label_en: Affected objects
@@ -2777,7 +3406,7 @@ experiment_record:
           value: 其他
       example: Ar气瓶压力不足，供气中断约2分钟
       source: 2026-07-24导师走查
-      note: 始终可选填写事件上下文，不与干预动作或附件拼接；选择“其他”偏差时必须具体说明
+      note: 其他异常时必填；最多2048字符，容纳旧分类前缀。界面分开填写异常情况与采取的处理，保存沿用现有描述分隔格式；附件独立关联
     - module: 过程事件
       label: 干预动作
       label_en: Intervention actions
@@ -2828,7 +3457,7 @@ experiment_record:
       key: method_instrument
       meaning: 本次使用的表征手段；仪器通过独立仪器引用选择
       input: 下拉+其他
-      options: 光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他
+      options: OM/Raman/PL/SHG/AFM/SEM/TEM/XRD/其他/低波数Raman
       unit: —
       requirement:
         raw: 未发布
@@ -2912,7 +3541,7 @@ experiment_record:
         level: none
       example: '1'
       source: 复审/科学契约审查
-      note: 仅作为 MaterialAssertion.layer_count 录入，不生成 PropertyValue；与覆盖率拆分，0 表示在该测点未检出层状产物
+      note: 历史字段，保留原记录；新表征不录入层数判定，也不将未检出写成层数 0
     - module: 实测产物
       label: 覆盖率
       label_en: Coverage
@@ -3233,8 +3862,24 @@ entities:
       note: 按供应商资料原文记录；未提供时留空
       placeholder: 例如 ACS reagent、分析纯、电子级或 5.0
       placeholder_en: e.g. ACS reagent, analytical grade, electronic grade, or 5.0
-      help: 照录包装标签、产品页或 CoA 上的等级名称；未标注时留空。
-      help_en: Copy the grade shown on the package label, product page, or CoA; leave blank if none is stated.
+    - module: MaterialLot
+      label: ▸衬底·批号提供情况
+      label_en: Substrate · lot-number availability
+      key: batch_number_availability
+      meaning: 衬底包装标签或供应商资料是否提供批号
+      input: 下拉
+      options: 有批号·未提供批号
+      unit: —
+      requirement:
+        raw: 条件必填(衬底)
+        level: conditional_required
+        condition:
+          field: MaterialLot.批次类别
+          op: eq
+          value: 衬底
+      example: 未提供批号
+      source: 2026-09-03用户在线复核
+      note: 未提供批号时不得为通过校验而编造编号；实体UUID与版本号仍提供系统级追溯身份
     - module: MaterialLot
       label: 批号（Lot No. / Batch No.）
       label_en: Lot/Batch number
@@ -3244,15 +3889,35 @@ entities:
       options: —
       unit: —
       requirement:
-        raw: 必填
-        level: required
+        raw: 必填(化学品/气瓶；衬底选择有批号时)
+        level: optional
       example: B202405
       source: 2026-08-06用户界面复核
-      note: 同一货号下用于区分不同生产批次
+      note: 化学品和气瓶必填；衬底仅在“批号提供情况=有批号”时必填，选择“未提供批号”时必须留空
       placeholder: 例如 B202405
       placeholder_en: e.g. B202405
       help: 用于识别当前这批实物；填写包装标签或 CoA 中 Lot/Batch 后的编号。
       help_en: Identifies this physical lot. Enter the number shown after Lot or Batch on the package label or CoA.
+    - module: MaterialLot
+      label: ▸衬底·生产日期（标签原文）
+      label_en: Substrate · production date (as labeled)
+      key: production_date
+      meaning: 衬底包装标签或供应商资料给出的生产日期；只标到月份时保留月份精度
+      input: 年月或日期
+      options: YYYY-MM或YYYY-MM-DD
+      unit: —
+      requirement:
+        raw: 条件必填(衬底未提供批号时)
+        level: conditional_required
+        condition:
+          field: MaterialLot.▸衬底·批号提供情况
+          op: eq
+          value: 未提供批号
+      example: 2026-08
+      source: 2026-09-03用户在线复核
+      note: 不得为满足完整日期格式而虚构日；仅按标签原文记录到月或日
+      placeholder: 例如 2026-08 或 2026-08-31
+      placeholder_en: e.g. 2026-08 or 2026-08-31
     - module: MaterialLot
       label: 纯度
       label_en: Purity
@@ -3645,8 +4310,8 @@ entities:
       example: 5N
       source: review
       note: 有供应商等级标签可照录；没有则留空
-      help: 仅选择标签明确标示的 N 级；其他等级填写在“产品等级（标签原文）”。
-      help_en: Select an N-grade only when explicitly shown on the label; enter other grades under “Product grade (as labeled)”.
+      help: 按标签选择；未列出的等级填入“产品等级”。
+      help_en: Select the grade shown on the label; enter unlisted grades under “Product grade”.
     - module: MaterialLot
       label: ▸气瓶·气瓶编号
       label_en: Gas cylinder · cylinder number
@@ -3941,9 +4606,9 @@ entities:
       label_en: External field capabilities
       key: field_devices
       storage: attrs
-      meaning: 装置具备的光、电或等离子体能力
+      meaning: 装置具备的光照、电场、等离子体或其他外场能力
       input: 多选
-      options: 无/光/电/等离子体
+      options: 无/光照/电场/等离子体/其他
       unit: —
       requirement:
         raw: 必填
@@ -3951,6 +4616,27 @@ entities:
       example: 无
       source: 2026-07-24导师走查
       note: 这里只登记能力；每炉实际使用情况在反应条件中记录
+    - module: 装置Setup
+      label: 其他外场能力名称
+      label_en: Other external-field capability name
+      key: field_device_other_name
+      storage: attrs
+      meaning: 外场能力选择“其他”时填写可复用的能力名称
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件必填(外场能力含其他)
+        level: conditional_required
+        condition:
+          field: 装置Setup.外场能力
+          op: eq
+          value: 其他
+      example: 磁场
+      source: 2026-09-03用户在线复核
+      note: 一个装置版本登记一个其他外场名称；不同能力需要分别登记时再扩展为结构化列表
+      placeholder: 例如 磁场
+      placeholder_en: e.g. magnetic field
     - module: 装置Setup
       label: 装置示意图与描述
       label_en: Setup diagram and description
@@ -4001,7 +4687,7 @@ entities:
       key: name_type
       meaning: 该仪器适用的表征方法，用于结果录入时筛选仪器
       input: 下拉+其他
-      options: 光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他
+      options: OM/Raman/PL/SHG/AFM/SEM/TEM/XRD/其他/低波数Raman
       unit: —
       requirement:
         raw: 必填
@@ -4067,8 +4753,8 @@ entities:
       example: —
       source: ★NXfabrication/PIDINST
       note: PID 是 Persistent Identifier 的缩写；没有机构标识时可留空
-      help: PID（Persistent Identifier）是长期稳定的仪器标识，例如机构分配的 PIDINST；它不是厂商序列号。
-      help_en: A PID is a persistent identifier assigned by an institution or registry, such as PIDINST; it is not the manufacturer's serial number.
+      help: 机构分配的长期标识，非厂商序列号。
+      help_en: A persistent institution-assigned identifier, not the manufacturer's serial number.
     - module: 表征仪器
       label: 所在实验室与位置
       label_en: Laboratory and location
@@ -4097,24 +4783,22 @@ entities:
       example: CCD探测器；300、600、1800 lines·mm⁻¹光栅
       source: 会议
       note: 不在此重复本次实际使用的波长、物镜、功率或积分时间
-      help: 只填不会随一次测试改变的硬件或能力；本次参数填在表征结果中。
-      help_en: Enter stable hardware or capabilities only; record settings used for a measurement in that result.
+      help: 记录固定硬件与能力；本次使用参数填在表征记录中。
+      help_en: Record fixed hardware and capabilities here; enter acquisition settings in each characterization record.
     - module: 表征仪器
       label: 支持的表征方法
       label_en: Supported characterization methods
       key: capabilities
       meaning: 选择该仪器支持的表征方法，供结果录入时筛选
       input: JSON数组
-      options: '[{code,configuration}]'
+      options: '[{code,configuration}]；code=other 时 configuration.method_names 为方法名称列表'
       unit: —
       requirement:
         raw: 必填
         level: required
       example: '[{"code":"Raman","configuration":{}}]'
       source: 2026-07-28深度审查
-      note: UI 使用勾选项，不要求用户手写 JSON；本次 MeasurementRun 只能选择这里声明的能力
-      help: 勾选仪器支持的方法；固定硬件填在“关键固定配置”，本次实际参数填在表征结果中。
-      help_en: Select supported methods; record stable hardware under Key fixed configuration and actual settings in each characterization result.
+      note: UI 使用多选；其他展开方法名称列表，可逐项添加/删除，名称非空且去首尾空白后长度 1–128、忽略大小写不重复；仍以一个 other 能力行保存多个名称，不改变仪器版本和能力代码唯一约束。
     - module: 表征仪器
       label: 最近校准或维护日期
       label_en: Last calibration or maintenance date
@@ -4138,6 +4822,34 @@ changelog:
   - 改动
   - 类型
   rows:
+  - - v4.0-alpha.40
+    - 制备实验记录文案
+    - 删除重复提示，统一处理方式、外场和放置名称；明确设定温度与CSV时间原点，区分未选批次和批次未记录，按实际错误提示。仅调整界面文案，保留字段、校验规则和历史数据。
+    - 用户确认
+  - - v4.0-alpha.39
+    - 表征仪器与峰参数
+    - 仪器其他方法支持名称列表；峰状态下拉移除，空白不生成峰结果，仅显式勾选记录未检出，历史数据保留。
+    - 用户确认
+  - - v4.0-alpha.37
+    - 界面文案
+    - 去掉重复选填标识和功能说明；统一表征仪器、数据处理记录、统计方式与检出限依据文案；保留单位与参照定义，补齐现有条件必填标识，不改变必填规则和历史数据。
+    - 用户确认
+  - - v4.0-alpha.34
+    - §5–6 流量名称与异常分类
+    - 流量测量方式统一显示浮子流量计（转子流量计）；异常选项按类别排序，人工干预和人工停止并入计划变更，复用采取的处理与处理结果，不增加填写字段；旧记录原类型保留可追溯文字。
+    - 用户确认
+  - - v4.0-alpha.31
+    - §3 前驱体
+    - 删除工艺作用及其他工艺作用说明；新保存和常规导出不含推断性作用标签，历史原文保留。
+    - 用户确认
+  - - v4.0-alpha.33
+    - §5 气体、压力与降温
+    - 气体程序、压力和降温按用户确认修改：浮子流量计保留原始读数与单位；预混气引用商用气瓶组成及总流量；过程总时长明确全程供气边界；减压包含真空并新增加压；程序降温复用温度步骤，分段降温保存有序操作，不将设定速率当实测值
+    - 用户确认
+  - - v4.0-alpha.32
+    - §5 实验前准备
+    - 气路置换改为气氛置换，按连续通气/抽空—回填展开；检漏移出可选操作，不新增检漏状态或确认；精简提示，旧记录保留可追溯语义。
+    - 用户确认
   - - '1'
     - §1 基本信息
     - 新增「合成方法」字段（顶层 CVD/PVD 选择器，必填，决定PVD模块是否出现）
@@ -4464,12 +5176,24 @@ changelog:
     - 2026-09-02用户界面复核
   - - v4.0-alpha.23
     - §1b/§3/§4/§5 制备记录填写体验
-    - 缩短晶体结构、实验目标、热电偶相对位置、使用前处理、衬底处理和压力条件文案；明确必填空状态与提交检查，并减少气体首段录入步骤
+    - 缩短晶体结构、实验目标、相对测温点位置、使用前处理、衬底处理和压力条件文案；明确必填空状态与提交检查，并减少气体首段录入步骤
     - 2026-09-02用户全流程复核
   - - v4.0-alpha.24
     - §5 实验前准备
     - 抽真空优先记录终点绝对压力；有压力读数时持续时间改为选填，无压力读数时持续时间必填
     - 2026-09-02用户实验前准备复核
+  - - v4.0-alpha.26
+    - §1b 目标材料
+    - 单一材料改为本征材料，原子层数改为材料层数；删除无法预知的目标覆盖状态和语义混淆的目标生长取向，以目标产物形态和条件平面轮廓表达预期形态
+    - 2026-09-03用户目标材料复核
+  - - v4.0-alpha.27
+    - 装置与衬底
+    - 外场能力增加具名其他；衬底批号改为按标签提供情况条件填写并补生产日期；衬底处理合并为可展开溶剂清洗，并以紫外/臭氧处理替代笼统亲水处理
+    - 2026-09-03用户装置与衬底复核
+  - - v4.0-alpha.35
+    - 表征客观测量
+    - 新表征不分区域、不录入材料判定；谱峰按编号记录峰位、半高全宽和强度，区分未分析与未检出；AFM、电子显微镜、元素定量按方法与模式显示，历史判定不再自动汇总成整片样品结论
+    - 2026-09-04用户表征复核
   - - R0
     - 最小可复现核心(27项，含条件必填)
     - 过程R0以温度/气体/压力通道和降温条件为准；不再要求人工划分反应阶段或反应时长
@@ -4514,7 +5238,7 @@ open_items:
     - 表单UI：必填红星/选填弱化等明显标识（导师B93提醒）
     - 已实现
   - - '11'
-    - 【问俊杰】实验前气体置换在组内统一采用“气路置换”“洗气”还是“吹扫”
+    - 【已确认】实验前气体置换统一称“气氛置换”（2026-09-04）
     - 待对齐(不阻塞结构实现)
   - - '12'
     - 【问俊杰】低压CVD的漏率是否逐炉记录，以及应归入装置校验还是实验过程

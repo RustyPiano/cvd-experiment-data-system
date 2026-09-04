@@ -37,6 +37,7 @@ def test_characterization_methods_come_from_field_source() -> None:
         "Raman",
         "low_frequency_raman",
         "PL",
+        "SHG",
         "AFM",
         "XRD",
         "TEM",

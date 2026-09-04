@@ -18,10 +18,15 @@ const TUBE_SHAPE_CODES = new Set(['round', 'square', 'rectangular', 'other'])
 const PLACEMENT_CODES = new Set([
   'face_up',
   'face_down',
-  'face_to_face',
   'tilted',
   'upright',
   'other',
+])
+const UPRIGHT_GROWTH_FACE_DIRECTIONS = new Set([
+  'downstream',
+  'upstream',
+  'tube_left',
+  'tube_right',
 ])
 const ROUGHNESS_METRICS = new Set(['Ra', 'RMS'])
 const ROUGHNESS_AVAILABILITIES = new Set(['reported', 'not_provided'])
@@ -115,6 +120,8 @@ export function structuredValueFromRaw(fieldKey: string, raw: unknown): string {
       thickness_mm: value.thickness_mm,
       placement: value.placement ?? legacyOption(value.option, PLACEMENT_CODES),
       tilt_angle_deg: value.tilt_angle_deg,
+      tilt_azimuth_deg: value.tilt_azimuth_deg,
+      upright_growth_face_direction: value.upright_growth_face_direction,
       placement_other: value.placement_other,
     })
   }
@@ -345,22 +352,53 @@ export function structuredPayload(
     }
     const tiltAngle =
       placement === 'tilted'
-        ? finite(object.tilt_angle_deg, 'tilt_angle_deg', { positive: true })
+        ? finite(object.tilt_angle_deg, 'tilt_angle_deg')
         : null
-    if (tiltAngle != null && tiltAngle >= 90) {
-      throw new RangeError('tilt_angle_deg must be less than 90')
+    if (
+      tiltAngle != null &&
+      (tiltAngle <= -90 || tiltAngle === 0 || tiltAngle >= 90)
+    ) {
+      throw new RangeError(
+        'tilt_angle_deg must be between -90 and 90 and non-zero',
+      )
+    }
+    const tiltAzimuth =
+      placement === 'tilted'
+        ? finite(object.tilt_azimuth_deg, 'tilt_azimuth_deg')
+        : null
+    if (tiltAzimuth != null && (tiltAzimuth < 0 || tiltAzimuth >= 360)) {
+      throw new RangeError('tilt_azimuth_deg must be between 0 and 360')
+    }
+    const uprightDirection =
+      placement === 'upright'
+        ? canonicalOption(String(object.upright_growth_face_direction ?? ''))
+        : ''
+    if (
+      placement === 'upright' &&
+      !UPRIGHT_GROWTH_FACE_DIRECTIONS.has(uprightDirection)
+    ) {
+      throw new RangeError('upright_growth_face_direction is required')
     }
     const placementOther =
       placement === 'other' ? String(object.placement_other ?? '').trim() : ''
     if (placement === 'other' && !placementOther) {
       throw new RangeError('placement_other is required')
     }
+    const lengthMm = finite(object.length_mm, 'length_mm', { positive: true })
+    const widthMm = finite(object.width_mm, 'width_mm', { positive: true })
+    if (lengthMm < widthMm) {
+      throw new RangeError(
+        'length_mm must be greater than or equal to width_mm',
+      )
+    }
     return {
-      length_mm: finite(object.length_mm, 'length_mm', { positive: true }),
-      width_mm: finite(object.width_mm, 'width_mm', { positive: true }),
+      length_mm: lengthMm,
+      width_mm: widthMm,
       thickness_mm: optionalPositive(object.thickness_mm, 'thickness_mm'),
       placement,
       tilt_angle_deg: tiltAngle,
+      tilt_azimuth_deg: tiltAzimuth,
+      upright_growth_face_direction: uprightDirection || null,
       placement_other: placementOther || null,
     }
   }

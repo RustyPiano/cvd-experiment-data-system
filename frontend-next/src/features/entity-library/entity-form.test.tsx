@@ -201,7 +201,7 @@ describe('EntityForm — material identity guidance', () => {
     expect(
       screen.getByRole('textbox', { name: '产品等级（标签原文）' }),
     ).toHaveAttribute('placeholder', '例如 ACS reagent、分析纯、电子级或 5.0')
-    expect(screen.getByText(/未标注时留空/)).toBeInTheDocument()
+    expect(screen.queryByText(/未标注时留空/)).not.toBeInTheDocument()
 
     fireEvent.change(formula, { target: { value: 'Xz2' } })
     expect(screen.getByText('非法元素符号：Xz')).toBeInTheDocument()
@@ -313,8 +313,8 @@ describe('EntityForm — multi-select values', () => {
       },
     })
 
-    fireEvent.click(screen.getByRole('checkbox', { name: '光' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: '电' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '光照' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '电场' }))
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
@@ -344,6 +344,69 @@ describe('EntityForm — multi-select values', () => {
     expect(screen.queryByRole('combobox', { name: /表征方法/ })).toBeNull()
   })
 
+  it('adds, validates, removes and saves multiple other instrument methods', async () => {
+    const onSubmit = vi.fn()
+    renderForm({
+      kind: 'instrument',
+      onSubmit,
+      defaultData: { instrument_code: 'OTHER-1' },
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: '其他' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await screen.findByText(
+      '请选择支持的方法；其他方法须填写名称，且不能重复。',
+    )
+    expect(onSubmit).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText(/^方法名称 1/), {
+      target: { value: ' XPS ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '添加方法' }))
+    fireEvent.change(screen.getByLabelText(/^方法名称 2/), {
+      target: { value: 'xps' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await screen.findByText(
+      '请选择支持的方法；其他方法须填写名称，且不能重复。',
+    )
+    expect(onSubmit).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText(/^方法名称 2/), {
+      target: { value: 'FTIR' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '添加方法' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除方法 3' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Raman' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0].capabilities).toEqual([
+      { code: 'other', configuration: { method_names: ['XPS', 'FTIR'] } },
+      { code: 'Raman', configuration: {} },
+    ])
+  })
+
+  it('prefills named other methods in a new instrument version and confirms clearing them', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderForm({
+      kind: 'instrument',
+      mode: 'newVersion',
+      nextVersion: 2,
+      defaultData: {
+        instrument_code: 'OTHER-1',
+        capabilities: [
+          { code: 'other', configuration: { method_names: ['XPS', 'FTIR'] } },
+        ],
+      },
+    })
+    expect(screen.getByLabelText(/^方法名称 1/)).toHaveValue('XPS')
+    expect(screen.getByLabelText(/^方法名称 2/)).toHaveValue('FTIR')
+    const other = screen.getByRole('checkbox', { name: '其他' })
+    fireEvent.click(other)
+    expect(confirm).toHaveBeenCalled()
+    expect(other).toBeChecked()
+    confirm.mockReturnValue(true)
+    fireEvent.click(other)
+    expect(screen.queryByLabelText(/^方法名称/)).toBeNull()
+    confirm.mockRestore()
+  })
   it('uses native date inputs for exact dates', () => {
     const { unmount } = renderForm({
       defaultData: { lot_category: 'chemical' },
@@ -451,6 +514,35 @@ describe('EntityForm — generated numeric validation', () => {
       batch_number: 'SUB-1',
       substrate_material: 'sapphire_al2o3',
     })
+  })
+
+  it('saves a substrate without inventing a lot number and preserves month-only production dates', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    renderForm({
+      onSubmit,
+      defaultData: {
+        lot_category: 'substrate',
+        substrate_material: 'sapphire_al2o3',
+      },
+    })
+
+    await user.click(screen.getByRole('combobox', { name: /批号提供情况/ }))
+    await user.click(screen.getByRole('option', { name: '未提供批号' }))
+    expect(screen.queryByRole('textbox', { name: /Lot No/ })).toBeNull()
+    await user.type(
+      screen.getByRole('textbox', { name: /生产日期/ }),
+      '2026-08',
+    )
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      lot_category: 'substrate',
+      batch_number_availability: 'batch_number_not_provided',
+      production_date: '2026-08',
+    })
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('batch_number')
   })
 
   it('asks for a mica type in place and derives its formula', async () => {

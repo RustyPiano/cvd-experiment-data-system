@@ -46,15 +46,19 @@ function entityLabel(
     supplier: string
     catalogNumber: string
     lotNumber: string
+    productionDate: string
   },
 ): string {
   const config = entityConfigs[kind]
   const name =
     snapshotValue(data, config.primaryKey) ??
     snapshotValue(data, `${config.primaryKey}_snapshot`)
-  const code =
+  const configuredCode =
     snapshotValue(data, config.codeKey) ??
     snapshotValue(data, `${config.codeKey}_snapshot`)
+  const productionDate =
+    kind === 'material_lot' ? snapshotValue(data, 'production_date') : null
+  const code = configuredCode ?? productionDate
   const nameText =
     name == null || name === '' ? entityId.slice(0, 8) : String(name)
   const codeText = code == null || code === '' ? '' : ` · ${String(code)}`
@@ -73,8 +77,11 @@ function entityLabel(
         `${productLabels?.supplier ?? 'Supplier'}${separator}${String(supplier)}`,
       catalogNumber &&
         `${productLabels?.catalogNumber ?? 'Cat. No.'}${separator}${String(catalogNumber)}`,
-      code &&
-        `${productLabels?.lotNumber ?? 'Lot No.'}${separator}${String(code)}`,
+      configuredCode &&
+        `${productLabels?.lotNumber ?? 'Lot No.'}${separator}${String(configuredCode)}`,
+      !configuredCode &&
+        productionDate &&
+        `${productLabels?.productionDate ?? 'Production date'}${separator}${String(productionDate)}`,
     ]
       .filter(Boolean)
       .map(String)
@@ -121,6 +128,7 @@ export function EntityReferenceSelect({
     supplier: t('experimentsV2.reference.productSupplier'),
     catalogNumber: t('experimentsV2.reference.productCatalogNumber'),
     lotNumber: t('experimentsV2.reference.productLotNumber'),
+    productionDate: t('experimentsV2.reference.productProductionDate'),
   }
   const entityName = t(`entityLibrary.${config.i18nKey}.name`)
   const queryKey = ['v2-entity', kind]

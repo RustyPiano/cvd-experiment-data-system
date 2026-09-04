@@ -31,6 +31,7 @@ import {
   buildDefaultValues,
   getEntityFields,
   isFieldVisible,
+  instrumentCapabilitiesSummary,
 } from './field-logic'
 import { EntityForm } from './entity-form'
 import {
@@ -253,17 +254,21 @@ export function EntityDetailPage({
                         )
                       : undefined
                   const value =
-                    field.key === 'gas_components' && Array.isArray(raw)
-                      ? gasCompositionSummary(raw as GasCompositionComponent[])
-                      : legacyGasSpecies
-                        ? `${gasCompositionSummary([{ species: legacyGasSpecies, volume_percent: 100 }])} ${t('entityLibrary.gasComposition.legacyDerived')}`
-                        : isStructuredInput(field.input)
-                          ? localizedNamedValue(
-                              raw,
-                              i18n.language,
-                              structuredLabels,
-                            )
-                          : localizedValue(raw, i18n.language)
+                    field.key === 'capabilities'
+                      ? instrumentCapabilitiesSummary(raw, i18n.language)
+                      : field.key === 'gas_components' && Array.isArray(raw)
+                        ? gasCompositionSummary(
+                            raw as GasCompositionComponent[],
+                          )
+                        : legacyGasSpecies
+                          ? `${gasCompositionSummary([{ species: legacyGasSpecies, volume_percent: 100 }])} ${t('entityLibrary.gasComposition.legacyDerived')}`
+                          : isStructuredInput(field.input)
+                            ? localizedNamedValue(
+                                raw,
+                                i18n.language,
+                                structuredLabels,
+                              )
+                            : localizedValue(raw, i18n.language)
                   const label =
                     kind === 'setup'
                       ? localizedSetupFieldLabel(

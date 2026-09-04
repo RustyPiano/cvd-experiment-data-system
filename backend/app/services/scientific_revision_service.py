@@ -46,7 +46,7 @@ from app.services.process_timeseries import (
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import material_lot_version_snapshot
 from app.services.v2_field_source import load_field_source
-from app.services.v2_process_semantics import valid_frozen_gas_reference
+from app.services.v2_process_semantics import frozen_gas_components, valid_frozen_gas_reference
 
 
 def validate_scientific_module_payload(module_key: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -372,6 +372,13 @@ class ScientificRevisionService:
             ),
         )
         referenced: dict[UUID, tuple[str, str]] = {}
+        if timeline.get("process_duration_min") is not None:
+            explicit_end = timeline["process_duration_min"] * 60
+            if process_end > explicit_end:
+                self._invalid_process_reference(
+                    "process_steps.process_duration_min", "outside_process_timeline"
+                )
+            process_end = explicit_end
         for channel in timeline["channels"]:
             if channel.get("file_asset_id"):
                 referenced[UUID(channel["file_asset_id"])] = (
@@ -406,7 +413,9 @@ class ScientificRevisionService:
                 "process_steps.temperature_program",
                 "setup_zone_coverage",
             )
-        raw_field_capabilities = (run.setup_ref_snapshot_json or {}).get("field_devices") or []
+        setup_snapshot = run.setup_ref_snapshot_json or {}
+        setup_attrs = setup_snapshot.get("attrs_snapshot") or setup_snapshot
+        raw_field_capabilities = setup_attrs.get("field_devices") or []
         field_capabilities = set(
             raw_field_capabilities
             if isinstance(raw_field_capabilities, list)
@@ -582,9 +591,7 @@ class ScientificRevisionService:
             if channel_type == "temperature":
                 channel["subject_instance_ref"] = f"setup:{setup_id}:zone:{channel['zone_index']}"
             elif channel_type == "flow":
-                channel["subject_instance_ref"] = (
-                    f"setup:{setup_id}:gas:{channel['gas_species_code']}:1"
-                )
+                channel["subject_instance_ref"] = f"setup:{setup_id}:gas:{channel['gas_lot_id']}"
             elif channel_type == "pressure":
                 channel["subject_instance_ref"] = (
                     f"setup:{setup_id}:pressure:{channel['pressure_location']}"
@@ -629,8 +636,7 @@ class ScientificRevisionService:
             run_revision_id=revision.id,
             architecture_type=payload["architecture_type"],
             dimensional_form=payload.get("dimensional_form"),
-            coverage_state=payload.get("coverage_state"),
-            orientation=payload.get("orientation"),
+            in_plane_outline=payload.get("in_plane_outline"),
             optimization_objective=payload.get("optimization_objective"),
             note=payload.get("note"),
         )
@@ -717,8 +723,6 @@ class ScientificRevisionService:
                         material_lot_version=version_number,
                         material_snapshot_json=material_lot_version_snapshot(version),
                         function_role=ingredient.get("function_role"),
-                        process_roles=ingredient.get("process_roles") or [],
-                        process_role_other=ingredient.get("process_role_other"),
                         amount=ingredient.get("amount"),
                         unit=ingredient.get("unit"),
                         concentration_value=ingredient.get("concentration_value"),
@@ -950,18 +954,29 @@ class ScientificRevisionService:
                 for left, right in zip(numeric_points, numeric_points[1:], strict=False):
                     elapsed_s = right["start_s"] - left["start_s"]
                     if elapsed_s > 0:
-                        ramp_rates[channel.source_type].append(
-                            abs(float(right["value"]) - float(left["value"])) / (elapsed_s / 60)
-                        )
+                        delta = float(right["value"]) - float(left["value"])
+                        if delta > 0:
+                            ramp_rates[channel.source_type].append(delta / (elapsed_s / 60))
+                        elif delta < 0:
+                            cooling_rates[channel.source_type].append(-delta / (elapsed_s / 60))
             if channel.channel_type == "flow":
-                self._feature(
-                    revision,
-                    "gas_species",
-                    text=channel.gas_species_code,
-                    ordinal=gas_ordinal,
-                    source="process_steps.channels.gas_species_code",
-                )
-                gas_ordinal += 1
+                species = [channel.gas_species_code]
+                if channel.gas_species_code == "premixed":
+                    species = [
+                        item["species"]
+                        for item in frozen_gas_components(channel.gas_lot_snapshot_json or {})
+                    ]
+                for gas in species:
+                    self._feature(
+                        revision,
+                        "gas_species",
+                        text=gas,
+                        ordinal=gas_ordinal,
+                        source="process_steps.channels.subject_snapshot.gas_components"
+                        if channel.gas_species_code == "premixed"
+                        else "process_steps.channels.gas_species_code",
+                    )
+                    gas_ordinal += 1
         for source_type, rates in ramp_rates.items():
             if rates:
                 self._feature(

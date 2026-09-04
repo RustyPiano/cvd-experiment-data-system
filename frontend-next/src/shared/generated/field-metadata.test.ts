@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { entities, experimentModules, unitLabelsEn } from './field-metadata'
+import {
+  entities,
+  experimentModules,
+  unitLabelsEn,
+  optionLabelsZh,
+  optionLabelsEn,
+  optionCodes,
+} from './field-metadata'
 
 describe('generated field metadata', () => {
   it('exports the current released modules and fields', () => {
@@ -14,7 +21,10 @@ describe('generated field metadata', () => {
       'process_events',
     ])
     expect(Object.values(experimentModules).flat()).toHaveLength(86)
-    expect(Object.values(entities).flat()).toHaveLength(48)
+    expect(Object.values(entities).flat()).toHaveLength(51)
+    expect(optionLabelsZh.gas_exchange).toBe('气氛置换')
+    expect(optionLabelsEn.gas_exchange).toBe('Atmosphere exchange')
+    expect(optionCodes['气路置换']).toBe('gas_exchange')
   })
 
   it('publishes the current substrate and gas-cylinder fields', () => {
@@ -26,8 +36,14 @@ describe('generated field metadata', () => {
         'crystal_orientation',
         'oxide_thickness_nm',
         'size_placement',
+        'placement_relations',
       ]),
     )
+    expect(
+      experimentModules.substrates.find(
+        (field) => field.key === 'placement_relations',
+      )?.moduleLevel,
+    ).toBe(true)
     expect(substrateKeys).not.toContain('miscut_angle_deg')
     expect(substrateKeys).not.toContain('surface_roughness')
     expect(entities.material_lot.map((field) => field.key)).toContain(
@@ -51,7 +67,7 @@ describe('generated field metadata', () => {
       Object.values(experimentModules)
         .flat()
         .filter((field) => field.r0),
-    ).toHaveLength(27)
+    ).toHaveLength(26)
     expect(unitLabelsEn['按指标']).toBe('per metric')
   })
 

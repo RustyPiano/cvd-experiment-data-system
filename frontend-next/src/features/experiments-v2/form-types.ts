@@ -1,4 +1,4 @@
-import type { ModuleValues } from './field-logic'
+import type { ModuleValues, SubstratePlacementRelation } from './field-logic'
 
 export interface EquipmentRef {
   setupId: string
@@ -10,4 +10,5 @@ export interface EquipmentRef {
 export interface ExperimentV2FormState {
   equipment: EquipmentRef
   substrates: ModuleValues[]
+  substratePlacementRelations: SubstratePlacementRelation[]
 }

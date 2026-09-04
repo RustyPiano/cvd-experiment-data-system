@@ -98,7 +98,7 @@ export function processChannelTitle(channel: WorkflowChannel): string {
   }
   if (channel.channel_type === 'flow') {
     const gas = channel.gas_species_code?.trim() ?? ''
-    return `${gas || '未选择气体'} 流量`
+    return `${gas === 'premixed' ? '预混气总' : gas || '未选择气体'} 流量`
   }
   if (channel.channel_type === 'pressure') {
     const location = channel.pressure_location?.trim() ?? ''
@@ -202,6 +202,7 @@ export function peakTemperatureC(channels: WorkflowChannel[]): number | null {
   const values = channels.flatMap((channel) => {
     if (
       channel.channel_type !== 'temperature' ||
+      channel.source_type !== 'setpoint' ||
       !['°C', 'K'].includes(channel.unit ?? '')
     )
       return []
@@ -329,7 +330,7 @@ export function targetValidationIssue(
     if (solidSolutionComponents.length < 2) return '合金至少需要两个组分。'
     for (const [index, component] of solidSolutionComponents.entries()) {
       if (!component.species.trim()) {
-        return `请填写组分 ${String.fromCharCode(65 + index)} 的端元材料化学式。`
+        return `请填写组分 ${String.fromCharCode(65 + index)} 的材料化学式。`
       }
       if (!validateChemicalFormula(component.species).valid) {
         return `合金组分“${component.species}”的化学式不合法。`

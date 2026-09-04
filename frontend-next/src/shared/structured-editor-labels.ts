@@ -48,6 +48,10 @@ export function buildStructuredValueLabels(
     thickness_mm: t('structuredFields.thickness'),
     placement: t('structuredFields.placement'),
     tilt_angle_deg: t('structuredFields.tiltAngle'),
+    tilt_azimuth_deg: t('structuredFields.tiltAzimuth'),
+    upright_growth_face_direction: t(
+      'structuredFields.uprightGrowthFaceDirection',
+    ),
     placement_other: t('structuredFields.otherPlacementName'),
     metric: t('structuredFields.roughnessMetric'),
     value_nm: t('structuredFields.roughnessValue'),
@@ -97,33 +101,51 @@ export function buildTreatmentStepsEditorLabels(
     otherAtmosphereName: t(
       'structuredEditors.treatmentSteps.otherAtmosphereName',
     ),
+    selectOption: t('structuredEditors.treatmentSteps.selectOption'),
     requiredMessage: t('validation.required'),
-    invalidMessage: t('validation.structuredField'),
+    invalidMessage: t('validation.finiteNumber'),
+    numberGtMessage: (limit) => t('validation.numberGt', { limit }),
     atmosphereOptions: {
       air: t('structuredEditors.treatmentSteps.atmosphereOptions.air'),
       vacuum: t('structuredEditors.treatmentSteps.atmosphereOptions.vacuum'),
       other: t('structuredEditors.treatmentSteps.atmosphereOptions.other'),
     },
+    options: {
+      acetone: t('structuredEditors.treatmentSteps.options.acetone'),
+      isopropanol: t('structuredEditors.treatmentSteps.options.isopropanol'),
+      ethanol: t('structuredEditors.treatmentSteps.options.ethanol'),
+      methanol: t('structuredEditors.treatmentSteps.options.methanol'),
+      deionized_water: t(
+        'structuredEditors.treatmentSteps.options.deionized_water',
+      ),
+      ultrasonic: t('structuredEditors.treatmentSteps.options.ultrasonic'),
+      soak: t('structuredEditors.treatmentSteps.options.soak'),
+      rinse: t('structuredEditors.treatmentSteps.options.rinse'),
+      wipe: t('structuredEditors.treatmentSteps.options.wipe'),
+      other: t('structuredEditors.treatmentSteps.options.other'),
+      not_recorded: t('structuredEditors.treatmentSteps.options.not_recorded'),
+    },
     types: {
       direct_load: t('structuredEditors.treatmentSteps.types.direct_load'),
       melt_solidify: t('structuredEditors.treatmentSteps.types.melt_solidify'),
-      mix: t('structuredEditors.treatmentSteps.types.mix'),
+      melt: t('structuredEditors.treatmentSteps.types.melt'),
+      dry: t('structuredEditors.treatmentSteps.types.dry'),
+      drop_cast: t('structuredEditors.treatmentSteps.types.drop_cast'),
+      dip_coat: t('structuredEditors.treatmentSteps.types.dip_coat'),
       pelletize: t('structuredEditors.treatmentSteps.types.pelletize'),
       spin_coat: t('structuredEditors.treatmentSteps.types.spin_coat'),
       anneal: t('structuredEditors.treatmentSteps.types.anneal'),
-      pre_anneal: t('structuredEditors.treatmentSteps.types.pre_anneal'),
       grind: t('structuredEditors.treatmentSteps.types.grind'),
       other: t('structuredEditors.treatmentSteps.types.other'),
-      acetone_clean: t('structuredEditors.treatmentSteps.types.acetone_clean'),
-      isopropanol_clean: t(
-        'structuredEditors.treatmentSteps.types.isopropanol_clean',
+      solvent_cleaning: t(
+        'structuredEditors.treatmentSteps.types.solvent_cleaning',
       ),
       nitrogen_dry: t('structuredEditors.treatmentSteps.types.nitrogen_dry'),
       plasma_treatment: t(
         'structuredEditors.treatmentSteps.types.plasma_treatment',
       ),
-      hydrophilic_treatment: t(
-        'structuredEditors.treatmentSteps.types.hydrophilic_treatment',
+      uv_ozone_treatment: t(
+        'structuredEditors.treatmentSteps.types.uv_ozone_treatment',
       ),
     },
     fields: {
@@ -139,7 +161,14 @@ export function buildTreatmentStepsEditorLabels(
       die_diameter_mm: t(
         'structuredEditors.treatmentSteps.fields.die_diameter_mm',
       ),
-      method: t('structuredEditors.treatmentSteps.fields.method'),
+      solvent: t('structuredEditors.treatmentSteps.fields.solvent'),
+      solvent_other: t('structuredEditors.treatmentSteps.fields.solvent_other'),
+      cleaning_method: t(
+        'structuredEditors.treatmentSteps.fields.cleaning_method',
+      ),
+      cleaning_method_other: t(
+        'structuredEditors.treatmentSteps.fields.cleaning_method_other',
+      ),
     },
   }
 }
@@ -313,6 +342,7 @@ export function buildCoolingParamsEditorLabels(
 
 export function buildFieldParamsEditorLabels(
   t: TFunction,
+  otherFieldName?: string,
 ): FieldParamsEditorLabels {
   return {
     addField: t('structuredEditors.fieldParams.addField'),
@@ -325,6 +355,9 @@ export function buildFieldParamsEditorLabels(
       electric_field: t(
         'structuredEditors.fieldParams.fieldTypes.electric_field',
       ),
+      other: otherFieldName
+        ? `${t('structuredEditors.fieldParams.fieldTypes.other')}（${otherFieldName}）`
+        : t('structuredEditors.fieldParams.fieldTypes.other'),
     },
     startMinutes: t('structuredEditors.fieldParams.startMinutes'),
     endMinutes: t('structuredEditors.fieldParams.endMinutes'),
@@ -335,6 +368,7 @@ export function buildFieldParamsEditorLabels(
       electric_field: t(
         'structuredEditors.fieldParams.parameterGroups.electric_field',
       ),
+      other: t('structuredEditors.fieldParams.parameterGroups.other'),
     },
     explicitParameters: {
       plasmaPowerW: t(
@@ -369,6 +403,12 @@ export function buildFieldParamsEditorLabels(
       ),
       electricDirection: t(
         'structuredEditors.fieldParams.explicitParameters.electricDirection',
+      ),
+    },
+    magnitudeHints: {
+      light: t('structuredEditors.fieldParams.magnitudeHints.light'),
+      electric_field: t(
+        'structuredEditors.fieldParams.magnitudeHints.electric_field',
       ),
     },
     otherParameters: t('structuredEditors.fieldParams.otherParameters'),

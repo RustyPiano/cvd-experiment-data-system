@@ -449,6 +449,7 @@ class V2EntityService:
         allowed = field_option_values("method_instrument", self.doc)
         seen: set[str] = set()
         for capability in capabilities:
+            configuration = {}
             if isinstance(capability, str):
                 code = canonical_option_value(capability, self.doc)
             else:
@@ -458,9 +459,25 @@ class V2EntityService:
                 }:
                     self._raise_invalid("capabilities", "value")
                 code = canonical_option_value(capability.get("code"), self.doc)
+                configuration = capability.get("configuration", {})
+                if not isinstance(configuration, dict):
+                    self._raise_invalid("capabilities", "configuration")
             if code not in allowed or code in seen:
                 self._raise_invalid("capabilities", "value_or_duplicate")
             seen.add(code)
+            if code == "other":
+                names = configuration.get("method_names")
+                if (
+                    not isinstance(names, list)
+                    or not names
+                    or any(
+                        not isinstance(name, str) or not 1 <= len(name.strip()) <= 128
+                        for name in names
+                    )
+                    or len({name.strip().lower() for name in names}) != len(names)
+                ):
+                    self._raise_invalid("capabilities", "method_names")
+                configuration["method_names"] = [name.strip() for name in names]
 
     def _bind_material_identity(self, entity_id: UUID, data: dict[str, Any]) -> None:
         entity = self.db.get(MaterialLot, entity_id)

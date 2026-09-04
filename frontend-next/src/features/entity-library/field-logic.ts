@@ -11,7 +11,11 @@ import type {
   FieldCondition,
   FieldMetadata,
 } from '@/shared/generated/field-metadata'
-import { canonicalFieldOption, canonicalOption } from '@/shared/field-i18n'
+import {
+  canonicalFieldOption,
+  canonicalOption,
+  localizedOption,
+} from '@/shared/field-i18n'
 import type { EntityKind } from './config'
 import {
   isStructuredInput,
@@ -31,6 +35,17 @@ import type { TemperatureSensor } from './temperature-sensors-editor'
 export type EntityFieldValue = string | string[]
 export type EntityFormValues = Record<string, EntityFieldValue>
 export type EntityVersionPayload = Record<string, unknown>
+
+export function productionDateIsValid(value: string): boolean {
+  if (!/^\d{4}-\d{2}(?:-\d{2})?$/.test(value)) return false
+  const [year, month, day = 1] = value.split('-').map(Number)
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  )
+}
 
 const SUBSTRATE_FORMULAS: Record<string, readonly string[]> = {
   sio2_si: ['Si', 'SiO2'],
@@ -100,6 +115,35 @@ const JSON_ARRAY_FIELD_KEYS = new Set([
   'gas_components',
   'capabilities',
 ])
+
+export function instrumentOtherMethodNames(configuration: unknown): string[] {
+  if (!configuration || typeof configuration !== 'object') return []
+  const names = (configuration as Record<string, unknown>).method_names
+  return Array.isArray(names)
+    ? names.filter((name): name is string => typeof name === 'string')
+    : []
+}
+
+export function instrumentCapabilitiesSummary(
+  value: unknown,
+  language: string,
+): string {
+  if (!Array.isArray(value)) return ''
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object')
+        return localizedOption(String(item), language)
+      const names =
+        item.code === 'other'
+          ? instrumentOtherMethodNames(item.configuration)
+          : []
+      return names.length
+        ? names.join(' · ')
+        : localizedOption(String(item.code ?? ''), language)
+    })
+    .filter(Boolean)
+    .join(' · ')
+}
 
 export function isEntityJsonArrayField(fieldKey: string): boolean {
   return JSON_ARRAY_FIELD_KEYS.has(fieldKey)
@@ -317,6 +361,14 @@ export function isFieldVisible(
     canonicalOption(String(values['lot_category'] ?? '')) === 'substrate'
   ) {
     if (field.key === 'substance_name') return false
+    if (field.key === 'batch_number') {
+      return (
+        canonicalFieldOption(
+          'batch_number_availability',
+          String(values['batch_number_availability'] ?? ''),
+        ) === 'batch_number_reported'
+      )
+    }
     if (field.key === 'chemical_formula') {
       return Boolean(
         substrateMaterial(values) !== 'mica' &&
@@ -353,6 +405,16 @@ export function isEffectivelyRequired(
   field: FieldMetadata,
   values: EntityFormValues,
 ): boolean {
+  if (kind === 'material_lot' && field.key === 'batch_number') {
+    const category = canonicalOption(String(values['lot_category'] ?? ''))
+    return (
+      category !== 'substrate' ||
+      canonicalFieldOption(
+        'batch_number_availability',
+        String(values['batch_number_availability'] ?? ''),
+      ) === 'batch_number_reported'
+    )
+  }
   if (kind === 'setup' && field.key === 'tube_outer_diameter_wall_mm') {
     const shape = values['tube_material_shape']
     return (
@@ -422,6 +484,14 @@ export function buildDefaultValues(
             ? canonicalFieldOption(field.key, String(raw))
             : String(raw)
     }
+  }
+  if (
+    kind === 'material_lot' &&
+    canonicalOption(String(values['lot_category'] ?? '')) === 'substrate' &&
+    !values['batch_number_availability'] &&
+    values['batch_number']
+  ) {
+    values['batch_number_availability'] = 'batch_number_reported'
   }
   return values
 }
@@ -525,6 +595,20 @@ export function buildSubmitPayload(
       ? existing
       : String(capabilities[0]?.code ?? '')
     if (nameType) payload.name_type = nameType
+    if (Array.isArray(payload.capabilities))
+      payload.capabilities = payload.capabilities.map((item) =>
+        item.code === 'other'
+          ? {
+              ...item,
+              configuration: {
+                ...item.configuration,
+                method_names: instrumentOtherMethodNames(
+                  item.configuration,
+                ).map((name) => name.trim()),
+              },
+            }
+          : item,
+      )
   }
   return payload
 }

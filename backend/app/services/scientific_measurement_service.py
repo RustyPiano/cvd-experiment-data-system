@@ -135,7 +135,9 @@ class ScientificMeasurementService:
         analysis_output_ids = [
             file_id for analysis in payload.analyses for file_id in analysis.output_file_ids
         ]
-        region_image_id = measurement.sample_region.image_file_id
+        region_image_id = (
+            measurement.sample_region.image_file_id if measurement.sample_region else None
+        )
         referenced_ids = set(
             [
                 *measurement.raw_file_ids,
@@ -149,7 +151,8 @@ class ScientificMeasurementService:
         raw_files = [files_by_id[file_id] for file_id in measurement.raw_file_ids]
         analysis_input_files = [files_by_id[file_id] for file_id in set(analysis_input_ids)]
         analysis_output_files = [files_by_id[file_id] for file_id in analysis_output_ids]
-        self._validate_region_image(measurement.sample_region, files_by_id)
+        if measurement.sample_region:
+            self._validate_region_image(measurement.sample_region, files_by_id)
         if any(
             file.asset_role != "characterization_file"
             or file.file_category not in {"raw", "processed"}
@@ -223,7 +226,11 @@ class ScientificMeasurementService:
             method_instrument=measurement.method_profile,
             performed_by_id=actor.id,
             measured_at=measurement.measured_at,
-            sample_region=measurement.sample_region.model_dump(mode="json", exclude_none=True),
+            sample_region=(
+                measurement.sample_region.model_dump(mode="json", exclude_none=True)
+                if measurement.sample_region
+                else {}
+            ),
             typed_conditions=measurement.typed_conditions.model_dump(exclude_none=True),
             quality_flag=measurement.quality_flag,
             test_conditions=None,
@@ -839,12 +846,15 @@ class ScientificMeasurementService:
             )
         )
         legacy_capability = str(version.name_type)
-        if capabilities and method_profile not in capabilities:
+        matching_methods = {method_profile}
+        if method_profile == "Raman":
+            matching_methods.add("low_frequency_raman")
+        if capabilities and not capabilities.intersection(matching_methods):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Instrument does not support the selected method profile",
             )
-        if not capabilities and legacy_capability not in {method_profile, "other"}:
+        if not capabilities and legacy_capability not in matching_methods | {"other"}:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Instrument type does not match the selected method profile",
@@ -1135,37 +1145,7 @@ class ScientificMeasurementService:
         )
 
     def _refresh_sample_actual_state(self, sample: Sample, run_revision_id: UUID) -> None:
-        assertions = list(
-            self.db.scalars(
-                select(MaterialAssertion)
-                .join(
-                    CharacterizationRecord,
-                    CharacterizationRecord.id == MaterialAssertion.measurement_run_id,
-                )
-                .where(
-                    MaterialAssertion.sample_id == sample.id,
-                    MaterialAssertion.sample_id == CharacterizationRecord.sample_id,
-                    MaterialAssertion.validity == "active",
-                    CharacterizationRecord.run_revision_id == run_revision_id,
-                    CharacterizationRecord.quality_flag == "valid",
-                )
-            )
-        )
-        phases: list[str] = []
-        growth_states: set[str] = set()
-        identity_values: dict[str, set[str]] = {}
-        for item in assertions:
-            value = item.value_json
-            if item.assertion_type == "growth_presence" and value.get("state"):
-                growth_states.add(str(value["state"]))
-            if item.assertion_type != "growth_presence":
-                identity_values.setdefault(item.assertion_type, set()).add(
-                    json.dumps(value, ensure_ascii=False, sort_keys=True)
-                )
-            if item.assertion_type != "phase_identity":
-                continue
-            if value.get("phase"):
-                phases.append(str(value["phase"]))
+        # Measurements and historical assignments are evidence, not sample-wide verdicts.
         state = self.db.scalar(
             select(SampleRevisionState).where(
                 SampleRevisionState.sample_id == sample.id,
@@ -1173,38 +1153,17 @@ class ScientificMeasurementService:
             )
         )
         if state is None:
-            state = SampleRevisionState(
-                sample_id=sample.id,
-                run_revision_id=run_revision_id,
-                evidence_assertion_ids=[],
-            )
+            state = SampleRevisionState(sample_id=sample.id, run_revision_id=run_revision_id)
             self.db.add(state)
-        if growth_states == {"absent"}:
-            state.growth_state = "absent"
-            actual_state = "no_growth"
-        elif growth_states == {"present"}:
-            state.growth_state = "present"
-            actual_state = "growth_present"
-        elif growth_states:
-            state.growth_state = "uncertain"
-            actual_state = "uncertain"
-        else:
-            state.growth_state = "unknown"
-            actual_state = "unknown"
-        state.identity_state = (
-            "conflicting"
-            if any(len(values) > 1 for values in identity_values.values())
-            else "asserted"
-            if identity_values
-            else "unknown"
-        )
-        state.material_summary = " + ".join(dict.fromkeys(phases)) or None
-        state.evidence_assertion_ids = [str(item.id) for item in assertions]
+        state.growth_state = "unknown"
+        state.identity_state = "unknown"
+        state.material_summary = None
+        state.evidence_assertion_ids = []
         run = self.db.get(ExperimentRun, sample.experiment_run_id)
         if run is not None and run.current_revision_id == run_revision_id:
-            sample.actual_state = actual_state
-            sample.identity_state = state.identity_state
-            sample.actual_material_summary = state.material_summary
+            sample.actual_state = "unknown"
+            sample.identity_state = "unknown"
+            sample.actual_material_summary = None
 
     @staticmethod
     def _cursor_query_sha256(

@@ -80,9 +80,11 @@ import {
   SimpleSubstratesEditor,
   SimpleTargetEditor,
   requiresPrecursorPosition,
+  simpleSubstrateRelationsAreValid,
   simpleSubstrateIsValid,
   sourceLoadIngredientsAreValid,
   sourcePreparationStepsAreValid,
+  sourceSolutionMode,
   switchTargetDraft,
   targetKind,
 } from './simple-preparation-editors'
@@ -93,6 +95,7 @@ import type {
   TargetKind,
 } from './simple-preparation-editors'
 import {
+  PROCESS_DEVIATION_OPTIONS,
   buildSimpleSourceLoadsPayload,
   simpleProcessEndSeconds,
   simpleGrowthIssue,
@@ -138,15 +141,26 @@ type TargetSpec = {
   material_regions: Region[]
   composition_relations: CompositionRelation[]
   dimensional_form?:
-    | 'sheet'
+    | 'continuous_film'
+    | 'discrete_planar_crystal'
     | 'ribbon'
     | 'wire'
     | 'tube'
     | 'rod'
     | 'particle'
+    | 'bulk_crystal'
     | 'other'
-  coverage_state?: 'isolated' | 'discontinuous' | 'percolated' | 'continuous'
-  orientation?: 'in_plane' | 'vertical' | 'mixed'
+  in_plane_outline?:
+    | 'triangle'
+    | 'truncated_triangle'
+    | 'hexagon'
+    | 'quadrilateral'
+    | 'other_regular_polygon'
+    | 'circular_elliptical'
+    | 'lobed_star'
+    | 'dendritic_fractal'
+    | 'irregular'
+    | 'other'
   optimization_objective?: string
   note?: string
 }
@@ -155,8 +169,6 @@ type Ingredient = {
   material_lot_id: string
   material_lot_version: number
   function_role?: string
-  process_roles?: string[]
-  process_role_other?: string
   amount?: number
   unit?: string
   concentration_value?: number
@@ -166,6 +178,7 @@ type Ingredient = {
 }
 
 type SourceLoad = {
+  attrs?: Record<string, unknown>
   load_key: string
   container_instance_id?: string
   loading_method: string
@@ -377,18 +390,7 @@ const SAMPLE_ACTUAL_STATE_LABELS: Record<string, string> = {
   asserted: '已确认材料结论',
 }
 const EVENT_OPTIONS = {
-  observed_deviations: [
-    ['line_blockage', '管路堵塞'],
-    ['pressure_excursion', '压力突变'],
-    ['signal_anomaly', '信号异常'],
-    ['manual_intervention', '人工干预'],
-    ['equipment_alarm', '设备报警'],
-    ['manual_stop', '人工停止'],
-    ['power_interruption', '供电中断'],
-    ['water_interruption', '供水中断'],
-    ['gas_interruption', '供气中断'],
-    ['plan_changed', '计划变更'],
-  ],
+  observed_deviations: PROCESS_DEVIATION_OPTIONS,
   intervention_actions: [
     ['adjust_flow', '调整流量'],
     ['adjust_pressure', '调整压力'],
@@ -453,8 +455,9 @@ const STEP_MODULES = [
 
 const PRESSURE_REGIME_LABELS: Record<string, string> = {
   atmospheric: '常压',
-  low_pressure: '低压',
-  ultra_high_vacuum: '超高真空',
+  low_pressure: '减压（含真空）',
+  ultra_high_vacuum: '减压（含真空）',
+  high_pressure: '加压',
   other: '其他',
 }
 
@@ -646,10 +649,10 @@ function targetExample(target: TargetSpec): {
     }
   }
   return {
-    title: '单一材料 MoS₂',
+    title: '本征材料 MoS₂',
     rows: [
       ['材料 1', 'MoS₂'],
-      ['材料结构', '单一材料'],
+      ['材料体系', '本征材料'],
       ['说明', '实际样品结论在表征记录中填写'],
     ],
     value: {
@@ -930,7 +933,6 @@ export function ScientificExperimentForm({
       substrate_source_ids: load.substrate_source_ids ?? [],
       ingredients: load.ingredients.map((ingredient) => ({
         ...ingredient,
-        process_roles: ingredient.process_roles ?? [],
       })),
     }))
   })
@@ -979,6 +981,12 @@ export function ScientificExperimentForm({
               parameters: [],
             }))
       return {
+        process_duration_min: payload['process_duration_min'] as
+          | number
+          | undefined,
+        cooling_sequence: payload[
+          'cooling_sequence'
+        ] as SimpleProcessSettings['cooling_sequence'],
         pressure_regime: payload[
           'pressure_regime'
         ] as SimpleProcessSettings['pressure_regime'],
@@ -1018,6 +1026,8 @@ export function ScientificExperimentForm({
       : false
   })
   const [substrates, setSubstrates] = useState(initialState.substrates)
+  const [substratePlacementRelations, setSubstratePlacementRelations] =
+    useState(initialState.substratePlacementRelations)
   const [equipment, setEquipment] = useState(initialState.equipment)
   const [basicInfo, setBasicInfo] = useState<BasicInfo>(() =>
     modulePayload(modules, 'basic_info', {
@@ -1098,7 +1108,10 @@ export function ScientificExperimentForm({
       toast.success('草稿已保存')
       return true
     } catch (error) {
-      const message = resolveErrorMessage(error, '保存失败，请检查本节字段')
+      const message = resolveErrorMessage(
+        error,
+        '保存失败，请检查当前步骤的填写内容',
+      )
       setErrors((current) => ({ ...current, [key]: message }))
       toast.error(message)
       return false
@@ -1246,12 +1259,15 @@ export function ScientificExperimentForm({
     processSettings.field_params ?? [],
     setupFieldTypes,
   )
-  const totalDuration = simpleProcessEndSeconds(
-    segments,
-    channels,
-    processSettings.field_params,
-    events,
-  )
+  const totalDuration =
+    processSettings.process_duration_min !== undefined
+      ? processSettings.process_duration_min * 60
+      : simpleProcessEndSeconds(
+          segments,
+          channels,
+          processSettings.field_params,
+          events,
+        )
   const peakTemperature = peakTemperatureC(channels)
   const hasTemperatureFile = channels.some(
     (channel) =>
@@ -1290,7 +1306,8 @@ export function ScientificExperimentForm({
     substrates.length &&
     substrates.every((substrate) =>
       simpleSubstrateIsValid(substrate, setupZoneCount),
-    ),
+    ) &&
+    simpleSubstrateRelationsAreValid(substrates, substratePlacementRelations),
   )
   const substrateSourceIds = new Set(
     substrates
@@ -1302,7 +1319,12 @@ export function ScientificExperimentForm({
     loads.every(
       (load) =>
         load.loading_method &&
-        sourcePreparationStepsAreValid(load.preparation_steps) &&
+        (load.loading_method !== 'other' ||
+          Boolean(String(load.attrs?.loading_other ?? '').trim())) &&
+        sourcePreparationStepsAreValid(
+          load.preparation_steps,
+          load.loading_method,
+        ) &&
         (!requiresPrecursorPosition(load.loading_method) ||
           (Boolean(load.heating_zone_ref) &&
             Number(load.heating_zone_ref?.replace('zone_', '')) >= 1 &&
@@ -1317,8 +1339,11 @@ export function ScientificExperimentForm({
             ))) &&
         sourceLoadIngredientsAreValid(
           load.ingredients,
-          load.preparation_steps.some((step) => step.step_type === 'spin_coat'),
-          load.loading_method !== 'gas_line',
+          sourceSolutionMode(load.preparation_steps).hasSolution,
+          load.loading_method !== 'gas_line' &&
+            !sourceSolutionMode(load.preparation_steps).immersionOnly,
+          sourceSolutionMode(load.preparation_steps).concentrationRequired,
+          sourceSolutionMode(load.preparation_steps).volumeRequired,
         ),
     ),
   )
@@ -1344,6 +1369,7 @@ export function ScientificExperimentForm({
     if (key === 'substrates') {
       return buildSubstratesPayload(
         substrates.map((item) => materialLotProjectedItem(item)),
+        substratePlacementRelations,
       )
     }
     if (key === 'process_steps') {
@@ -1363,7 +1389,14 @@ export function ScientificExperimentForm({
     if (activeStep === 0 && !basicComplete) {
       setErrors((current) => ({
         ...current,
-        basic_info: '请填写开始时间、至少一名实验人员以及有效的温湿度。',
+        basic_info: [
+          !startedAtValid && '请选择有效的开始时间。',
+          !basicInfo.performed_by_user_ids.length && '请至少选择一名实验人员。',
+          !roomTemperatureValid && '请填写有效的实验室温度。',
+          !roomHumidityValid && '请填写 0–100 之间的相对湿度。',
+        ]
+          .filter(Boolean)
+          .join(''),
       }))
       return false
     }
@@ -1518,7 +1551,7 @@ export function ScientificExperimentForm({
         <Alert>
           <AlertDescription>
             {dirtyStepLabels.join('、')}
-            有未保存的修改；页面预览显示的是尚未写入数据库的内容。
+            有未保存的修改。
           </AlertDescription>
         </Alert>
       ) : null}
@@ -1913,11 +1946,16 @@ export function ScientificExperimentForm({
               </ModuleCard>
               <SimpleSubstratesEditor
                 substrates={substrates}
+                placementRelations={substratePlacementRelations}
                 zoneCount={setupZoneCount}
                 disabled={processReadOnly}
                 showErrors={Boolean(errors.substrates)}
                 onChange={(value) => {
                   setSubstrates(value)
+                  markDirty('substrates')
+                }}
+                onPlacementRelationsChange={(value) => {
+                  setSubstratePlacementRelations(value)
                   markDirty('substrates')
                 }}
               />
@@ -2058,7 +2096,7 @@ export function ScientificExperimentForm({
                           channels.filter(
                             (channel) => channel.channel_type === 'flow',
                           ).length
-                        } 种气体`
+                        } 条供气记录`
                       : '待填写（必填）',
                     complete: channels.some(
                       (channel) => channel.channel_type === 'flow',
@@ -2221,7 +2259,7 @@ export function ScientificExperimentForm({
                 [
                   peakTemperature === null
                     ? ''
-                    : `最高 ${Number(peakTemperature.toFixed(2))} °C`,
+                    : `最高设定温度 ${Number(peakTemperature.toFixed(2))} ℃`,
                   hasTemperatureFile ? '含温度时间序列' : '',
                   totalDuration ? `${Math.round(totalDuration / 60)} min` : '',
                 ]
@@ -2345,7 +2383,7 @@ export function TargetEditor({
       </Alert>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
-          <Label>材料结构</Label>
+          <Label>空间架构</Label>
           <Select
             value={target.architecture_type}
             disabled={disabled}
@@ -2363,7 +2401,7 @@ export function TargetEditor({
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="single_region">单一材料</SelectItem>
+                <SelectItem value="single_region">单一区域</SelectItem>
                 <SelectItem value="vertical_stack">垂直异质结构</SelectItem>
                 <SelectItem value="lateral_junction">横向异质结构</SelectItem>
                 <SelectItem value="mixed_architecture">
@@ -2374,7 +2412,7 @@ export function TargetEditor({
           </Select>
         </div>
         <div className="grid gap-2">
-          <Label>材料形态</Label>
+          <Label>目标产物形态</Label>
           <Select
             value={target.dimensional_form}
             disabled={disabled}
@@ -2382,6 +2420,10 @@ export function TargetEditor({
               onChange({
                 ...target,
                 dimensional_form: value as TargetSpec['dimensional_form'],
+                in_plane_outline:
+                  value === 'discrete_planar_crystal'
+                    ? target.in_plane_outline
+                    : undefined,
               })
             }
           >
@@ -2390,71 +2432,63 @@ export function TargetEditor({
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="sheet">二维片层或薄膜</SelectItem>
-                <SelectItem value="ribbon">纳米带</SelectItem>
-                <SelectItem value="tube">纳米管</SelectItem>
-                <SelectItem value="rod">纳米棒</SelectItem>
+                <SelectItem value="continuous_film">连续膜</SelectItem>
+                <SelectItem value="discrete_planar_crystal">
+                  分立片状晶体/晶畴
+                </SelectItem>
+                <SelectItem value="ribbon">带状</SelectItem>
+                <SelectItem value="wire">线状</SelectItem>
+                <SelectItem value="tube">管状</SelectItem>
+                <SelectItem value="rod">棒状</SelectItem>
                 <SelectItem value="particle">颗粒</SelectItem>
+                <SelectItem value="bulk_crystal">块状晶体</SelectItem>
+                <SelectItem value="other">其他</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-2">
-          <Label>目标覆盖状态</Label>
-          <Select
-            value={target.coverage_state}
-            disabled={disabled}
-            onValueChange={(value) =>
-              onChange({
-                ...target,
-                coverage_state: value as TargetSpec['coverage_state'],
-              })
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="未设定" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="isolated">孤立晶畴</SelectItem>
-                <SelectItem value="discontinuous">不连续覆盖</SelectItem>
-                <SelectItem value="percolated">相互连通</SelectItem>
-                <SelectItem value="continuous">连续覆盖</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2">
-          <Label>目标取向</Label>
-          <Select
-            value={target.orientation ?? 'none'}
-            disabled={disabled}
-            onValueChange={(value) =>
-              onChange({
-                ...target,
-                orientation:
-                  value === 'none'
-                    ? undefined
-                    : (value as TargetSpec['orientation']),
-              })
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="none">未设定</SelectItem>
-                <SelectItem value="in_plane">平面内生长</SelectItem>
-                <SelectItem value="vertical">垂直生长</SelectItem>
-                <SelectItem value="mixed">混合取向</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
+        {target.dimensional_form === 'discrete_planar_crystal' ? (
+          <div className="grid gap-2">
+            <Label>目标平面轮廓</Label>
+            <Select
+              value={target.in_plane_outline}
+              disabled={disabled}
+              onValueChange={(value) =>
+                onChange({
+                  ...target,
+                  in_plane_outline: value as TargetSpec['in_plane_outline'],
+                })
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="未设定" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="triangle">三角形</SelectItem>
+                  <SelectItem value="truncated_triangle">截角三角形</SelectItem>
+                  <SelectItem value="hexagon">六边形</SelectItem>
+                  <SelectItem value="quadrilateral">
+                    四边形（矩形/平行四边形/菱形）
+                  </SelectItem>
+                  <SelectItem value="other_regular_polygon">
+                    其他规则多边形
+                  </SelectItem>
+                  <SelectItem value="circular_elliptical">
+                    圆形/椭圆形
+                  </SelectItem>
+                  <SelectItem value="lobed_star">星形/多裂片状</SelectItem>
+                  <SelectItem value="dendritic_fractal">枝晶状/分形</SelectItem>
+                  <SelectItem value="irregular">不规则</SelectItem>
+                  <SelectItem value="other">其他</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
       </div>
       <div className="grid gap-2">
-        <Label>结构关系说明（选填）</Label>
+        <Label>结构关系说明</Label>
         <Textarea
           value={target.note ?? ''}
           disabled={disabled}
@@ -2600,7 +2634,7 @@ export function TargetEditor({
                 />
               </div>
               <div className="grid gap-2">
-                <Label>目标体相或多型（选填）</Label>
+                <Label>目标体相或多型</Label>
                 <Input
                   value={region.target_bulk_phase ?? ''}
                   disabled={disabled}
@@ -2751,7 +2785,7 @@ export function TargetEditor({
               />
             </div>
             <div className="grid gap-2">
-              <Label>标称值（选填）</Label>
+              <Label>标称值</Label>
               <Input
                 type="number"
                 value={relation.nominal_value ?? ''}
@@ -2810,7 +2844,7 @@ export function TargetEditor({
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label>位点或位置（选填）</Label>
+              <Label>位点或位置</Label>
               <Input
                 value={relation.site_or_location ?? ''}
                 disabled={disabled}
@@ -3052,7 +3086,7 @@ export function TimelineEditor({
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>阶段名称（选填）</Label>
+                <Label>阶段名称</Label>
                 <Input
                   value={segment.label ?? ''}
                   disabled={disabled}
@@ -3225,7 +3259,7 @@ export function TimelineEditor({
                     </Select>
                   </div>
                   <div className="grid gap-2">
-                    <Label>气瓶批次（物料批次库，选填）</Label>
+                    <Label>气瓶批次（物料批次库）</Label>
                     <EntityReferenceSelect
                       kind="material_lot"
                       value={channel.gas_lot_id ?? ''}
@@ -3656,7 +3690,7 @@ export function EventsEditor({
     <ModuleCard id="module-process_events" title="异常情况">
       {events.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          如实验过程正常，可不添加；发生异常、人工干预或数据失效时再记录。
+          发生异常、计划变更或数据失效时记录。
         </p>
       ) : null}
       {events.map((event, index) => (
@@ -3690,7 +3724,7 @@ export function EventsEditor({
             />
           </div>
           <div className="grid gap-2">
-            <Label>结束时间（s，选填）</Label>
+            <Label>结束时间（s）</Label>
             <Input
               type="number"
               value={event.end_s ?? ''}
@@ -4885,7 +4919,7 @@ export function ScientificMeasurementWorkspace({
           {profile?.show_growth_presence ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label>是否观察到材料生长（选填）</Label>
+                <Label>是否观察到材料生长</Label>
                 <Select value={growth} onValueChange={setGrowth}>
                   <SelectTrigger>
                     <SelectValue placeholder="选择观察结论" />
@@ -4993,7 +5027,7 @@ export function ScientificMeasurementWorkspace({
             </summary>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="grid gap-2 sm:col-span-2">
-                <Label>分析软件（选填）</Label>
+                <Label>分析软件</Label>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Input
                     value={software}

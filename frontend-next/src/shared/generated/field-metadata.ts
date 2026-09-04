@@ -73,6 +73,8 @@ export interface FieldMetadata {
   /** 可选的字段级帮助文本，两种语言须成对 */
   helpZh: string | null
   helpEn: string | null
+  /** 数组模块顶层字段，不属于单个条目 */
+  moduleLevel?: true
   /** 条件不成立时隐藏，而非仅切换必填状态 */
   visibilityGated?: true
 }
@@ -90,6 +92,12 @@ export interface StageType {
 }
 
 export interface CharacterizationConditionField {
+  when?: Record<string, string[]>
+  signed?: boolean
+  section?: 'results'
+  legacy_only?: boolean
+  placeholder_zh?: string
+  placeholder_en?: string
   key: string
   label_zh: string
   label_en: string
@@ -110,6 +118,9 @@ export interface CharacterizationConditionField {
 }
 
 export interface CharacterizationProfile {
+  common_condition_keys?: string[]
+  legacy_only?: boolean
+  property_conditions?: Record<string, Record<string, string[]>>
   label_zh: string
   label_en: string
   instrument_required: boolean
@@ -123,12 +134,18 @@ export interface CharacterizationProfile {
   allowed_property_codes: string[]
   default_property_codes: string[]
   allowed_assertion_types: string[]
+  peak_position_units?: string[]
+  property_modes?: Record<string, string[]>
+  legacy_property_codes?: string[]
+  legacy_assertion_types?: string[]
 }
 
 export interface CharacterizationProperty {
+  legacy_only?: boolean
   label_zh: string
   label_en: string
   value_type: 'numeric' | 'text' | 'structured'
+  structured_schema?: Record<string, unknown>
   validation: FieldValidation
   unit: string
 }
@@ -140,7 +157,7 @@ export interface GasSpecies {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v4.0-alpha.25',
+  version: 'v4.0-alpha.40',
   status: 'INTERNAL_VALIDATION',
   source: 'docs/standard/field-source.yaml',
 }
@@ -433,8 +450,8 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'target_layer_count',
-      labelZh: '目标原子层数',
-      labelEn: 'Target atomic-layer count',
+      labelZh: '目标层数',
+      labelEn: 'Target material-layer count',
       input: '数值',
       unit: '层',
       options: null,
@@ -452,8 +469,9 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh: '仅层状材料填写；例如单层 MoS₂ 填 1，非层状材料留空。',
+      helpEn:
+        'Complete only for layered materials; enter 1 for monolayer MoS₂ and leave blank for non-layered materials.',
       visibilityGated: true,
     },
     {
@@ -482,11 +500,12 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'dimensional_form',
-      labelZh: '目标形态',
-      labelEn: 'Target morphology',
+      labelZh: '目标产物形态',
+      labelEn: 'Target product form',
       input: '下拉',
       unit: null,
-      options: '片状/带状/线状/管状/棒状/颗粒/其他',
+      options:
+        '连续膜·分立片状晶体/晶畴·带状·线状·管状·棒状·颗粒·块状晶体·其他',
       validation: null,
       requirement: {
         raw: '选填',
@@ -502,12 +521,13 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       helpEn: null,
     },
     {
-      key: 'coverage_state',
-      labelZh: '目标覆盖状态',
-      labelEn: 'Target coverage state',
+      key: 'in_plane_outline',
+      labelZh: '目标平面轮廓',
+      labelEn: 'Target in-plane outline',
       input: '下拉',
       unit: null,
-      options: '孤立/不连续/贯通/连续',
+      options:
+        '三角形·截角三角形·六边形·四边形（矩形/平行四边形/菱形）·其他规则多边形·圆形/椭圆形·星形/多裂片状·枝晶状/分形·不规则·其他',
       validation: null,
       requirement: {
         raw: '选填',
@@ -521,27 +541,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       placeholderEn: 'Select an option',
       helpZh: null,
       helpEn: null,
-    },
-    {
-      key: 'orientation',
-      labelZh: '目标生长取向',
-      labelEn: 'Target growth orientation',
-      input: '下拉',
-      unit: null,
-      options: '面内/垂直/混合',
-      validation: null,
-      requirement: {
-        raw: '选填',
-        level: 'optional',
-        otherwise: null,
-        condition: null,
-      },
-      r0: false,
-      group: null,
-      placeholderZh: '请选择',
-      placeholderEn: 'Select an option',
-      helpZh: null,
-      helpEn: null,
+      visibilityGated: true,
     },
     {
       key: 'optimization_objective',
@@ -912,13 +912,38 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       labelEn: 'External field capabilities',
       input: '多选',
       unit: null,
-      options: '无/等离子体/光/电',
+      options: '无/等离子体/光/电/其他',
       validation: null,
       requirement: {
         raw: '选填',
         level: 'optional',
         otherwise: null,
         condition: null,
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: null,
+      helpEn: null,
+    },
+    {
+      key: 'field_device_other_name',
+      labelZh: '其他外场能力名称',
+      labelEn: 'Other external-field capability name',
+      input: '文本',
+      unit: null,
+      options: null,
+      validation: null,
+      requirement: {
+        raw: '条件必填(装置外场能力含其他)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: '设备.外场能力',
+          op: 'eq',
+          value: 'other',
+        },
       },
       r0: false,
       group: null,
@@ -1038,53 +1063,6 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       helpEn: null,
     },
     {
-      key: 'process_roles',
-      labelZh: '工艺作用',
-      labelEn: 'Process roles',
-      input: '多选',
-      unit: null,
-      options:
-        '促进反应或成核·助熔或盐辅助·输运·溶剂或分散介质·还原·氧化·刻蚀·其他',
-      validation: null,
-      requirement: {
-        raw: '选填',
-        level: 'optional',
-        otherwise: null,
-        condition: null,
-      },
-      r0: false,
-      group: null,
-      placeholderZh: '请输入',
-      placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
-    },
-    {
-      key: 'process_role_other',
-      labelZh: '其他工艺作用',
-      labelEn: 'Other process role',
-      input: '文本',
-      unit: null,
-      options: null,
-      validation: null,
-      requirement: {
-        raw: '条件必填(工艺作用包含其他)',
-        level: 'conditional_required',
-        otherwise: null,
-        condition: {
-          field: '前驱体.工艺作用',
-          op: 'eq',
-          value: 'other',
-        },
-      },
-      r0: false,
-      group: null,
-      placeholderZh: '请输入',
-      placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
-    },
-    {
       key: 'amount',
       labelZh: '使用量',
       labelEn: 'Amount used',
@@ -1095,7 +1073,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
         gt: 0,
       },
       requirement: {
-        raw: '条件必填(装载方式≠气路供给)',
+        raw: '条件必填（非气路供给且非仅浸渍；复合条件由科学载荷校验）',
         level: 'conditional_required',
         otherwise: null,
         condition: {
@@ -1121,7 +1099,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       options: 'mg·g·μL·mL等',
       validation: null,
       requirement: {
-        raw: '条件必填(装载方式≠气路供给)',
+        raw: '条件必填（填写使用量时；仅浸渍不要求使用量）',
         level: 'conditional_required',
         otherwise: null,
         condition: {
@@ -1148,7 +1126,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
         gt: 0,
       },
       requirement: {
-        raw: '选填（该装载包含旋涂时显示；填写后单位必填）',
+        raw: '滴涂或浸渍必填；旋涂选填；填写后单位必填',
         level: 'optional',
         otherwise: null,
         condition: null,
@@ -1208,12 +1186,12 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'preparation_steps',
-      labelZh: '使用前处理',
-      labelEn: 'Pre-loading treatment',
+      labelZh: '处理方式',
+      labelEn: 'Treatment method',
       input: '前驱体处理步骤数组',
       unit: null,
       options:
-        '{type: 直接加载|熔融凝固|压片|旋涂|退火|研磨|其他, other_name?, parameters: 固定参数对象}',
+        '{step_type: 直接加载|研磨|压片|熔融|旋涂|滴涂|浸渍|干燥|其他, sequence, parameters: 固定参数对象}',
       validation: null,
       requirement: {
         raw: '选填',
@@ -1235,7 +1213,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       labelEn: 'Loading arrangement',
       input: '下拉',
       unit: null,
-      options: '舟/坩埚/涂覆在衬底表面/气路供给/鼓泡器/其他容器',
+      options: '舟/坩埚/衬底/气路供给/其他',
       validation: null,
       requirement: {
         raw: '必填',
@@ -1260,13 +1238,13 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       options: '本炉已填写的衬底片',
       validation: null,
       requirement: {
-        raw: '条件必填(装载方式=涂覆在衬底表面)',
+        raw: '条件必填(装载方式=衬底)',
         level: 'conditional_required',
         otherwise: null,
         condition: {
           field: '前驱体.装载方式',
           op: 'eq',
-          value: 'substrate_surface',
+          value: 'substrate',
         },
       },
       r0: false,
@@ -1300,29 +1278,29 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'initial_position',
-      labelZh: '热电偶相对位置',
+      labelZh: '相对测温点位置',
       labelEn: 'Precursor source position',
       input: '源位置对象',
       unit: 'mm',
       options: '{reference: zone_thermocouple, axial_mm}',
       validation: null,
       requirement: {
-        raw: '条件必填(装载方式=舟/坩埚/其他容器)',
+        raw: '条件必填(装载方式=舟/坩埚/其他)',
         level: 'conditional_required',
         otherwise: null,
         condition: {
           field: '前驱体.装载方式',
           op: 'in',
-          value: ['boat', 'crucible', 'other_container'],
+          value: ['boat', 'crucible', 'other'],
         },
       },
       r0: false,
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: '以所选温区热电偶为0 mm；沿气流方向，上游填负值，下游填正值。',
+      helpZh: '以所选温区测温点为0 mm；沿气流方向，上游填负值，下游填正值。',
       helpEn:
-        'Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.',
+        'Use the temperature measurement point in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.',
       visibilityGated: true,
     },
     {
@@ -1334,13 +1312,13 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       options: 'zone_1·zone_2·…',
       validation: null,
       requirement: {
-        raw: '条件必填(装载方式=舟/坩埚/其他容器)',
+        raw: '条件必填(装载方式=舟/坩埚/其他)',
         level: 'conditional_required',
         otherwise: null,
         condition: {
           field: '前驱体.装载方式',
           op: 'in',
-          value: ['boat', 'crucible', 'other_container'],
+          value: ['boat', 'crucible', 'other'],
         },
       },
       r0: false,
@@ -1490,12 +1468,12 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'size_placement',
-      labelZh: '本片实际尺寸与放置方式',
-      labelEn: 'Actual piece size and placement',
+      labelZh: '本片实际尺寸与姿态',
+      labelEn: 'Actual piece size and pose',
       input: '衬底尺寸放置对象',
       unit: 'mm',
       options:
-        '{length_mm, width_mm, thickness_mm?, placement: 正放|倒扣|两片生长面相对|倾角|竖放|其他, tilt_angle_deg?, placement_other?}',
+        '{length_mm, width_mm, thickness_mm?, placement: 正放|倒扣|倾角|竖放|其他, tilt_angle_deg?, tilt_azimuth_deg?, upright_growth_face_direction?: 朝下游|朝上游|朝炉管左侧|朝炉管右侧, placement_other?}',
       validation: null,
       requirement: {
         raw: '必填',
@@ -1508,9 +1486,31 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
       helpZh:
-        '填本次实际放入炉内的单片尺寸和放置方式；长度沿气流方向、宽度垂直气流方向，未对齐时在备注说明；倾角相对水平放置平面。',
+        '倾角绝对值为衬底平面与水平面的夹角，生长面朝上为正、朝下为负；方位角按生长面法向的水平投影，以下游为0°，俯视时顺时针为正。',
       helpEn:
-        'Enter the actual piece dimensions and placement for this run. Length follows the gas-flow direction and width is perpendicular; note any misalignment. Measure tilt from the horizontal support plane.',
+        'The absolute tilt is the angle between the substrate plane and the horizontal plane; positive means the growth face points upward and negative downward. Azimuth follows the horizontal projection of the growth-face normal, with downstream as 0° and clockwise positive when viewed from above.',
+    },
+    {
+      key: 'placement_relations',
+      labelZh: '片间生长面相对关系',
+      labelEn: 'Opposed growth-face relations between pieces',
+      input: '衬底片间关系数组',
+      unit: 'mm',
+      options: '[{piece_a_label, piece_b_label, gap_mm?}]',
+      validation: null,
+      requirement: {
+        raw: '选填（仅多片衬底且存在该关系时）',
+        level: 'optional',
+        otherwise: null,
+        condition: null,
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: null,
+      helpEn: null,
+      moduleLevel: true,
     },
     {
       key: 'pretreatment_steps',
@@ -1519,7 +1519,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       input: '衬底预处理步骤数组',
       unit: null,
       options:
-        '{type: 丙酮清洗|异丙醇清洗|氮气吹干|退火|等离子体|亲水处理|其他, other_name?, parameters: 具名参数对象}',
+        '{type: 溶剂清洗|氮气吹干|退火|等离子体|紫外/臭氧处理|其他, other_name?, parameters: 溶剂清洗[solvent: 丙酮|异丙醇|乙醇|甲醇|去离子水|其他, solvent_other?, cleaning_method: 超声|浸泡|冲洗|擦拭|其他, cleaning_method_other?, duration_min?]；紫外/臭氧处理[duration_min]；其余为对应参数对象}',
       validation: null,
       requirement: {
         raw: '推荐',
@@ -1580,8 +1580,8 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'zone_thermocouple_distance_mm',
-      labelZh: '所在温区与热电偶相对位置',
-      labelEn: 'Zone and distance to thermocouple',
+      labelZh: '所在温区与相对测温点位置',
+      labelEn: 'Zone and position relative to temperature measurement point',
       input: '温区距离对象',
       unit: 'mm',
       options: '{zone_index, distance_mm}',
@@ -1596,9 +1596,9 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: '以所选温区热电偶为 0 mm；沿气流方向，上游填负值，下游填正值。',
+      helpZh: '以所选温区测温点为 0 mm；沿气流方向，上游填负值，下游填正值。',
       helpEn:
-        'Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.',
+        'Use the temperature measurement point in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.',
     },
     {
       key: 'note',
@@ -1646,6 +1646,29 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       helpEn: null,
     },
     {
+      key: 'process_duration_min',
+      labelZh: '过程总时长',
+      labelEn: 'Total process duration',
+      input: '数值',
+      unit: 'min',
+      options: null,
+      validation: {
+        gt: 0,
+      },
+      requirement: {
+        raw: '必填（历史记录可缺省，不推算补值）',
+        level: 'required',
+        otherwise: null,
+        condition: null,
+      },
+      r0: false,
+      group: 'current',
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: null,
+      helpEn: null,
+    },
+    {
       key: 'process_events_confirmed',
       labelZh: '本炉发生过异常',
       labelEn: 'Process anomaly occurred',
@@ -1672,7 +1695,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       labelEn: 'Reaction pressure regime',
       input: '下拉',
       unit: null,
-      options: 'atmospheric/low_pressure/ultra_high_vacuum/other',
+      options: 'atmospheric/low_pressure/high_pressure',
       validation: null,
       requirement: {
         raw: '必填',
@@ -1694,7 +1717,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       input: '下拉',
       unit: null,
       options:
-        'furnace_cooling/open_lid_cooling/rapid_furnace_move_cooling/controlled_cooling/other',
+        'furnace_cooling/open_lid_cooling/rapid_furnace_move_cooling/controlled_cooling/staged_cooling/other',
       validation: null,
       requirement: {
         raw: '必填',
@@ -1706,6 +1729,31 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       group: 'current',
       placeholderZh: '请选择',
       placeholderEn: 'Select an option',
+      helpZh: null,
+      helpEn: null,
+    },
+    {
+      key: 'cooling_sequence',
+      labelZh: '降温顺序',
+      labelEn: 'Cooling sequence',
+      input: '有序降温操作数组',
+      unit: null,
+      options: '{method, lid_open_temperature_C?, other_name?}',
+      validation: null,
+      requirement: {
+        raw: '条件必填(降温方式=staged_cooling)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: '步·降温.降温方式',
+          op: 'eq',
+          value: 'staged_cooling',
+        },
+      },
+      r0: false,
+      group: 'current',
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
       helpZh: null,
       helpEn: null,
     },
@@ -1725,33 +1773,6 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
           field: '步·降温.降温方式',
           op: 'eq',
           value: 'other',
-        },
-      },
-      r0: true,
-      group: 'current',
-      placeholderZh: '请输入',
-      placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
-    },
-    {
-      key: 'cooling_rate_C_per_min',
-      labelZh: '受控降温速率',
-      labelEn: 'Controlled cooling rate',
-      input: '数值',
-      unit: '℃/min',
-      options: null,
-      validation: {
-        gt: 0,
-      },
-      requirement: {
-        raw: '条件必填(降温方式=controlled_cooling)',
-        level: 'conditional_required',
-        otherwise: null,
-        condition: {
-          field: '步·降温.降温方式',
-          op: 'eq',
-          value: 'controlled_cooling',
         },
       },
       r0: true,
@@ -1793,7 +1814,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       input: '预处理操作数组',
       unit: null,
       options:
-        '{operation_type: pump_down|gas_exchange|leak_check|other, duration_min?, target_absolute_pressure_Pa?, cycle_count?, gas_sources?: [{material_lot_id, material_lot_version, snapshot?}], other_name?}',
+        '{operation_type: pump_down|gas_exchange|other, exchange_mode?: continuous_flow|evacuation_backfill, duration_min?, target_absolute_pressure_Pa?, backfill_absolute_pressure_Pa?, cycle_count?, gas_sources?: [{material_lot_id, material_lot_version, flow_sccm?, snapshot?}], other_name?}',
       validation: null,
       requirement: {
         raw: '选填',
@@ -1815,7 +1836,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       input: '实际外场数组',
       unit: '按参数',
       options:
-        '{field_type: 等离子体|光|电, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；other_parameters?}',
+        '{field_type: 等离子体|光|电|其他, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；其他[至少一个具名参数]；other_parameters?}',
       validation: null,
       requirement: {
         raw: '选填',
@@ -1860,7 +1881,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       input: '多选+其他',
       unit: null,
       options:
-        '管路堵塞/压力超限/信号异常/人工干预/设备报警/人工停止/供电中断/供水中断/供气中断/计划改变/其他',
+        '供电中断/供水中断/供气中断/管路堵塞/压力突变/设备报警/信号异常/计划变更/其他',
       validation: null,
       requirement: {
         raw: '必填',
@@ -2254,9 +2275,33 @@ export const entities: Record<string, FieldMetadata[]> = {
       placeholderZh: '例如 ACS reagent、分析纯、电子级或 5.0',
       placeholderEn:
         'e.g. ACS reagent, analytical grade, electronic grade, or 5.0',
-      helpZh: '照录包装标签、产品页或 CoA 上的等级名称；未标注时留空。',
-      helpEn:
-        'Copy the grade shown on the package label, product page, or CoA; leave blank if none is stated.',
+      helpZh: null,
+      helpEn: null,
+    },
+    {
+      key: 'batch_number_availability',
+      labelZh: '▸衬底·批号提供情况',
+      labelEn: 'Substrate · lot-number availability',
+      input: '下拉',
+      unit: null,
+      options: '有批号·未提供批号',
+      validation: null,
+      requirement: {
+        raw: '条件必填(衬底)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.批次类别',
+          op: 'eq',
+          value: 'substrate',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请选择',
+      placeholderEn: 'Select an option',
+      helpZh: null,
+      helpEn: null,
     },
     {
       key: 'batch_number',
@@ -2267,8 +2312,8 @@ export const entities: Record<string, FieldMetadata[]> = {
       options: null,
       validation: null,
       requirement: {
-        raw: '必填',
-        level: 'required',
+        raw: '必填(化学品/气瓶；衬底选择有批号时)',
+        level: 'optional',
         otherwise: null,
         condition: null,
       },
@@ -2280,6 +2325,31 @@ export const entities: Record<string, FieldMetadata[]> = {
         '用于识别当前这批实物；填写包装标签或 CoA 中 Lot/Batch 后的编号。',
       helpEn:
         'Identifies this physical lot. Enter the number shown after Lot or Batch on the package label or CoA.',
+    },
+    {
+      key: 'production_date',
+      labelZh: '▸衬底·生产日期（标签原文）',
+      labelEn: 'Substrate · production date (as labeled)',
+      input: '年月或日期',
+      unit: null,
+      options: 'YYYY-MM或YYYY-MM-DD',
+      validation: null,
+      requirement: {
+        raw: '条件必填(衬底未提供批号时)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.▸衬底·批号提供情况',
+          op: 'eq',
+          value: 'batch_number_not_provided',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '例如 2026-08 或 2026-08-31',
+      placeholderEn: 'e.g. 2026-08 or 2026-08-31',
+      helpZh: null,
+      helpEn: null,
     },
     {
       key: 'purity',
@@ -2594,10 +2664,9 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请选择',
       placeholderEn: 'Select an option',
-      helpZh:
-        '仅选择标签明确标示的 N 级；其他等级填写在“产品等级（标签原文）”。',
+      helpZh: '按标签选择；未列出的等级填入“产品等级”。',
       helpEn:
-        'Select an N-grade only when explicitly shown on the label; enter other grades under “Product grade (as labeled)”.',
+        'Select the grade shown on the label; enter unlisted grades under “Product grade”.',
     },
     {
       key: 'gas_cylinder_number',
@@ -2953,7 +3022,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       labelEn: 'External field capabilities',
       input: '多选',
       unit: null,
-      options: '无/光/电/等离子体',
+      options: '无/光照/电场/等离子体/其他',
       validation: null,
       requirement: {
         raw: '必填',
@@ -2965,6 +3034,31 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
+      helpZh: null,
+      helpEn: null,
+    },
+    {
+      key: 'field_device_other_name',
+      labelZh: '其他外场能力名称',
+      labelEn: 'Other external-field capability name',
+      input: '文本',
+      unit: null,
+      options: null,
+      validation: null,
+      requirement: {
+        raw: '条件必填(外场能力含其他)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: '装置Setup.外场能力',
+          op: 'eq',
+          value: 'other',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '例如 磁场',
+      placeholderEn: 'e.g. magnetic field',
       helpZh: null,
       helpEn: null,
     },
@@ -3039,7 +3133,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       labelEn: 'Applicable characterization method',
       input: '下拉+其他',
       unit: null,
-      options: '光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他',
+      options: 'OM/Raman/PL/SHG/AFM/SEM/TEM/XRD/其他/低波数Raman',
       validation: null,
       requirement: {
         raw: '必填',
@@ -3136,10 +3230,9 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh:
-        'PID（Persistent Identifier）是长期稳定的仪器标识，例如机构分配的 PIDINST；它不是厂商序列号。',
+      helpZh: '机构分配的长期标识，非厂商序列号。',
       helpEn:
-        "A PID is a persistent identifier assigned by an institution or registry, such as PIDINST; it is not the manufacturer's serial number.",
+        "A persistent institution-assigned identifier, not the manufacturer's serial number.",
     },
     {
       key: 'location',
@@ -3180,9 +3273,9 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: '只填不会随一次测试改变的硬件或能力；本次参数填在表征结果中。',
+      helpZh: '记录固定硬件与能力；本次使用参数填在表征记录中。',
       helpEn:
-        'Enter stable hardware or capabilities only; record settings used for a measurement in that result.',
+        'Record fixed hardware and capabilities here; enter acquisition settings in each characterization record.',
     },
     {
       key: 'capabilities',
@@ -3190,7 +3283,8 @@ export const entities: Record<string, FieldMetadata[]> = {
       labelEn: 'Supported characterization methods',
       input: 'JSON数组',
       unit: null,
-      options: '[{code,configuration}]',
+      options:
+        '[{code,configuration}]；code=other 时 configuration.method_names 为方法名称列表',
       validation: null,
       requirement: {
         raw: '必填',
@@ -3202,10 +3296,8 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh:
-        '勾选仪器支持的方法；固定硬件填在“关键固定配置”，本次实际参数填在表征结果中。',
-      helpEn:
-        'Select supported methods; record stable hardware under Key fixed configuration and actual settings in each characterization result.',
+      helpZh: null,
+      helpEn: null,
     },
     {
       key: 'last_calibration',
@@ -3263,8 +3355,8 @@ export const optionLabelsZh: Record<string, string> = {
   plasma: '等离子体',
   setpoint: '设定值',
   measured: '实测值',
-  light: '光',
-  electric_field: '电',
+  light: '光照',
+  electric_field: '电场',
   solid: '固',
   gas: '气',
   liquid: '液',
@@ -3301,24 +3393,44 @@ export const optionLabelsZh: Record<string, string> = {
   face_to_face: '两片生长面相对',
   tilted: '倾角',
   upright: '竖放',
+  downstream: '朝下游',
+  upstream: '朝上游',
+  tube_left: '朝炉管左侧',
+  tube_right: '朝炉管右侧',
   clean: '清洗',
-  acetone_clean: '丙酮清洗',
-  isopropanol_clean: '异丙醇清洗',
+  solvent_cleaning: '溶剂清洗',
   nitrogen_dry: '氮气吹干',
   plasma_treatment: '等离子体',
-  hydrophilic_treatment: '亲水处理',
+  uv_ozone_treatment: '紫外/臭氧处理',
+  batch_number_reported: '有批号',
+  batch_number_not_provided: '未提供批号',
+  ultrasonic: '超声',
+  soak: '浸泡',
+  rinse: '冲洗',
+  wipe: '擦拭',
+  acetone: '丙酮',
+  isopropanol: '异丙醇',
+  ethanol: '乙醇',
+  methanol: '甲醇',
+  deionized_water: '去离子水',
   zone_1: '温区1…',
   zone_2: '温区2…',
   pump_down: '抽气',
   preparation: '预处理',
   reaction_conditions: '反应条件',
-  gas_exchange: '气路置换',
+  gas_exchange: '气氛置换',
+  continuous_flow: '连续通气',
+  evacuation_backfill: '抽空—回填',
   furnace_cooling: '随炉冷却',
   open_lid_cooling: '开盖冷却',
-  rapid_furnace_move_cooling: '移炉快速冷却',
-  controlled_cooling: '受控降温',
+  rapid_furnace_move_cooling: '移炉冷却',
+  controlled_cooling: '程序降温',
+  staged_cooling: '分段降温',
+  low_pressure: '减压（含真空）',
+  high_pressure: '加压',
+  premixed: '预混气',
+  rotameter: '浮子流量计（转子流量计）',
   atmospheric_pressure: '常压(APCVD)',
-  low_pressure: '低压(LPCVD)',
   ultra_high_vacuum: '超高真空',
   mfc: 'MFC',
   tube_1_inch: '1″',
@@ -3326,7 +3438,6 @@ export const optionLabelsZh: Record<string, string> = {
   tube_4_inch: '4″',
   sio2_si: 'SiO₂/Si',
   ar_n2_other: 'Ar+N₂…',
-  rotameter: '转子',
   line_blockage: '管路堵塞',
   pressure_excursion: '压力突变',
   signal_anomaly: '信号异常',
@@ -3345,7 +3456,7 @@ export const optionLabelsZh: Record<string, string> = {
   nitrogen: '氮气',
   vacuum: '真空',
   round: '圆形',
-  optical_microscopy: '光镜',
+  optical_microscopy: 'OM',
   low_frequency_raman: '低波数Raman',
   no_growth: '无生长',
   discontinuous_coverage: '不连续覆盖',
@@ -3403,6 +3514,7 @@ export const optionLabelsZh: Record<string, string> = {
   mg_per_mL: 'mg/mL',
   wt_percent: 'wt%',
   vol_percent: 'vol%',
+  atmospheric: '常压',
 }
 
 /** 稳定机器码 → 首选英文显示名（兼容别名不覆盖）。 */
@@ -3475,24 +3587,44 @@ export const optionLabelsEn: Record<string, string> = {
   face_to_face: 'Growth faces opposed',
   tilted: 'Tilted',
   upright: 'Vertical',
+  downstream: 'Toward downstream',
+  upstream: 'Toward upstream',
+  tube_left: 'Toward tube left',
+  tube_right: 'Toward tube right',
   clean: 'Clean',
-  acetone_clean: 'Acetone cleaning',
-  isopropanol_clean: 'Isopropanol cleaning',
+  solvent_cleaning: 'Solvent cleaning',
   nitrogen_dry: 'Nitrogen blow-drying',
   plasma_treatment: 'Plasma treatment',
-  hydrophilic_treatment: 'Hydrophilic treatment',
+  uv_ozone_treatment: 'UV/ozone treatment',
+  batch_number_reported: 'Lot number provided',
+  batch_number_not_provided: 'Lot number not provided',
+  ultrasonic: 'Ultrasonic cleaning',
+  soak: 'Soaking',
+  rinse: 'Rinsing',
+  wipe: 'Wiping',
+  acetone: 'Acetone',
+  isopropanol: 'Isopropanol',
+  ethanol: 'Ethanol',
+  methanol: 'Methanol',
+  deionized_water: 'Deionized water',
   zone_1: 'Zone 1',
   zone_2: 'Zone 2',
   pump_down: 'Pump down',
   preparation: 'Preparation',
   reaction_conditions: 'Reaction conditions',
-  gas_exchange: 'Gas-line exchange',
+  gas_exchange: 'Atmosphere exchange',
+  continuous_flow: 'Continuous gas flow',
+  evacuation_backfill: 'Evacuation-backfill cycles',
   furnace_cooling: 'Furnace cooling',
   open_lid_cooling: 'Open-lid cooling',
-  rapid_furnace_move_cooling: 'Rapid cooling by moving furnace',
-  controlled_cooling: 'Controlled cooling',
+  rapid_furnace_move_cooling: 'Cooling by moving furnace',
+  controlled_cooling: 'Programmed cooling',
+  staged_cooling: 'Sequential cooling',
+  low_pressure: 'Reduced pressure (including vacuum)',
+  high_pressure: 'Elevated pressure',
+  premixed: 'Premixed gas',
+  rotameter: 'Variable-area flowmeter (rotameter)',
   atmospheric_pressure: 'Atmospheric pressure (APCVD)',
-  low_pressure: 'Low pressure (LPCVD)',
   ultra_high_vacuum: 'Ultra-high vacuum',
   mfc: 'Mass flow controller',
   tube_1_inch: '1″',
@@ -3500,7 +3632,6 @@ export const optionLabelsEn: Record<string, string> = {
   tube_4_inch: '4″',
   sio2_si: 'SiO₂/Si',
   ar_n2_other: 'Ar+N₂…',
-  rotameter: 'Rotameter',
   line_blockage: 'Line blockage',
   pressure_excursion: 'Sudden pressure change',
   signal_anomaly: 'Signal anomaly',
@@ -3519,7 +3650,7 @@ export const optionLabelsEn: Record<string, string> = {
   nitrogen: 'Nitrogen',
   vacuum: 'Vacuum',
   round: 'Round',
-  optical_microscopy: 'Optical microscopy',
+  optical_microscopy: 'OM',
   low_frequency_raman: 'Low-frequency Raman',
   no_growth: 'No growth',
   discontinuous_coverage: 'Discontinuous coverage',
@@ -3613,6 +3744,8 @@ export const optionCodes: Record<string, string> = {
   实测值: 'measured',
   光: 'light',
   电: 'electric_field',
+  光照: 'light',
+  电场: 'electric_field',
   固: 'solid',
   气: 'gas',
   液: 'liquid',
@@ -3651,24 +3784,48 @@ export const optionCodes: Record<string, string> = {
   两片生长面相对: 'face_to_face',
   倾角: 'tilted',
   竖放: 'upright',
+  朝下游: 'downstream',
+  朝上游: 'upstream',
+  朝炉管左侧: 'tube_left',
+  朝炉管右侧: 'tube_right',
   清洗: 'clean',
-  丙酮清洗: 'acetone_clean',
-  异丙醇清洗: 'isopropanol_clean',
+  溶剂清洗: 'solvent_cleaning',
   氮气吹干: 'nitrogen_dry',
   等离子体: 'plasma_treatment',
-  亲水处理: 'hydrophilic_treatment',
-  亲水化: 'hydrophilic_treatment',
+  '紫外/臭氧处理': 'uv_ozone_treatment',
+  有批号: 'batch_number_reported',
+  未提供批号: 'batch_number_not_provided',
+  超声: 'ultrasonic',
+  浸泡: 'soak',
+  冲洗: 'rinse',
+  擦拭: 'wipe',
+  丙酮: 'acetone',
+  异丙醇: 'isopropanol',
+  乙醇: 'ethanol',
+  甲醇: 'methanol',
+  去离子水: 'deionized_water',
   '温区1…': 'zone_1',
   '温区2…': 'zone_2',
   抽气: 'pump_down',
   预处理: 'preparation',
   反应条件: 'reaction_conditions',
   其他记录: 'other',
+  气氛置换: 'gas_exchange',
   气路置换: 'gas_exchange',
+  连续通气: 'continuous_flow',
+  '抽空—回填': 'evacuation_backfill',
   随炉冷却: 'furnace_cooling',
   开盖冷却: 'open_lid_cooling',
+  移炉冷却: 'rapid_furnace_move_cooling',
   移炉快速冷却: 'rapid_furnace_move_cooling',
+  程序降温: 'controlled_cooling',
   受控降温: 'controlled_cooling',
+  分段降温: 'staged_cooling',
+  '减压（含真空）': 'low_pressure',
+  加压: 'high_pressure',
+  预混气: 'premixed',
+  '浮子流量计（转子流量计）': 'rotameter',
+  浮子流量计: 'rotameter',
   '常压(APCVD)': 'atmospheric_pressure',
   常压: 'atmospheric_pressure',
   '低压(LPCVD)': 'low_pressure',
@@ -3701,6 +3858,7 @@ export const optionCodes: Record<string, string> = {
   圆形: 'round',
   方形: 'square',
   矩形: 'rectangular',
+  OM: 'optical_microscopy',
   光镜: 'optical_microscopy',
   低波数Raman: 'low_frequency_raman',
   无生长: 'no_growth',
@@ -3765,7 +3923,31 @@ export const optionCodes: Record<string, string> = {
 
 /** 字段专用兼容标签 → 机器码；优先于全局别名。 */
 export const fieldOptionCodes: Record<string, Record<string, string>> = {
+  dimensional_form: {
+    连续膜: 'continuous_film',
+    '分立片状晶体/晶畴': 'discrete_planar_crystal',
+    带状: 'ribbon',
+    线状: 'wire',
+    管状: 'tube',
+    棒状: 'rod',
+    颗粒: 'particle',
+    块状晶体: 'bulk_crystal',
+    其他: 'other',
+  },
+  in_plane_outline: {
+    三角形: 'triangle',
+    截角三角形: 'truncated_triangle',
+    六边形: 'hexagon',
+    '四边形（矩形/平行四边形/菱形）': 'quadrilateral',
+    其他规则多边形: 'other_regular_polygon',
+    '圆形/椭圆形': 'circular_elliptical',
+    '星形/多裂片状': 'lobed_star',
+    '枝晶状/分形': 'dendritic_fractal',
+    不规则: 'irregular',
+    其他: 'other',
+  },
   loading_method: {
+    衬底: 'substrate_surface',
     气路供给: 'gas_line',
     鼓泡器: 'bubbler',
     其他容器: 'other',
@@ -3805,7 +3987,7 @@ export const unitLabelsEn: Record<string, string> = {
 /** §5 参数组：组名 → 说明（common 恒显） */
 export const stageGroups: Record<string, string> = {
   common: '所有记录共用（记录类型）',
-  preparation: '预处理操作（抽气、气路置换）',
+  preparation: '预处理操作（抽真空、气氛置换）',
   reaction: '反应条件（温度、实测温度、逐气体供气、压力、时长、降温）',
   external_field: '装置具备对应能力时才显示的本炉实际外场',
   other: '具名其他记录',
@@ -3847,7 +4029,223 @@ export const characterizationProperties: Record<
   string,
   CharacterizationProperty
 > = {
+  spectral_peaks: {
+    label_zh: '峰参数',
+    label_en: 'Spectral peak records',
+    value_type: 'structured',
+    validation: {},
+    structured_schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['status', 'position_unit', 'intensity_unit', 'peaks'],
+      properties: {
+        status: {
+          enum: ['recorded', 'not_detected', 'not_analyzed'],
+        },
+        position_unit: {
+          enum: ['cm⁻¹', 'nm', 'eV', '° 2θ', '° ω', '° φ', '° χ'],
+        },
+        intensity_unit: {
+          enum: ['a.u.', 'counts', 'counts/s'],
+        },
+        source_file_id: {
+          type: 'string',
+          format: 'uuid',
+        },
+        extraction_method: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 256,
+          pattern: '\\S',
+        },
+        baseline_method: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 256,
+          pattern: '\\S',
+        },
+        peaks: {
+          type: 'array',
+          maxItems: 200,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id', 'position'],
+            properties: {
+              id: {
+                type: 'integer',
+                minimum: 1,
+              },
+              position: {
+                type: 'number',
+              },
+              fwhm: {
+                type: 'number',
+                exclusiveMinimum: 0,
+              },
+              height: {
+                type: 'number',
+                minimum: 0,
+              },
+              area: {
+                type: 'number',
+                minimum: 0,
+              },
+              d_spacing_nm: {
+                type: 'number',
+                exclusiveMinimum: 0,
+              },
+            },
+          },
+        },
+      },
+      allOf: [
+        {
+          if: {
+            properties: {
+              status: {
+                const: 'recorded',
+              },
+            },
+          },
+          then: {
+            required: ['source_file_id'],
+            properties: {
+              peaks: {
+                minItems: 1,
+              },
+            },
+          },
+          else: {
+            properties: {
+              peaks: {
+                maxItems: 0,
+              },
+            },
+          },
+        },
+        {
+          if: {
+            properties: {
+              status: {
+                const: 'not_detected',
+              },
+            },
+          },
+          then: {
+            required: ['source_file_id'],
+          },
+        },
+        {
+          if: {
+            properties: {
+              position_unit: {
+                enum: ['nm', 'eV'],
+              },
+            },
+          },
+          then: {
+            properties: {
+              peaks: {
+                items: {
+                  properties: {
+                    position: {
+                      exclusiveMinimum: 0,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        {
+          if: {
+            properties: {
+              position_unit: {
+                const: '° 2θ',
+              },
+            },
+          },
+          then: {
+            properties: {
+              peaks: {
+                items: {
+                  properties: {
+                    position: {
+                      minimum: 0,
+                      maximum: 180,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
+    unit: '—',
+  },
+  elemental_composition: {
+    legacy_only: true,
+    label_zh: '元素定量',
+    label_en: 'Elemental quantification',
+    value_type: 'structured',
+    validation: {},
+    structured_schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['basis', 'components'],
+      properties: {
+        basis: {
+          enum: ['atomic_fraction', 'mass_fraction'],
+        },
+        components: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 118,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['species', 'fraction'],
+            properties: {
+              species: {
+                type: 'string',
+                pattern: '^[A-Z][a-z]?$',
+              },
+              fraction: {
+                type: 'number',
+                minimum: 0,
+                maximum: 1,
+              },
+            },
+          },
+        },
+      },
+    },
+    unit: '—',
+  },
+  image_object_size_um: {
+    legacy_only: true,
+    label_zh: '图像对象尺寸',
+    label_en: 'Image object size',
+    value_type: 'numeric',
+    validation: {
+      gt: 0,
+    },
+    unit: 'μm',
+  },
+  image_object_density_cm2: {
+    legacy_only: true,
+    label_zh: '图像对象数量密度',
+    label_en: 'Image object number density',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
+    unit: 'cm⁻²',
+  },
   coverage_percent: {
+    legacy_only: true,
     label_zh: '覆盖率',
     label_en: 'Coverage',
     value_type: 'numeric',
@@ -3975,6 +4373,7 @@ export const characterizationProperties: Record<
     unit: 'meV',
   },
   afm_ra_roughness: {
+    legacy_only: true,
     label_zh: 'AFM 算术平均粗糙度',
     label_en: 'AFM arithmetic roughness',
     value_type: 'numeric',
@@ -3984,6 +4383,7 @@ export const characterizationProperties: Record<
     unit: 'nm',
   },
   afm_rms_roughness: {
+    legacy_only: true,
     label_zh: 'AFM 均方根粗糙度',
     label_en: 'AFM RMS roughness',
     value_type: 'numeric',
@@ -4054,27 +4454,74 @@ export const characterizationProperties: Record<
 export const characterizationProfiles: Record<string, CharacterizationProfile> =
   {
     optical_microscopy: {
-      label_zh: '光学显微镜',
-      label_en: 'Optical microscopy',
+      legacy_property_codes: ['domain_size_um', 'nucleation_density_cm2'],
+      legacy_assertion_types: ['growth_presence'],
+      label_zh: 'OM',
+      label_en: 'OM',
       instrument_required: false,
       raw_files_required: false,
-      show_growth_presence: true,
-      raw_file_guidance_zh: '建议上传原始图像；仅记录直接观察结论时可不上传。',
+      show_growth_presence: false,
+      raw_file_guidance_zh: '可上传原始图像。',
       allowed_region_types: ['point', 'area', 'whole_sample', 'selected_area'],
       required_condition_keys: [],
-      optional_condition_keys: ['objective', 'illumination_mode'],
+      optional_condition_keys: [
+        'objective',
+        'illumination_mode',
+        'image_object_type',
+        'image_size_metric',
+        'image_scale_um_per_px',
+      ],
       condition_fields: [
         {
-          key: 'objective',
-          label_zh: '物镜',
-          label_en: 'Objective',
+          key: 'image_object_type',
+          legacy_only: true,
+          label_zh: '统计对象',
+          label_en: 'Counted objects',
           value_type: 'text',
           validation: {
             max_length: 128,
           },
+          section: 'results',
+        },
+        {
+          key: 'image_size_metric',
+          legacy_only: true,
+          label_zh: '尺寸定义',
+          label_en: 'Size definition',
+          value_type: 'select',
+          options: [
+            {
+              value: 'maximum_length',
+              label_zh: '最大长度',
+              label_en: 'Maximum length',
+            },
+            {
+              value: 'equivalent_diameter',
+              label_zh: '等效圆直径',
+              label_en: 'Equivalent circular diameter',
+            },
+            {
+              value: 'width',
+              label_zh: '宽度',
+              label_en: 'Width',
+            },
+          ],
+          section: 'results',
+        },
+        {
+          key: 'objective',
+          label_zh: '物镜规格',
+          label_en: 'Objective specification',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '100×，NA 0.9',
+          placeholder_en: '100×, NA 0.9',
         },
         {
           key: 'illumination_mode',
+          legacy_only: true,
           label_zh: '照明模式',
           label_en: 'Illumination mode',
           value_type: 'text',
@@ -4082,17 +4529,40 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 128,
           },
         },
+        {
+          key: 'image_scale_um_per_px',
+          legacy_only: true,
+          label_zh: '图像标尺',
+          label_en: 'Image scale',
+          value_type: 'number',
+          unit: 'μm/px',
+          section: 'results',
+        },
       ],
       allowed_property_codes: [
         'coverage_percent',
-        'domain_size_um',
-        'nucleation_density_cm2',
+        'image_object_size_um',
+        'image_object_density_cm2',
         'observation_note',
       ],
-      default_property_codes: ['coverage_percent'],
-      allowed_assertion_types: ['growth_presence'],
+      default_property_codes: ['observation_note'],
+      allowed_assertion_types: [],
+      common_condition_keys: ['objective'],
     },
     Raman: {
+      legacy_property_codes: [
+        'raman_e2g_peak_position',
+        'raman_a1g_peak_position',
+        'raman_peak_separation',
+        'raman_peak_fwhm',
+        'raman_intensity_ratio',
+      ],
+      legacy_assertion_types: [
+        'phase_identity',
+        'polytype',
+        'stacking_order',
+        'layer_count',
+      ],
       label_zh: 'Raman',
       label_en: 'Raman spectroscopy',
       instrument_required: true,
@@ -4107,6 +4577,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'objective',
         'integration_time_s',
         'accumulations',
+        'raman_shift_range_cm1',
+        'filter_configuration',
+        'temperature_K',
       ],
       condition_fields: [
         {
@@ -4118,17 +4591,14 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'excitation_power_value',
-          label_zh: '激光功率数值',
-          label_en: 'Laser power value',
+          label_zh: '激光功率',
+          label_en: 'Laser power',
           value_type: 'number',
-          help_zh: '请配合功率口径填写；优先记录样品处实测功率。',
-          help_en:
-            'Use with the power basis; prefer measured power at the sample.',
         },
         {
           key: 'excitation_power_basis',
-          label_zh: '激光功率口径',
-          label_en: 'Laser power basis',
+          label_zh: '功率单位',
+          label_en: 'Power unit',
           value_type: 'select',
           options: [
             {
@@ -4145,48 +4615,83 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'objective',
-          label_zh: '物镜',
-          label_en: 'Objective',
+          label_zh: '物镜规格',
+          label_en: 'Objective specification',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '100×，NA 0.9',
+          placeholder_en: '100×, NA 0.9',
+        },
+        {
+          key: 'integration_time_s',
+          label_zh: '单次采集时间',
+          label_en: 'Time per acquisition',
+          value_type: 'number',
+          unit: 's',
+        },
+        {
+          key: 'accumulations',
+          label_zh: '光谱累积次数',
+          label_en: 'Spectral accumulations',
+          value_type: 'integer',
+        },
+        {
+          key: 'raman_shift_range_cm1',
+          label_zh: '采集范围',
+          label_en: 'Acquired Raman shift range',
+          value_type: 'range',
+          unit: 'cm⁻¹',
+          components: [
+            {
+              key: 'start',
+              label_zh: '起点',
+              label_en: 'Start',
+            },
+            {
+              key: 'end',
+              label_zh: '终点',
+              label_en: 'End',
+            },
+          ],
+          signed: true,
+        },
+        {
+          key: 'filter_configuration',
+          legacy_only: true,
+          label_zh: '滤光配置',
+          label_en: 'Filter configuration',
           value_type: 'text',
           validation: {
             max_length: 128,
           },
         },
         {
-          key: 'integration_time_s',
-          label_zh: '积分时间',
-          label_en: 'Integration time',
+          key: 'temperature_K',
+          label_zh: '测量温度',
+          label_en: 'Measurement temperature',
           value_type: 'number',
-          unit: 's',
-        },
-        {
-          key: 'accumulations',
-          label_zh: '累加次数',
-          label_en: 'Accumulations',
-          value_type: 'integer',
+          unit: 'K',
         },
       ],
-      allowed_property_codes: [
-        'raman_e2g_peak_position',
-        'raman_a1g_peak_position',
-        'raman_peak_separation',
-        'raman_peak_fwhm',
-        'raman_intensity_ratio',
-        'observation_note',
-      ],
-      default_property_codes: [
-        'raman_e2g_peak_position',
-        'raman_a1g_peak_position',
-        'raman_peak_separation',
-      ],
-      allowed_assertion_types: [
-        'phase_identity',
-        'polytype',
-        'stacking_order',
-        'layer_count',
+      allowed_property_codes: ['spectral_peaks', 'observation_note'],
+      default_property_codes: [],
+      allowed_assertion_types: [],
+      peak_position_units: ['cm⁻¹'],
+      common_condition_keys: [
+        'excitation_power_value',
+        'excitation_power_basis',
+        'integration_time_s',
+        'accumulations',
       ],
     },
     low_frequency_raman: {
+      legacy_property_codes: [
+        'shear_mode_peak_position',
+        'low_frequency_peak_fwhm',
+      ],
+      legacy_assertion_types: ['polytype', 'stacking_order', 'layer_count'],
       label_zh: '低频 Raman',
       label_en: 'Low-frequency Raman spectroscopy',
       instrument_required: true,
@@ -4212,17 +4717,14 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'excitation_power_value',
-          label_zh: '激光功率数值',
-          label_en: 'Laser power value',
+          label_zh: '激光功率',
+          label_en: 'Laser power',
           value_type: 'number',
-          help_zh: '请配合功率口径填写；优先记录样品处实测功率。',
-          help_en:
-            'Use with the power basis; prefer measured power at the sample.',
         },
         {
           key: 'excitation_power_basis',
-          label_zh: '激光功率口径',
-          label_en: 'Laser power basis',
+          label_zh: '功率单位',
+          label_en: 'Power unit',
           value_type: 'select',
           options: [
             {
@@ -4239,35 +4741,43 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'objective',
-          label_zh: '物镜',
-          label_en: 'Objective',
+          label_zh: '物镜规格',
+          label_en: 'Objective specification',
           value_type: 'text',
           validation: {
             max_length: 128,
           },
+          placeholder_zh: '100×，NA 0.9',
+          placeholder_en: '100×, NA 0.9',
         },
         {
           key: 'integration_time_s',
-          label_zh: '积分时间',
-          label_en: 'Integration time',
+          label_zh: '单次采集时间',
+          label_en: 'Time per acquisition',
           value_type: 'number',
           unit: 's',
         },
         {
           key: 'accumulations',
-          label_zh: '累加次数',
-          label_en: 'Accumulations',
+          label_zh: '光谱累积次数',
+          label_en: 'Spectral accumulations',
           value_type: 'integer',
         },
       ],
-      allowed_property_codes: [
-        'shear_mode_peak_position',
-        'low_frequency_peak_fwhm',
-      ],
-      default_property_codes: ['shear_mode_peak_position'],
-      allowed_assertion_types: ['polytype', 'stacking_order', 'layer_count'],
+      allowed_property_codes: ['spectral_peaks', 'observation_note'],
+      default_property_codes: [],
+      allowed_assertion_types: [],
+      peak_position_units: ['cm⁻¹'],
+      legacy_only: true,
     },
     PL: {
+      legacy_property_codes: [
+        'pl_a_exciton_peak_energy',
+        'pl_b_exciton_peak_energy',
+        'pl_integrated_intensity',
+        'pl_peak_fwhm',
+      ],
+      legacy_assertion_types: ['phase_identity', 'layer_count'],
       label_zh: 'PL',
       label_en: 'Photoluminescence',
       instrument_required: true,
@@ -4282,6 +4792,8 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'integration_time_s',
         'spectral_range_nm',
         'temperature_K',
+        'objective',
+        'accumulations',
       ],
       condition_fields: [
         {
@@ -4293,17 +4805,14 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'excitation_power_value',
-          label_zh: '激发功率数值',
-          label_en: 'Excitation power value',
+          label_zh: '激光功率',
+          label_en: 'Laser power',
           value_type: 'number',
-          help_zh: '请配合功率口径填写；优先记录样品处实测功率。',
-          help_en:
-            'Use with the power basis; prefer measured power at the sample.',
         },
         {
           key: 'excitation_power_basis',
-          label_zh: '激发功率口径',
-          label_en: 'Excitation power basis',
+          label_zh: '功率单位',
+          label_en: 'Power unit',
           value_type: 'select',
           options: [
             {
@@ -4320,8 +4829,8 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'integration_time_s',
-          label_zh: '积分时间',
-          label_en: 'Integration time',
+          label_zh: '单次采集时间',
+          label_en: 'Time per acquisition',
           value_type: 'number',
           unit: 's',
         },
@@ -4351,20 +4860,38 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           value_type: 'number',
           unit: 'K',
         },
+        {
+          key: 'objective',
+          label_zh: '物镜规格',
+          label_en: 'Objective specification',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '100×，NA 0.9',
+          placeholder_en: '100×, NA 0.9',
+        },
+        {
+          key: 'accumulations',
+          label_zh: '光谱累积次数',
+          label_en: 'Spectral accumulations',
+          value_type: 'integer',
+        },
       ],
-      allowed_property_codes: [
-        'pl_a_exciton_peak_energy',
-        'pl_b_exciton_peak_energy',
-        'pl_integrated_intensity',
-        'pl_peak_fwhm',
+      allowed_property_codes: ['spectral_peaks', 'observation_note'],
+      default_property_codes: [],
+      allowed_assertion_types: [],
+      peak_position_units: ['nm', 'eV'],
+      common_condition_keys: [
+        'excitation_power_value',
+        'excitation_power_basis',
+        'integration_time_s',
+        'accumulations',
       ],
-      default_property_codes: [
-        'pl_a_exciton_peak_energy',
-        'pl_b_exciton_peak_energy',
-      ],
-      allowed_assertion_types: ['phase_identity', 'layer_count'],
     },
     AFM: {
+      legacy_property_codes: [],
+      legacy_assertion_types: ['layer_count'],
       label_zh: 'AFM',
       label_en: 'Atomic force microscopy',
       instrument_required: true,
@@ -4379,21 +4906,46 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'resolution_px',
         'scan_rate_hz',
         'height_processing',
+        'mode_other',
       ],
       condition_fields: [
         {
           key: 'mode',
-          label_zh: '模式',
-          label_en: 'Mode',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
+          label_zh: '扫描模式',
+          label_en: 'Scan mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'tapping',
+              label_zh: '轻敲',
+              label_en: 'Tapping',
+            },
+            {
+              value: 'contact',
+              label_zh: '接触',
+              label_en: 'Contact',
+            },
+            {
+              value: 'non_contact',
+              label_zh: '非接触',
+              label_en: 'Non-contact',
+            },
+            {
+              value: 'peak_force',
+              label_zh: '峰值力',
+              label_en: 'Peak force',
+            },
+            {
+              value: 'other',
+              label_zh: '其他',
+              label_en: 'Other',
+            },
+          ],
         },
         {
           key: 'probe',
-          label_zh: '探针',
-          label_en: 'Probe',
+          label_zh: '探针型号',
+          label_en: 'Probe model',
           value_type: 'text',
           validation: {
             max_length: 128,
@@ -4420,10 +4972,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'resolution_px',
-          label_zh: '分辨率',
-          label_en: 'Resolution',
+          label_zh: '采样点数',
+          label_en: 'Sampling points',
           value_type: 'resolution',
-          unit: 'px',
           components: [
             {
               key: 'width',
@@ -4439,13 +4990,14 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'scan_rate_hz',
-          label_zh: '扫描速率',
-          label_en: 'Scan rate',
+          label_zh: '扫描频率',
+          label_en: 'Scan frequency',
           value_type: 'number',
           unit: 'Hz',
         },
         {
           key: 'height_processing',
+          legacy_only: true,
           label_zh: '高度数据处理',
           label_en: 'Height-data processing',
           value_type: 'text',
@@ -4454,22 +5006,39 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           validation: {
             max_length: 1000,
           },
+          section: 'results',
+        },
+        {
+          key: 'mode_other',
+          label_zh: '其他扫描模式',
+          label_en: 'Other scan mode',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            mode: ['other'],
+          },
         },
       ],
       allowed_property_codes: [
         'afm_ra_roughness',
         'afm_rms_roughness',
         'afm_step_height',
+        'observation_note',
       ],
-      default_property_codes: ['afm_rms_roughness', 'afm_step_height'],
-      allowed_assertion_types: ['layer_count'],
+      default_property_codes: ['afm_step_height', 'observation_note'],
+      allowed_assertion_types: [],
+      common_condition_keys: ['mode'],
     },
     SEM: {
+      legacy_property_codes: ['domain_size_um', 'nucleation_density_cm2'],
+      legacy_assertion_types: ['growth_presence', 'composition'],
       label_zh: 'SEM',
       label_en: 'Scanning electron microscopy',
       instrument_required: true,
       raw_files_required: true,
-      show_growth_presence: true,
+      show_growth_presence: false,
       raw_file_guidance_zh: '请上传原始图像与仪器元数据。',
       allowed_region_types: ['point', 'area', 'whole_sample', 'selected_area'],
       required_condition_keys: ['accelerating_voltage_kV', 'mode'],
@@ -4480,8 +5049,46 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'stage_tilt_deg',
         'sample_preparation',
         'field_of_view_um',
+        'image_object_type',
+        'image_size_metric',
       ],
       condition_fields: [
+        {
+          key: 'image_object_type',
+          legacy_only: true,
+          label_zh: '统计对象',
+          label_en: 'Counted objects',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          section: 'results',
+        },
+        {
+          key: 'image_size_metric',
+          legacy_only: true,
+          label_zh: '尺寸定义',
+          label_en: 'Size definition',
+          value_type: 'select',
+          options: [
+            {
+              value: 'maximum_length',
+              label_zh: '最大长度',
+              label_en: 'Maximum length',
+            },
+            {
+              value: 'equivalent_diameter',
+              label_zh: '等效圆直径',
+              label_en: 'Equivalent circular diameter',
+            },
+            {
+              value: 'width',
+              label_zh: '宽度',
+              label_en: 'Width',
+            },
+          ],
+          section: 'results',
+        },
         {
           key: 'accelerating_voltage_kV',
           label_zh: '加速电压',
@@ -4528,6 +5135,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'detector',
+          legacy_only: true,
           label_zh: '探测器',
           label_en: 'Detector',
           value_type: 'text',
@@ -4548,6 +5156,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'sample_preparation',
+          legacy_only: true,
           label_zh: '导电处理或镀膜',
           label_en: 'Conductive treatment or coating',
           value_type: 'text',
@@ -4557,8 +5166,8 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'field_of_view_um',
-          label_zh: '视场',
-          label_en: 'Field of view',
+          label_zh: '图像视场尺寸',
+          label_en: 'Image field of view',
           value_type: 'size',
           unit: 'μm',
           components: [
@@ -4577,13 +5186,35 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
       allowed_property_codes: [
         'coverage_percent',
-        'domain_size_um',
-        'nucleation_density_cm2',
+        'image_object_size_um',
+        'image_object_density_cm2',
+        'elemental_composition',
+        'observation_note',
       ],
-      default_property_codes: ['coverage_percent', 'domain_size_um'],
-      allowed_assertion_types: ['growth_presence', 'composition'],
+      default_property_codes: ['observation_note'],
+      allowed_assertion_types: [],
+      property_modes: {
+        coverage_percent: ['secondary_electron', 'backscattered_electron'],
+        image_object_size_um: ['secondary_electron', 'backscattered_electron'],
+        image_object_density_cm2: [
+          'secondary_electron',
+          'backscattered_electron',
+        ],
+        elemental_composition: ['EDS'],
+      },
     },
     XRD: {
+      legacy_property_codes: [
+        'xrd_peak_2theta',
+        'xrd_peak_fwhm',
+        'xrd_d_spacing',
+      ],
+      legacy_assertion_types: [
+        'phase_identity',
+        'polytype',
+        'stacking_order',
+        'orientation_relationship',
+      ],
       label_zh: 'XRD',
       label_en: 'X-ray diffraction',
       instrument_required: true,
@@ -4594,20 +5225,107 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       required_condition_keys: [
         'radiation_source',
         'source_wavelength_nm',
-        'scan_range_2theta_deg',
-        'step_size_deg',
+        'scan_axis',
+        'scan_range_deg',
       ],
       optional_condition_keys: [
+        'scan_range_2theta_deg',
+        'step_size_deg',
         'count_time_s',
         'scan_rate_deg_min',
         'incident_angle_deg',
         'geometry',
+        'scan_mode',
+        'geometry_other',
       ],
       condition_fields: [
+        {
+          key: 'geometry',
+          label_zh: '扫描几何',
+          label_en: 'Scan geometry',
+          value_type: 'select',
+          options: [
+            {
+              value: 'symmetric',
+              label_zh: '对称扫描',
+              label_en: 'Symmetric',
+            },
+            {
+              value: 'grazing_incidence',
+              label_zh: '掠入射',
+              label_en: 'Grazing incidence',
+            },
+            {
+              value: 'rocking_curve',
+              label_zh: '摇摆曲线',
+              label_en: 'Rocking curve',
+            },
+            {
+              value: 'in_plane',
+              label_zh: '面内扫描',
+              label_en: 'In-plane',
+            },
+            {
+              value: 'other',
+              label_zh: '其他',
+              label_en: 'Other',
+            },
+          ],
+        },
+        {
+          key: 'scan_axis',
+          label_zh: '扫描轴',
+          label_en: 'Scan axis',
+          value_type: 'select',
+          options: [
+            {
+              value: 'two_theta',
+              label_zh: '2θ',
+              label_en: '2θ',
+            },
+            {
+              value: 'omega',
+              label_zh: 'ω',
+              label_en: 'ω',
+            },
+            {
+              value: 'phi',
+              label_zh: 'φ',
+              label_en: 'φ',
+            },
+            {
+              value: 'chi',
+              label_zh: 'χ',
+              label_en: 'χ',
+            },
+          ],
+        },
+        {
+          key: 'scan_range_deg',
+          label_zh: '扫描范围',
+          label_en: 'Scan range',
+          value_type: 'range',
+          unit: '°',
+          components: [
+            {
+              key: 'start',
+              label_zh: '起点',
+              label_en: 'Start',
+            },
+            {
+              key: 'end',
+              label_zh: '终点',
+              label_en: 'End',
+            },
+          ],
+          signed: true,
+        },
         {
           key: 'radiation_source',
           label_zh: '辐射源',
           label_en: 'Radiation source',
+          placeholder_zh: 'Cu Kα',
+          placeholder_en: 'Cu Kα',
           value_type: 'text',
           validation: {
             max_length: 128,
@@ -4638,6 +5356,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
               label_en: 'End',
             },
           ],
+          legacy_only: true,
         },
         {
           key: 'step_size_deg',
@@ -4652,6 +5371,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_en: 'Count time per step',
           value_type: 'number',
           unit: 's',
+          when: {
+            scan_mode: ['step'],
+          },
         },
         {
           key: 'scan_rate_deg_min',
@@ -4659,6 +5381,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_en: 'Scan rate',
           value_type: 'number',
           unit: '°/min',
+          when: {
+            scan_mode: ['continuous'],
+          },
         },
         {
           key: 'incident_angle_deg',
@@ -4670,31 +5395,64 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             ge: 0,
             le: 90,
           },
+          when: {
+            geometry: ['grazing_incidence', 'in_plane'],
+          },
         },
         {
-          key: 'geometry',
-          label_zh: '几何构型',
-          label_en: 'Geometry',
+          key: 'scan_mode',
+          label_zh: '采集方式',
+          label_en: 'Acquisition mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'step',
+              label_zh: '步进扫描',
+              label_en: 'Step scan',
+            },
+            {
+              value: 'continuous',
+              label_zh: '连续扫描',
+              label_en: 'Continuous scan',
+            },
+          ],
+        },
+        {
+          key: 'geometry_other',
+          label_zh: '其他扫描几何',
+          label_en: 'Other scan geometry',
           value_type: 'text',
           validation: {
             max_length: 128,
           },
+          when: {
+            geometry: ['other'],
+          },
         },
       ],
-      allowed_property_codes: [
-        'xrd_peak_2theta',
-        'xrd_peak_fwhm',
-        'xrd_d_spacing',
-      ],
-      default_property_codes: ['xrd_peak_2theta', 'xrd_d_spacing'],
-      allowed_assertion_types: [
-        'phase_identity',
-        'polytype',
-        'stacking_order',
-        'orientation_relationship',
+      allowed_property_codes: ['spectral_peaks', 'observation_note'],
+      default_property_codes: [],
+      allowed_assertion_types: [],
+      peak_position_units: ['° 2θ', '° ω', '° φ', '° χ'],
+      common_condition_keys: [
+        'scan_mode',
+        'geometry',
+        'step_size_deg',
+        'count_time_s',
+        'scan_rate_deg_min',
+        'incident_angle_deg',
       ],
     },
     TEM: {
+      legacy_property_codes: [],
+      legacy_assertion_types: [
+        'phase_identity',
+        'composition',
+        'polytype',
+        'stacking_order',
+        'orientation_relationship',
+        'layer_count',
+      ],
       label_zh: 'TEM',
       label_en: 'Transmission electron microscopy',
       instrument_required: true,
@@ -4707,9 +5465,39 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'whole_sample',
         'selected_area',
       ],
-      required_condition_keys: ['accelerating_voltage_kV', 'mode'],
-      optional_condition_keys: ['sample_preparation'],
+      required_condition_keys: ['accelerating_voltage_kV', 'data_type'],
+      optional_condition_keys: [
+        'sample_preparation',
+        'mode',
+        'acquisition_mode',
+        'image_mode',
+        'diffraction_mode',
+        'spectrum_mode',
+      ],
       condition_fields: [
+        {
+          key: 'data_type',
+          label_zh: '数据类型',
+          label_en: 'Data type',
+          value_type: 'select',
+          options: [
+            {
+              value: 'image',
+              label_zh: '图像',
+              label_en: 'Image',
+            },
+            {
+              value: 'diffraction',
+              label_zh: '衍射',
+              label_en: 'Diffraction',
+            },
+            {
+              value: 'spectrum',
+              label_zh: '能谱',
+              label_en: 'Spectrum',
+            },
+          ],
+        },
         {
           key: 'accelerating_voltage_kV',
           label_zh: '加速电压',
@@ -4754,27 +5542,147 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
               label_en: 'Electron energy-loss spectroscopy (EELS)',
             },
           ],
+          legacy_only: true,
         },
         {
           key: 'sample_preparation',
-          label_zh: '样品制备',
-          label_en: 'Sample preparation',
+          legacy_only: true,
+          label_zh: '表征前制样',
+          label_en: 'Preparation for characterization',
           value_type: 'text',
           validation: {
             max_length: 1000,
           },
         },
+        {
+          key: 'acquisition_mode',
+          label_zh: '采集模式',
+          label_en: 'Acquisition mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'TEM',
+              label_zh: 'TEM',
+              label_en: 'TEM',
+            },
+            {
+              value: 'STEM',
+              label_zh: 'STEM',
+              label_en: 'STEM',
+            },
+          ],
+        },
+        {
+          key: 'image_mode',
+          label_zh: '成像模式',
+          label_en: 'Imaging mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'bright_field',
+              label_zh: '明场',
+              label_en: 'Bright field',
+            },
+            {
+              value: 'dark_field',
+              label_zh: '暗场',
+              label_en: 'Dark field',
+            },
+            {
+              value: 'HRTEM',
+              label_zh: 'HRTEM',
+              label_en: 'HRTEM',
+            },
+            {
+              value: 'HAADF',
+              label_zh: 'HAADF',
+              label_en: 'HAADF',
+            },
+            {
+              value: 'other',
+              label_zh: '其他',
+              label_en: 'Other',
+            },
+          ],
+          when: {
+            data_type: ['image'],
+          },
+        },
+        {
+          key: 'diffraction_mode',
+          label_zh: '衍射模式',
+          label_en: 'Diffraction mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'SAED',
+              label_zh: 'SAED',
+              label_en: 'SAED',
+            },
+            {
+              value: 'NBED',
+              label_zh: 'NBED',
+              label_en: 'NBED',
+            },
+            {
+              value: 'CBED',
+              label_zh: 'CBED',
+              label_en: 'CBED',
+            },
+            {
+              value: 'other',
+              label_zh: '其他',
+              label_en: 'Other',
+            },
+          ],
+          when: {
+            data_type: ['diffraction'],
+          },
+        },
+        {
+          key: 'spectrum_mode',
+          label_zh: '能谱方法',
+          label_en: 'Spectroscopy method',
+          value_type: 'select',
+          options: [
+            {
+              value: 'EDS',
+              label_zh: 'EDS',
+              label_en: 'EDS',
+            },
+            {
+              value: 'EELS',
+              label_zh: 'EELS',
+              label_en: 'EELS',
+            },
+          ],
+          when: {
+            data_type: ['spectrum'],
+          },
+        },
       ],
-      allowed_property_codes: ['tem_lattice_spacing'],
-      default_property_codes: ['tem_lattice_spacing'],
-      allowed_assertion_types: [
-        'phase_identity',
-        'composition',
-        'polytype',
-        'stacking_order',
-        'orientation_relationship',
-        'layer_count',
+      allowed_property_codes: [
+        'tem_lattice_spacing',
+        'elemental_composition',
+        'observation_note',
       ],
+      default_property_codes: ['tem_lattice_spacing', 'observation_note'],
+      allowed_assertion_types: [],
+      common_condition_keys: [
+        'acquisition_mode',
+        'image_mode',
+        'diffraction_mode',
+        'spectrum_mode',
+      ],
+      property_conditions: {
+        tem_lattice_spacing: {
+          data_type: ['image', 'diffraction'],
+        },
+        elemental_composition: {
+          data_type: ['spectrum'],
+          spectrum_mode: ['EDS', 'EELS'],
+        },
+      },
     },
     other: {
       label_zh: '其他',
@@ -4801,6 +5709,246 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_property_codes: ['observation_note'],
       default_property_codes: ['observation_note'],
       allowed_assertion_types: [],
+    },
+    SHG: {
+      label_zh: 'SHG',
+      label_en: 'SHG',
+      instrument_required: true,
+      raw_files_required: true,
+      show_growth_presence: false,
+      raw_file_guidance_zh: '上传原始光谱、扫描数据或图像。',
+      allowed_region_types: ['point', 'area', 'selected_area', 'whole_sample'],
+      required_condition_keys: ['data_type', 'excitation_wavelength_nm'],
+      optional_condition_keys: [
+        'excitation_power_value',
+        'excitation_power_basis',
+        'integration_time_s',
+        'objective',
+        'excitation_mode',
+        'pulse_width_fs',
+        'repetition_rate_MHz',
+        'input_polarization',
+        'analyzer_polarization',
+        'angle_reference',
+        'polarization_scan_axis',
+        'angle_range_deg',
+      ],
+      common_condition_keys: [
+        'excitation_power_value',
+        'excitation_power_basis',
+        'integration_time_s',
+        'excitation_mode',
+        'polarization_scan_axis',
+      ],
+      condition_fields: [
+        {
+          key: 'data_type',
+          label_zh: '数据类型',
+          label_en: 'Data type',
+          value_type: 'select',
+          options: [
+            {
+              value: 'spectrum',
+              label_zh: '光谱',
+              label_en: 'Spectrum',
+            },
+            {
+              value: 'polarization_scan',
+              label_zh: '偏振扫描',
+              label_en: 'Polarization scan',
+            },
+            {
+              value: 'image',
+              label_zh: '图像',
+              label_en: 'Image',
+            },
+            {
+              value: 'power_scan',
+              label_zh: '功率扫描',
+              label_en: 'Power scan',
+            },
+          ],
+        },
+        {
+          key: 'excitation_wavelength_nm',
+          label_zh: '激发波长',
+          label_en: 'Excitation wavelength',
+          value_type: 'number',
+          unit: 'nm',
+        },
+        {
+          key: 'excitation_power_value',
+          label_zh: '激光功率',
+          label_en: 'Laser power',
+          value_type: 'number',
+        },
+        {
+          key: 'excitation_power_basis',
+          label_zh: '功率单位',
+          label_en: 'Power unit',
+          value_type: 'select',
+          options: [
+            {
+              value: 'sample_plane_mW',
+              label_zh: '样品处功率（mW）',
+              label_en: 'At-sample power (mW)',
+            },
+            {
+              value: 'instrument_percent',
+              label_zh: '仪器设置（%）',
+              label_en: 'Instrument setting (%)',
+            },
+          ],
+        },
+        {
+          key: 'integration_time_s',
+          label_zh: '单次采集时间',
+          label_en: 'Time per acquisition',
+          value_type: 'number',
+          unit: 's',
+        },
+        {
+          key: 'objective',
+          label_zh: '物镜规格',
+          label_en: 'Objective specification',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '100×，NA 0.9',
+          placeholder_en: '100×, NA 0.9',
+        },
+        {
+          key: 'excitation_mode',
+          label_zh: '激光输出',
+          label_en: 'Laser output',
+          value_type: 'select',
+          options: [
+            {
+              value: 'continuous',
+              label_zh: '连续',
+              label_en: 'Continuous-wave',
+            },
+            {
+              value: 'pulsed',
+              label_zh: '脉冲',
+              label_en: 'Pulsed',
+            },
+          ],
+        },
+        {
+          key: 'pulse_width_fs',
+          label_zh: '脉冲宽度',
+          label_en: 'Pulse duration',
+          value_type: 'number',
+          unit: 'fs',
+          when: {
+            excitation_mode: ['pulsed'],
+          },
+        },
+        {
+          key: 'repetition_rate_MHz',
+          label_zh: '重复频率',
+          label_en: 'Repetition rate',
+          value_type: 'number',
+          unit: 'MHz',
+          when: {
+            excitation_mode: ['pulsed'],
+          },
+        },
+        {
+          key: 'input_polarization',
+          legacy_only: true,
+          label_zh: '入射偏振',
+          label_en: 'Input polarization',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'analyzer_polarization',
+          legacy_only: true,
+          label_zh: '检偏设置',
+          label_en: 'Analyzer setting',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'angle_reference',
+          legacy_only: true,
+          label_zh: '角度零点',
+          label_en: 'Angular zero reference',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            data_type: ['polarization_scan'],
+          },
+        },
+        {
+          key: 'polarization_scan_axis',
+          label_zh: '旋转对象',
+          label_en: 'Rotated element',
+          value_type: 'select',
+          options: [
+            {
+              value: 'input_polarization',
+              label_zh: '入射偏振',
+              label_en: 'Input polarization',
+            },
+            {
+              value: 'analyzer',
+              label_zh: '检偏器',
+              label_en: 'Analyzer',
+            },
+            {
+              value: 'sample',
+              label_zh: '样品',
+              label_en: 'Sample',
+            },
+          ],
+          when: {
+            data_type: ['polarization_scan'],
+          },
+        },
+        {
+          key: 'angle_range_deg',
+          legacy_only: true,
+          label_zh: '角度范围',
+          label_en: 'Angular range',
+          value_type: 'range',
+          unit: '°',
+          components: [
+            {
+              key: 'start',
+              label_zh: '起点',
+              label_en: 'Start',
+            },
+            {
+              key: 'end',
+              label_zh: '终点',
+              label_en: 'End',
+            },
+          ],
+          when: {
+            data_type: ['polarization_scan'],
+          },
+          signed: true,
+        },
+      ],
+      allowed_property_codes: ['spectral_peaks', 'observation_note'],
+      default_property_codes: [],
+      allowed_assertion_types: [],
+      peak_position_units: ['nm', 'eV'],
+      property_conditions: {
+        spectral_peaks: {
+          data_type: ['spectrum'],
+        },
+      },
     },
   }
 

@@ -5,13 +5,127 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from app.schemas.scientific import SourceLoadsPayload
+from app.schemas.scientific import SourceLoadsPayload, normalize_source_loads_for_read
 from app.services.v2_experiment_service import V2ExperimentService
 from app.services.v2_process_semantics import valid_frozen_gas_reference
 from app.services.v2_reporting_service import V2ReportingService
 
 LOT_ID = "11111111-1111-4111-8111-111111111111"
 SUBSTRATE_ID = "22222222-2222-4222-8222-222222222222"
+
+
+def test_coating_methods_require_the_right_quantity_and_preserve_legacy_steps() -> None:
+    load = {
+        "load_key": "coating",
+        "loading_method": "substrate_surface",
+        "substrate_source_ids": [SUBSTRATE_ID],
+        "preparation_steps": [
+            {
+                "step_type": "dip_coat",
+                "sequence": 1,
+                "parameters": {"solvent": "水", "duration_min": 5},
+            }
+        ],
+        "ingredients": [
+            {
+                "material_lot_id": LOT_ID,
+                "material_lot_version": 1,
+                "concentration_value": 0.1,
+                "concentration_unit": "mol_per_L",
+            }
+        ],
+    }
+
+    def validate(value):
+        return SourceLoadsPayload.model_validate({"items": [value]}).items[0]
+
+    assert validate(load).ingredients[0].amount is None
+    for missing in ("solvent", "duration_min"):
+        bad = deepcopy(load)
+        bad["preparation_steps"][0]["parameters"].pop(missing)
+        with pytest.raises(ValueError):
+            validate(bad)
+    bad = deepcopy(load)
+    bad["ingredients"][0].pop("concentration_value")
+    bad["ingredients"][0].pop("concentration_unit")
+    with pytest.raises(ValueError, match="require solution concentration"):
+        validate(bad)
+
+    load["preparation_steps"] = [
+        {"step_type": "drop_cast", "sequence": 1, "parameters": {"solvent": "水"}}
+    ]
+    with pytest.raises(ValueError, match="amount"):
+        validate(load)
+    load["ingredients"][0].update(amount=20, unit="mg")
+    with pytest.raises(ValueError, match="volume"):
+        validate(load)
+    load["ingredients"][0]["unit"] = "μL"
+    assert validate(load).ingredients[0].amount == 20
+    bad = deepcopy(load)
+    bad["loading_method"] = "boat"
+    with pytest.raises(ValueError, match="does not apply"):
+        validate(bad)
+    bad = deepcopy(load)
+    bad["preparation_steps"].append({"step_type": "direct_load", "sequence": 2, "parameters": {}})
+    with pytest.raises(ValueError, match="cannot be combined"):
+        validate(bad)
+
+    old = {
+        "items": [
+            {
+                "preparation_steps": [
+                    {"step_type": "mix", "sequence": 1, "parameters": {"items": []}},
+                    {
+                        "step_type": "pre_anneal",
+                        "sequence": 2,
+                        "parameters": {"temperature_C": 300, "duration_min": 10},
+                    },
+                ]
+            }
+        ]
+    }
+    original = deepcopy(old)
+    normalized = normalize_source_loads_for_read(old)
+    assert old == original
+    steps = normalized["items"][0]["preparation_steps"]
+    assert [step["step_type"] for step in steps] == ["other", "other"]
+    assert steps[1]["parameters"]["items"][0] == {
+        "name": "temperature_C",
+        "value": 300,
+        "unit": "°C",
+    }
+
+
+def test_boat_and_crucible_treatment_sequences() -> None:
+    for method in ("boat", "crucible"):
+        payload = {
+            "items": [
+                {
+                    "load_key": "powder",
+                    "loading_method": method,
+                    "heating_zone_ref": "zone_1",
+                    "initial_position": {"reference": "zone_thermocouple", "axial_mm": -20},
+                    "preparation_steps": [
+                        {"step_type": "grind", "sequence": 1, "parameters": {}},
+                        {
+                            "step_type": "pelletize",
+                            "sequence": 2,
+                            "parameters": {"pressure_MPa": 10},
+                        },
+                        {"step_type": "melt", "sequence": 3, "parameters": {"temperature_C": 200}},
+                    ],
+                    "ingredients": [
+                        {
+                            "material_lot_id": LOT_ID,
+                            "material_lot_version": 1,
+                            "amount": 10,
+                            "unit": "mg",
+                        }
+                    ],
+                }
+            ]
+        }
+        assert len(SourceLoadsPayload.model_validate(payload).items[0].preparation_steps) == 3
 
 
 def test_co2_gas_identity_uses_the_field_source_aliases() -> None:
@@ -128,8 +242,6 @@ def test_precursor_feedback_contract_and_legacy_spin_normalization() -> None:
         validated,
         [
             "lot_ref",
-            "process_roles",
-            "process_role_other",
             "amount",
             "concentration_value",
             "concentration_unit",
@@ -141,10 +253,13 @@ def test_precursor_feedback_contract_and_legacy_spin_normalization() -> None:
     )
     assert rows[0]["ingredient_index"] == 1
     assert rows[0]["concentration_value"] == 0.5
-    assert any(
-        row["nested_field"] == "process_roles" and row["nested_value"] == "flux_or_salt_assistant"
-        for row in rows
-    )
+    assert all("process_roles" not in row and "process_role_other" not in row for row in rows)
+    assert "process_roles" not in validated["items"][0]["ingredients"][0]
+    assert "process_role_other" not in validated["items"][0]["ingredients"][0]
+    assert new_payload["items"][0]["ingredients"][0]["process_roles"] == [
+        "flux_or_salt_assistant",
+        "other",
+    ]
     assert any(
         row["nested_field"] == "substrate_source_ids" and row["nested_value"] == SUBSTRATE_ID
         for row in rows

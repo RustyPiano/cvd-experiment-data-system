@@ -43,7 +43,11 @@ from app.models.scientific import (
 from app.models.user import User
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
-from app.schemas.scientific import normalize_source_loads_for_read
+from app.schemas.scientific import (
+    normalize_process_event_for_read,
+    normalize_process_preparation_for_read,
+    normalize_source_loads_for_read,
+)
 from app.services.experiment_guards import get_owned_experiment, get_visible_experiment
 from app.services.sample_service import sample_revision_snapshot
 from app.services.v2_entity_snapshot_service import effective_run_module_payloads
@@ -300,6 +304,18 @@ class V2ReportingService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Only drafts have a working-copy export",
             )
+        modules = canonicalize_controlled_values(effective_run_module_payloads(run))
+        if "precursors" in modules:
+            modules["precursors"] = normalize_source_loads_for_read(modules["precursors"])
+        if "process_steps" in modules:
+            modules["process_steps"] = normalize_process_preparation_for_read(
+                modules["process_steps"]
+            )
+        if "process_events" in modules:
+            modules["process_events"]["items"] = [
+                normalize_process_event_for_read(item)
+                for item in modules["process_events"].get("items", [])
+            ]
         bundle = {
             "export_kind": "draft_working_copy",
             "citation_status": "NON_CITABLE",
@@ -315,7 +331,7 @@ class V2ReportingService:
                     else None
                 ),
             },
-            "modules": canonicalize_controlled_values(effective_run_module_payloads(run)),
+            "modules": modules,
         }
         return (
             json.dumps(bundle, ensure_ascii=False, indent=2).encode("utf-8"),
@@ -567,6 +583,15 @@ class V2ReportingService:
         }
         if "precursors" in modules:
             modules["precursors"] = normalize_source_loads_for_read(modules["precursors"])
+        if "process_steps" in modules:
+            modules["process_steps"] = normalize_process_preparation_for_read(
+                modules["process_steps"]
+            )
+        if "process_events" in modules:
+            modules["process_events"]["items"] = [
+                normalize_process_event_for_read(item)
+                for item in modules["process_events"].get("items", [])
+            ]
         return modules
 
     def _scientific_json(
@@ -864,8 +889,6 @@ class V2ReportingService:
                             "material_lot_version": ingredient.material_lot_version,
                             "material_snapshot": ingredient.material_snapshot_json,
                             "function_role": ingredient.function_role,
-                            "process_roles": ingredient.process_roles,
-                            "process_role_other": ingredient.process_role_other,
                             "amount": ingredient.amount,
                             "unit": ingredient.unit,
                             "concentration_value": ingredient.concentration_value,
@@ -1711,8 +1734,6 @@ class V2ReportingService:
                             "entity_id": ingredient.get("material_lot_id"),
                             "version": ingredient.get("material_lot_version"),
                         },
-                        "process_roles": ingredient.get("process_roles") or [],
-                        "process_role_other": ingredient.get("process_role_other"),
                         "amount": ingredient.get("amount"),
                         "concentration_value": ingredient.get("concentration_value"),
                         "concentration_unit": ingredient.get("concentration_unit"),

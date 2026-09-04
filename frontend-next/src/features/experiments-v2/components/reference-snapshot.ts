@@ -45,6 +45,26 @@ export function gasCylinderMatchesSpecies(
 
   const components = snapshotValue(snapshot, 'gas_components')
   if (Array.isArray(components)) {
+    if (species === 'premixed') {
+      return (
+        components.length > 1 &&
+        components.every((item) => {
+          if (!item || typeof item !== 'object') return false
+          const component = item as Record<string, unknown>
+          return (
+            Boolean(component.species) &&
+            Number.isFinite(Number(component.volume_percent)) &&
+            Number(component.volume_percent) > 0
+          )
+        }) &&
+        Math.abs(
+          components.reduce(
+            (sum, item) => sum + Number(item.volume_percent),
+            0,
+          ) - 100,
+        ) <= 0.010000001
+      )
+    }
     if (components.length !== 1) return false
     const component = components[0]
     if (!component || typeof component !== 'object') return false

@@ -18,6 +18,7 @@ import {
   characterizationProfiles,
   characterizationProperties,
 } from '@/shared/generated/field-metadata'
+import { RequiredMark } from '@/shared/ui/required-mark'
 import { triggerBlobDownload } from '@/shared/lib/download'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -35,6 +36,91 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+
+function StructuredMeasurementValue({
+  code,
+  value,
+  files,
+}: {
+  code: string
+  value: Record<string, unknown>
+  files: MeasurementDetail['raw_files']
+}) {
+  const { t } = useTranslation()
+  const tr = (key: string) =>
+    t(`characterizations.workspace.peaks.${key}`, { defaultValue: key })
+  if (code === 'elemental_composition') {
+    const components = Array.isArray(value.components)
+      ? (value.components as { species: string; fraction: number }[])
+      : []
+    return (
+      <div className="flex flex-col gap-1">
+        <span>
+          {t(
+            `characterizations.workspace.advanced.compositionBasisValues.${String(value.basis)}`,
+            { defaultValue: String(value.basis) },
+          )}
+        </span>
+        <span>
+          {components
+            .map((item) => `${item.species}: ${item.fraction}`)
+            .join(' · ')}
+        </span>
+      </div>
+    )
+  }
+  const peaks = Array.isArray(value.peaks)
+    ? (value.peaks as Record<string, number>[])
+    : []
+  const source = files.find((file) => file.id === value.source_file_id)
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <span>{tr(String(value.status))}</span>
+      {source ? (
+        <span>
+          {tr('source')}：{source.original_name}
+        </span>
+      ) : null}
+      {peaks.map((peak, index) => (
+        <div
+          key={peak.id}
+          className="flex flex-wrap gap-x-4 gap-y-1 rounded-md border p-2"
+        >
+          <span>
+            {tr('peak')} {index + 1}
+          </span>
+          {['position', 'fwhm', 'height', 'area', 'd_spacing_nm']
+            .filter((key) => peak[key] != null)
+            .map((key) => {
+              const unit =
+                key === 'd_spacing_nm'
+                  ? 'nm'
+                  : key === 'height'
+                    ? value.intensity_unit
+                    : key === 'area'
+                      ? `${value.intensity_unit} · ${value.position_unit}`
+                      : value.position_unit
+              return (
+                <span key={key}>
+                  {tr(key)}：{peak[key]} {String(unit)}
+                </span>
+              )
+            })}
+        </div>
+      ))}
+      {value.extraction_method ? (
+        <span>
+          {tr('extractionMethod')}：{String(value.extraction_method)}
+        </span>
+      ) : null}
+      {value.baseline_method ? (
+        <span>
+          {tr('baselineMethod')}：{String(value.baseline_method)}
+        </span>
+      ) : null}
+    </div>
+  )
+}
 
 function readableValue(value: unknown, language: string): string {
   if (value == null || value === '') return '—'
@@ -271,7 +357,7 @@ export function MeasurementDetails({
               key={file.id}
               className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2"
             >
-              <span className="min-w-0 text-xs">
+              <span className="min-w-0 break-all text-xs">
                 <span className="block truncate font-medium">{filename}</span>
                 <span className="text-muted-foreground">
                   {file.content_type ??
@@ -323,17 +409,19 @@ export function MeasurementDetails({
               version: measurement.revision_number,
             })}
           </Badge>
-          <Badge
-            variant={
-              measurement.quality_flag === 'invalid'
-                ? 'destructive'
-                : measurement.quality_flag === 'suspect'
-                  ? 'outline'
-                  : 'secondary'
-            }
-          >
-            {qualityLabel}
-          </Badge>
+          {measurement.quality_flag !== 'valid' ? (
+            <Badge
+              variant={
+                measurement.quality_flag === 'invalid'
+                  ? 'destructive'
+                  : measurement.quality_flag === 'suspect'
+                    ? 'outline'
+                    : 'secondary'
+              }
+            >
+              {qualityLabel}
+            </Badge>
+          ) : null}
         </div>
       </div>
 
@@ -393,24 +481,26 @@ export function MeasurementDetails({
             )}
           </dd>
         </div>
-        <div>
-          <dt className="text-muted-foreground">
-            {t('characterizations.details.region')}
-          </dt>
-          <dd className="flex flex-col gap-1">
-            {Object.entries(measurement.sample_region).map(([key, value]) => (
-              <span key={key}>
-                <span className="font-medium">
-                  {translatedKey(t, 'regionFields', key)}
+        {Object.keys(measurement.sample_region).length ? (
+          <div>
+            <dt className="text-muted-foreground">
+              {t('characterizations.details.region')}
+            </dt>
+            <dd className="flex flex-col gap-1">
+              {Object.entries(measurement.sample_region).map(([key, value]) => (
+                <span key={key}>
+                  <span className="font-medium">
+                    {translatedKey(t, 'regionFields', key)}
+                  </span>
+                  {colon}
+                  {key === 'geometry_type' || key === 'coordinate_system'
+                    ? translatedCode(t, 'regionValues', value, i18n.language)
+                    : readableValue(value, i18n.language)}
                 </span>
-                {colon}
-                {key === 'geometry_type' || key === 'coordinate_system'
-                  ? translatedCode(t, 'regionValues', value, i18n.language)
-                  : readableValue(value, i18n.language)}
-              </span>
-            ))}
-          </dd>
-        </div>
+              ))}
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       {measurement.quality_note ? (
@@ -451,16 +541,29 @@ export function MeasurementDetails({
                             ?.label_zh) ?? property.property_code}
                       {colon}
                     </span>
-                    <span>
-                      {property.quality_flag === 'below_detection_limit'
-                        ? t('characterizations.details.belowDetectionValue', {
-                            value: renderedValue,
-                          })
-                        : renderedValue}
-                    </span>
-                    <Badge variant={qualityVariant(property.quality_flag)}>
-                      {propertyQuality}
-                    </Badge>
+                    {property.structured_value &&
+                    ['spectral_peaks', 'elemental_composition'].includes(
+                      property.property_code,
+                    ) ? (
+                      <StructuredMeasurementValue
+                        code={property.property_code}
+                        value={property.structured_value}
+                        files={measurement.raw_files}
+                      />
+                    ) : (
+                      <span>
+                        {property.quality_flag === 'below_detection_limit'
+                          ? t('characterizations.details.belowDetectionValue', {
+                              value: renderedValue,
+                            })
+                          : renderedValue}
+                      </span>
+                    )}
+                    {property.quality_flag !== 'valid' ? (
+                      <Badge variant={qualityVariant(property.quality_flag)}>
+                        {propertyQuality}
+                      </Badge>
+                    ) : null}
                   </div>
                   {property.statistic != null ||
                   property.uncertainty_value != null ||
@@ -471,9 +574,9 @@ export function MeasurementDetails({
                       {property.statistic != null ? (
                         <span>
                           {t('characterizations.details.statistic', {
-                            value: localizedOption(
-                              property.statistic,
-                              i18n.language,
+                            value: t(
+                              `characterizations.workspace.statistics.${property.statistic}`,
+                              { defaultValue: property.statistic },
                             ),
                           })}
                         </span>
@@ -495,9 +598,12 @@ export function MeasurementDetails({
                       ) : null}
                       {property.quality_note ? (
                         <span>
-                          {t('characterizations.details.qualityNote', {
-                            value: property.quality_note,
-                          })}
+                          {t(
+                            property.quality_flag === 'below_detection_limit'
+                              ? 'characterizations.details.detectionLimitBasis'
+                              : 'characterizations.details.qualityNote',
+                            { value: property.quality_note },
+                          )}
                         </span>
                       ) : null}
                       {analysisLabel ? (
@@ -512,6 +618,11 @@ export function MeasurementDetails({
                 </li>
               )
             })}
+            {measurement.assertions.length ? (
+              <li className="mt-3 font-medium">
+                {t('characterizations.details.historicalAssignments')}
+              </li>
+            ) : null}
             {measurement.assertions.map((assertion) => {
               const analysisLabel = analysisReference(assertion.analysis_run_id)
               return (
@@ -588,7 +699,7 @@ export function MeasurementDetails({
                 key={file.id}
                 className="flex flex-wrap items-center justify-between gap-2 text-sm"
               >
-                <span>
+                <span className="min-w-0 break-all">
                   {file.original_name} ·{' '}
                   {file.content_type ??
                     t('characterizations.details.unknownContentType')}{' '}
@@ -806,6 +917,7 @@ export function MeasurementDetails({
           <div className="flex flex-col gap-2">
             <Label htmlFor={`measurement-${measurementId}-invalidate-reason`}>
               {t('characterizations.details.reason')}
+              <RequiredMark />
             </Label>
             <Textarea
               id={`measurement-${measurementId}-invalidate-reason`}
@@ -813,15 +925,9 @@ export function MeasurementDetails({
               maxLength={2000}
               disabled={invalidation.isPending}
               aria-invalid={!reason.trim() || undefined}
-              aria-describedby={`measurement-${measurementId}-invalidate-help`}
+              aria-required
               onChange={(event) => setReason(event.target.value)}
             />
-            <p
-              id={`measurement-${measurementId}-invalidate-help`}
-              className="text-sm text-muted-foreground"
-            >
-              {t('characterizations.details.reasonHelp')}
-            </p>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={invalidation.isPending}>

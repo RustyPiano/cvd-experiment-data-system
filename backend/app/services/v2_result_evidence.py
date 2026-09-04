@@ -113,7 +113,11 @@ def collect_measurement_evidence(
     )
     for item in properties:
         record = records[item.measurement_run_id]
-        if item.property_code not in profiles[record.method_instrument]["allowed_property_codes"]:
+        profile = profiles[record.method_instrument]
+        if item.property_code not in [
+            *profile["allowed_property_codes"],
+            *profile.get("legacy_property_codes", []),
+        ]:
             continue
         value_type = definitions[item.property_code]["value_type"]
         value = {
@@ -140,8 +144,10 @@ def collect_measurement_evidence(
     )
     for item in assertions:
         record = records[item.measurement_run_id]
-        if item.assertion_type in profiles[record.method_instrument][
-            "allowed_assertion_types"
+        profile = profiles[record.method_instrument]
+        if item.assertion_type in [
+            *profile["allowed_assertion_types"],
+            *profile.get("legacy_assertion_types", []),
         ] and has_meaningful_value(item.value_json):
             meaningful_record_ids.add(item.measurement_run_id)
     return {

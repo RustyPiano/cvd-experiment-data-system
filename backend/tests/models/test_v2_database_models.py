@@ -21,7 +21,7 @@ STRUCTURED_ATTR_INPUTS = {
     "管材质形状对象",
     "温度传感器数组",
 }
-PUBLISHED_INTERNAL_COLUMNS = {"chemical_formula", "coordinate_system"}
+PUBLISHED_INTERNAL_COLUMNS = {"batch_number", "chemical_formula", "coordinate_system"}
 NORMALIZED_RELATION_FIELDS = {"capabilities"}
 
 

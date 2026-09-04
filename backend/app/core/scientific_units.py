@@ -12,13 +12,14 @@ _NUMERIC_UNITS: dict[str, tuple[str, dict[str, tuple[float, float]]]] = {
         {
             "Pa": (1, 0),
             "kPa": (1_000, 0),
+            "MPa": (1_000_000, 0),
             "mbar": (100, 0),
             "Torr": (133.32236842105263, 0),
             "bar": (100_000, 0),
             "atm": (101_325, 0),
         },
     ),
-    "flow": ("sccm", {"sccm": (1, 0), "slm": (1_000, 0)}),
+    "flow": ("sccm", {"sccm": (1, 0), "slm": (1_000, 0), "mL/min": (1, 0), "L/min": (1, 0)}),
     "source_position": ("mm", {"mm": (1, 0), "cm": (10, 0), "m": (1_000, 0)}),
     "furnace_position": ("mm", {"mm": (1, 0), "cm": (10, 0), "m": (1_000, 0)}),
     "plasma_power": ("W", {"W": (1, 0), "kW": (1_000, 0)}),
@@ -58,6 +59,9 @@ def canonicalize_process_channel(
     channel_type = channel["channel_type"]
     unit = channel["unit"]
     canonical_unit = "state" if channel_type in _STATE_CHANNELS else _NUMERIC_UNITS[channel_type][0]
+    if channel_type == "flow" and unit in {"mL/min", "L/min"}:
+        # Raw meter readings have no known standard-state conversion. Preserve their unit.
+        canonical_unit = unit
     if channel["data_kind"] == "timeseries_file":
         return canonical_unit, None, None, "unavailable"
     scalar = channel.get("scalar_value")

@@ -15,6 +15,7 @@ import {
   materialLotFormulaIsCompatible,
   matchesCondition,
   parseEnumOptions,
+  productionDateIsValid,
   resolveConditionKey,
 } from './field-logic'
 import type { EntityFormValues } from './field-logic'
@@ -72,6 +73,14 @@ describe('parseEnumOptions', () => {
     expect(isOtherOptionMarker('其他')).toBe(true)
     expect(isOtherOptionMarker('CVD')).toBe(false)
     expect(isNoneOption('无')).toBe(true)
+  })
+})
+
+describe('productionDateIsValid', () => {
+  it('accepts month or day precision without accepting impossible dates', () => {
+    expect(productionDateIsValid('2026-08')).toBe(true)
+    expect(productionDateIsValid('2024-02-29')).toBe(true)
+    expect(productionDateIsValid('2026-02-29')).toBe(false)
   })
 })
 
@@ -167,6 +176,13 @@ describe('material_lot conditional visibility (▸衬底 / ▸气瓶 by lot_cate
 
   it('shows only substrate sub-fields when lot_category = 衬底', () => {
     const values: EntityFormValues = { lot_category: '衬底' }
+    expect(
+      isFieldVisible(
+        'material_lot',
+        field('material_lot', 'batch_number_availability'),
+        values,
+      ),
+    ).toBe(true)
     expect(
       isFieldVisible(
         'material_lot',
@@ -306,6 +322,47 @@ describe('effective required-ness', () => {
         lot_category: '衬底',
       }),
     ).toBe(true)
+  })
+
+  it('requires a substrate batch number only when the label provides one', () => {
+    const batchNumber = field('material_lot', 'batch_number')
+    const productionDate = field('material_lot', 'production_date')
+    expect(
+      isFieldVisible('material_lot', batchNumber, {
+        lot_category: 'substrate',
+        batch_number_availability: 'batch_number_not_provided',
+      }),
+    ).toBe(false)
+    expect(
+      isEffectivelyRequired('material_lot', batchNumber, {
+        lot_category: 'substrate',
+        batch_number_availability: 'batch_number_not_provided',
+      }),
+    ).toBe(false)
+    expect(
+      isEffectivelyRequired('material_lot', batchNumber, {
+        lot_category: 'substrate',
+        batch_number_availability: 'batch_number_reported',
+      }),
+    ).toBe(true)
+    expect(
+      isEffectivelyRequired('material_lot', productionDate, {
+        lot_category: 'substrate',
+        batch_number_availability: 'batch_number_not_provided',
+      }),
+    ).toBe(true)
+    expect(
+      isEffectivelyRequired('material_lot', productionDate, {
+        lot_category: 'substrate',
+        batch_number_availability: 'batch_number_reported',
+      }),
+    ).toBe(false)
+    expect(
+      buildDefaultValues('material_lot', {
+        lot_category: 'substrate',
+        batch_number: 'LEGACY-SUB-1',
+      }).batch_number_availability,
+    ).toBe('batch_number_reported')
   })
 })
 

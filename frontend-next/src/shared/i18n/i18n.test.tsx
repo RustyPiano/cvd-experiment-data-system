@@ -78,6 +78,17 @@ describe('i18n scaffolding', () => {
     expect(enKeys).toEqual(zhKeys)
   })
 
+  it('does not append optional markers to field labels', () => {
+    for (const language of ['zh', 'en']) {
+      const values = stringEntries(i18n.getResourceBundle(language, 'common'))
+        .map(([, value]) => value)
+        .join('\n')
+      expect(values).not.toMatch(
+        /（(?:选填|可选)）|[，,] ?选填|\(optional\)|, optional\)/,
+      )
+    }
+  })
+
   it('uses the agreed primary record names', () => {
     expect(i18n.t('experimentsV2.nav', { lng: 'zh' })).toBe('制备实验记录')
     expect(i18n.t('characterizations.nav', { lng: 'zh' })).toBe('表征实验记录')
@@ -117,9 +128,11 @@ describe('i18n scaffolding', () => {
       'en.experimentsV2.sections.targetProduct.guides.vertical',
       'en.experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
       'en.structuredEditors.coolingParams.coolingRateCPerMin',
+      'en.structuredEditors.treatmentSteps.types.uv_ozone_treatment',
       'zh.experimentsV2.sections.targetProduct.guides.vertical',
       'zh.experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
       'zh.structuredEditors.coolingParams.coolingRateCPerMin',
+      'zh.structuredEditors.treatmentSteps.types.uv_ozone_treatment',
     ])
     for (const [, value] of slashEntries) {
       expect(value.match(/[／/]/g)).toHaveLength(1)
@@ -127,9 +140,11 @@ describe('i18n scaffolding', () => {
     expect(slashEntries[0]?.[1]).toContain('MoS2/WS2')
     expect(slashEntries[1]?.[1]).toContain('P6₃/mmc')
     expect(slashEntries[2]?.[1]).toContain('°C/min')
-    expect(slashEntries[3]?.[1]).toContain('MoS2/WS2')
-    expect(slashEntries[4]?.[1]).toContain('P6₃/mmc')
-    expect(slashEntries[5]?.[1]).toContain('°C/min')
+    expect(slashEntries[3]?.[1]).toContain('UV/ozone')
+    expect(slashEntries[4]?.[1]).toContain('MoS2/WS2')
+    expect(slashEntries[5]?.[1]).toContain('P6₃/mmc')
+    expect(slashEntries[6]?.[1]).toContain('°C/min')
+    expect(slashEntries[7]?.[1]).toContain('紫外/臭氧')
   })
 
   it('keeps retired implementation wording out of visible copy', () => {

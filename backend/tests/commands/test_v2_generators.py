@@ -20,6 +20,7 @@ from app.commands.generate_v2_models import (
 from app.main import app
 from app.schemas.generated.v2_module_payload import (
     V2_MODULE_PAYLOAD_MODELS,
+    ActualFieldPayload,
     InstrumentVersionPayload,
     MaterialLotReferencePayload,
     MaterialLotVersionPayload,
@@ -27,7 +28,6 @@ from app.schemas.generated.v2_module_payload import (
     validate_v2_module_payload,
 )
 from app.schemas.scientific import (
-    MaterialAssertionWrite,
     MeasurementConditions,
     SampleRegion,
 )
@@ -361,7 +361,7 @@ def test_field_dictionary_conditions_use_machine_codes() -> None:
     assert all(not isinstance(value, str) or value.isascii() for value in values)
     assert set(values) >= {
         "chemical",
-        "controlled_cooling",
+        "staged_cooling",
         "gas_cylinder",
         "gas_line",
         "open_lid_cooling",
@@ -379,7 +379,7 @@ def test_characterization_field_source_matches_runtime_discriminators() -> None:
     assert profile_condition_fields == set(MeasurementConditions.model_fields) - {"power_setting"}
     assert {
         assertion for profile in profiles for assertion in profile["allowed_assertion_types"]
-    } == set(get_args(MaterialAssertionWrite.model_fields["assertion_type"].annotation))
+    } == set()
     assert {region for profile in profiles for region in profile["allowed_region_types"]} == set(
         get_args(SampleRegion.model_fields["geometry_type"].annotation)
     )
@@ -482,8 +482,10 @@ def test_standard_schema_exports_current_scientific_and_result_models() -> None:
         "transformation",
         "dataset_query",
     }
-    assert schema["version"] == "v4.0-alpha.25"
+    assert schema["version"] == "v4.0-alpha.40"
     assert schema["status"] == "INTERNAL_VALIDATION"
+    tilt_schema = schema["modules"]["substrates"]["$defs"]["SubstrateSizePlacementPayload"]
+    assert tilt_schema["properties"]["tilt_angle_deg"]["anyOf"][0]["not"] == {"const": 0}
     assert "pvd" not in schema["modules"]
     for model in [*schema["modules"].values(), *schema["result_models"].values()]:
         Draft202012Validator.check_schema(model)
@@ -550,11 +552,48 @@ def test_material_lot_enforces_current_category_specific_fields() -> None:
             "lot_category": "substrate",
             "substance_name": "Sapphire",
             "chemical_formula": "Al2O3",
+            "batch_number_availability": "batch_number_reported",
             "batch_number": "S-1",
             "substrate_material": "sapphire_al2o3",
         }
     )
     assert substrate.substrate_material == "sapphire_al2o3"
+
+    no_batch_substrate = MaterialLotVersionPayload.model_validate(
+        {
+            "lot_category": "substrate",
+            "substance_name": "Sapphire",
+            "chemical_formula": "Al2O3",
+            "batch_number_availability": "batch_number_not_provided",
+            "production_date": "2026-08",
+            "substrate_material": "sapphire_al2o3",
+        }
+    )
+    assert no_batch_substrate.batch_number is None
+    assert no_batch_substrate.production_date == "2026-08"
+
+    with pytest.raises(ValueError, match="production_date"):
+        MaterialLotVersionPayload.model_validate(
+            {
+                "lot_category": "substrate",
+                "substance_name": "Sapphire",
+                "chemical_formula": "Al2O3",
+                "batch_number_availability": "batch_number_not_provided",
+                "substrate_material": "sapphire_al2o3",
+            }
+        )
+
+    with pytest.raises(ValueError, match="batch_number must match"):
+        MaterialLotVersionPayload.model_validate(
+            {
+                "lot_category": "substrate",
+                "substance_name": "Sapphire",
+                "chemical_formula": "Al2O3",
+                "batch_number_availability": "batch_number_not_provided",
+                "batch_number": "INVENTED",
+                "substrate_material": "sapphire_al2o3",
+            }
+        )
 
     with pytest.raises(ValueError, match="chemical_formula"):
         MaterialLotVersionPayload.model_validate(
@@ -570,6 +609,7 @@ def test_material_lot_enforces_current_category_specific_fields() -> None:
                 "lot_category": "substrate",
                 "substance_name": "Unknown substrate",
                 "chemical_formula": "Si",
+                "batch_number_availability": "batch_number_reported",
                 "batch_number": "S-2",
             }
         )
@@ -634,6 +674,23 @@ def test_gas_cylinder_requires_a_valid_fixed_composition() -> None:
 def test_setup_and_instrument_entity_contracts() -> None:
     setup = SetupVersionPayload.model_validate(_setup())
     assert setup.orientation == "horizontal"
+
+    named_field_setup = SetupVersionPayload.model_validate(
+        _setup(field_devices=["other"], field_device_other_name="magnetic field")
+    )
+    assert named_field_setup.field_device_other_name == "magnetic field"
+    with pytest.raises(ValueError, match="field_device_other_name"):
+        SetupVersionPayload.model_validate(_setup(field_devices=["other"]))
+
+    actual_other_field = ActualFieldPayload.model_validate(
+        {
+            "field_type": "other",
+            "start_min": 5,
+            "end_min": 25,
+            "parameters": [{"name": "field_strength", "value": 0.5, "unit": "T"}],
+        }
+    )
+    assert actual_other_field.field_type == "other"
 
     instrument = InstrumentVersionPayload.model_validate(
         {
@@ -737,7 +794,8 @@ def test_substrate_tilt_and_pretreatment_use_structured_contracts() -> None:
             "length_mm": 10,
             "width_mm": 10,
             "placement": "tilted",
-            "tilt_angle_deg": 15,
+            "tilt_angle_deg": -15,
+            "tilt_azimuth_deg": 180,
         },
         pretreatment_steps=[
             {
@@ -752,8 +810,57 @@ def test_substrate_tilt_and_pretreatment_use_structured_contracts() -> None:
         ],
     )
     saved = validate_v2_module_payload("substrates", {"items": [tilted]})["items"][0]
-    assert saved["size_placement"]["tilt_angle_deg"] == 15
+    assert saved["size_placement"]["tilt_angle_deg"] == -15
+    assert saved["size_placement"]["tilt_azimuth_deg"] == 180
     assert saved["pretreatment_steps"][0]["type"] == "plasma_treatment"
+
+    cleaned = validate_v2_module_payload(
+        "substrates",
+        {
+            "items": [
+                _substrate(
+                    pretreatment_steps=[
+                        {
+                            "type": "solvent_cleaning",
+                            "parameters": {
+                                "solvent": "acetone",
+                                "cleaning_method": "ultrasonic",
+                                "duration_min": 10,
+                            },
+                        },
+                        {
+                            "type": "uv_ozone_treatment",
+                            "parameters": {"duration_min": 15},
+                        },
+                    ]
+                )
+            ]
+        },
+    )
+    assert [step["type"] for step in cleaned["items"][0]["pretreatment_steps"]] == [
+        "solvent_cleaning",
+        "uv_ozone_treatment",
+    ]
+
+    with pytest.raises(ValueError, match="duration_min"):
+        validate_v2_module_payload(
+            "substrates",
+            {
+                "items": [
+                    _substrate(
+                        pretreatment_steps=[
+                            {
+                                "type": "solvent_cleaning",
+                                "parameters": {
+                                    "solvent": "acetone",
+                                    "cleaning_method": "ultrasonic",
+                                },
+                            }
+                        ]
+                    )
+                ]
+            },
+        )
 
     with pytest.raises(ValueError, match="tilt_angle_deg"):
         validate_v2_module_payload(
@@ -768,6 +875,57 @@ def test_substrate_tilt_and_pretreatment_use_structured_contracts() -> None:
                         }
                     )
                 ]
+            },
+        )
+
+    with pytest.raises(ValueError, match="non-zero"):
+        validate_v2_module_payload(
+            "substrates",
+            {
+                "items": [
+                    _substrate(
+                        size_placement={
+                            "length_mm": 10,
+                            "width_mm": 10,
+                            "placement": "tilted",
+                            "tilt_angle_deg": 0,
+                            "tilt_azimuth_deg": 180,
+                        }
+                    )
+                ]
+            },
+        )
+
+    with pytest.raises(ValueError, match="length_mm"):
+        validate_v2_module_payload(
+            "substrates",
+            {
+                "items": [
+                    _substrate(
+                        size_placement={
+                            "length_mm": 5,
+                            "width_mm": 10,
+                            "placement": "face_up",
+                        }
+                    )
+                ]
+            },
+        )
+
+    related = validate_v2_module_payload(
+        "substrates",
+        {
+            "items": [_substrate(), _substrate(piece_label="S2")],
+            "placement_relations": [{"piece_a_label": "S1", "piece_b_label": "S2", "gap_mm": 0}],
+        },
+    )
+    assert related["placement_relations"][0]["gap_mm"] == 0
+    with pytest.raises(ValueError, match="two different pieces"):
+        validate_v2_module_payload(
+            "substrates",
+            {
+                "items": [_substrate()],
+                "placement_relations": [{"piece_a_label": "S1", "piece_b_label": "S1"}],
             },
         )
 

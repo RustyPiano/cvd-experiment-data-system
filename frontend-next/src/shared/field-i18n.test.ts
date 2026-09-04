@@ -75,6 +75,12 @@ describe('field display localization', () => {
   })
 
   it('keeps plasma capability distinct from plasma pretreatment', () => {
+    expect(canonicalFieldOption('field_devices', '光')).toBe('light')
+    expect(canonicalFieldOption('field_devices', '光照')).toBe('light')
+    expect(canonicalFieldOption('field_devices', '电')).toBe('electric_field')
+    expect(canonicalFieldOption('field_devices', '电场')).toBe('electric_field')
+    expect(optionLabelsZh.light).toBe('光照')
+    expect(optionLabelsZh.electric_field).toBe('电场')
     expect(canonicalFieldOption('field_devices', '等离子体')).toBe('plasma')
     expect(canonicalFieldOption('type', '等离子体')).toBe('plasma_treatment')
     expect(optionLabelsZh.plasma).toBe('等离子体')
@@ -100,12 +106,17 @@ describe('field display localization', () => {
   })
 
   it('keeps canonical pressure labels ahead of compatibility aliases', () => {
+    expect(optionLabelsZh.rotameter).toBe('浮子流量计（转子流量计）')
+    expect(optionCodes['浮子流量计']).toBe('rotameter')
+    expect(optionCodes['转子']).toBe('rotameter')
     expect(optionLabelsZh.atmospheric_pressure).toBe('常压(APCVD)')
     expect(optionLabelsEn.atmospheric_pressure).toBe(
       'Atmospheric pressure (APCVD)',
     )
-    expect(optionLabelsZh.low_pressure).toBe('低压(LPCVD)')
-    expect(optionLabelsEn.low_pressure).toBe('Low pressure (LPCVD)')
+    expect(optionLabelsZh.low_pressure).toBe('减压（含真空）')
+    expect(optionLabelsEn.low_pressure).toBe(
+      'Reduced pressure (including vacuum)',
+    )
   })
 
   it('provides independent bilingual placeholders and paired help text', () => {

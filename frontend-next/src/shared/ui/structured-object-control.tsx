@@ -40,11 +40,19 @@ type StructuredLabelKey =
   | 'otherMaterialName'
   | 'otherPlacementName'
   | 'tiltAngle'
+  | 'tiltAzimuth'
+  | 'uprightGrowthFaceDirection'
+  | 'towardDownstream'
+  | 'towardUpstream'
+  | 'towardTubeLeft'
+  | 'towardTubeRight'
   | 'quartzBoat'
   | 'aluminaBoat'
   | 'otherMaterial'
   | 'length'
   | 'width'
+  | 'longEdge'
+  | 'shortEdge'
   | 'height'
   | 'diameter'
   | 'dimensionDescription'
@@ -337,13 +345,13 @@ export function StructuredObjectControl({
               ? [
                   {
                     key: 'length_mm',
-                    label: label('length'),
+                    label: label('longEdge'),
                     kind: 'number',
                     required: true,
                   },
                   {
                     key: 'width_mm',
-                    label: label('width'),
+                    label: label('shortEdge'),
                     kind: 'number',
                     required: true,
                   },
@@ -360,7 +368,6 @@ export function StructuredObjectControl({
                     options: [
                       { value: 'face_up', label: label('faceUp') },
                       { value: 'face_down', label: label('faceDown') },
-                      { value: 'face_to_face', label: label('faceToFace') },
                       { value: 'tilted', label: label('tilted') },
                       { value: 'upright', label: label('upright') },
                       { value: 'other', label: label('otherPlacement') },
@@ -373,8 +380,44 @@ export function StructuredObjectControl({
                           label: label('tiltAngle'),
                           kind: 'number' as const,
                           required: true,
-                          min: 0,
+                          min: -90,
                           max: 90,
+                        },
+                        {
+                          key: 'tilt_azimuth_deg',
+                          label: label('tiltAzimuth'),
+                          kind: 'number' as const,
+                          required: true,
+                          min: 0,
+                          max: 360,
+                        },
+                      ]
+                    : []),
+                  ...(object.placement === 'upright'
+                    ? [
+                        {
+                          key: 'upright_growth_face_direction',
+                          label: label('uprightGrowthFaceDirection'),
+                          kind: 'select' as const,
+                          required: true,
+                          options: [
+                            {
+                              value: 'downstream',
+                              label: label('towardDownstream'),
+                            },
+                            {
+                              value: 'upstream',
+                              label: label('towardUpstream'),
+                            },
+                            {
+                              value: 'tube_left',
+                              label: label('towardTubeLeft'),
+                            },
+                            {
+                              value: 'tube_right',
+                              label: label('towardTubeRight'),
+                            },
+                          ],
                         },
                       ]
                     : []),
@@ -487,7 +530,11 @@ export function StructuredObjectControl({
     if (key === 'material' && next !== 'other') delete updated.material_other
     if (key === 'shape' && next !== 'other') delete updated.shape_other
     if (key === 'placement') {
-      if (next !== 'tilted') delete updated.tilt_angle_deg
+      if (next !== 'tilted') {
+        delete updated.tilt_angle_deg
+        delete updated.tilt_azimuth_deg
+      }
+      if (next !== 'upright') delete updated.upright_growth_face_direction
       if (next !== 'other') delete updated.placement_other
     }
     if (key === 'temperature_C' && next === '') {

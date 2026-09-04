@@ -156,7 +156,7 @@ describe('CharacterizationListPage', () => {
 
     expect(await screen.findByText('CVD-2026-0001')).toBeInTheDocument()
     expect(screen.getByText('CVD-2026-0001-S01')).toBeInTheDocument()
-    expect(screen.getByText('光镜')).toBeInTheDocument()
+    expect(screen.getByText('OM')).toBeInTheDocument()
     expect(screen.getByText('2026-07-24 11:00')).toBeInTheDocument()
     expect(screen.getByText('CVD-2026-0003-S01')).toBeInTheDocument()
     expect(screen.getAllByText('待表征')).toHaveLength(2)
@@ -188,7 +188,9 @@ describe('CharacterizationListPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('还没有可表征样品。请先锁定制备工艺以生成样品。'),
+      await screen.findByText(
+        '还没有可表征样品。请先提交制备实验记录以生成样品。',
+      ),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: '前往制备实验记录' }),

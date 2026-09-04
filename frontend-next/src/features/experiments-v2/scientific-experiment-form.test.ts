@@ -153,7 +153,7 @@ describe('scientific experiment workflow helpers', () => {
     })
   })
 
-  it('normalizes mixed temperature units before building the summary', () => {
+  it('normalizes setpoint units and excludes measured temperatures from the summary', () => {
     expect(
       peakTemperatureC([
         {
@@ -168,11 +168,20 @@ describe('scientific experiment workflow helpers', () => {
         {
           channel_key: 'channel_k',
           channel_type: 'temperature',
-          source_type: 'measured',
+          source_type: 'setpoint',
           subject_ref: 'zone_2',
           unit: 'K',
           data_kind: 'scalar',
           scalar_value: 1023,
+        },
+        {
+          channel_key: 'channel_measured',
+          channel_type: 'temperature',
+          source_type: 'measured',
+          subject_ref: 'zone_1',
+          unit: '°C',
+          data_kind: 'scalar',
+          scalar_value: 900,
         },
       ]),
     ).toBe(750)

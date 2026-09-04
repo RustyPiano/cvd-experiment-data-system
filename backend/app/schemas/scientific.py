@@ -7,6 +7,7 @@ from math import isfinite
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
+from jsonschema import Draft202012Validator, FormatChecker
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.scientific_units import normalize_process_value, validate_process_unit
@@ -218,23 +219,41 @@ class TargetSpecPayload(BaseModel):
     material_regions: list[TargetMaterialRegionPayload] = Field(min_length=1)
     composition_relations: list[TargetCompositionRelationPayload] = Field(default_factory=list)
     dimensional_form: (
-        Literal["sheet", "ribbon", "wire", "tube", "rod", "particle", "other"] | None
-    ) = None
-    coverage_state: (
         Literal[
-            "isolated",
-            "discontinuous",
-            "percolated",
-            "continuous",
+            "continuous_film",
+            "discrete_planar_crystal",
+            "ribbon",
+            "wire",
+            "tube",
+            "rod",
+            "particle",
+            "bulk_crystal",
+            "other",
         ]
         | None
     ) = None
-    orientation: Literal["in_plane", "vertical", "mixed"] | None = None
+    in_plane_outline: (
+        Literal[
+            "triangle",
+            "truncated_triangle",
+            "hexagon",
+            "quadrilateral",
+            "other_regular_polygon",
+            "circular_elliptical",
+            "lobed_star",
+            "dendritic_fractal",
+            "irregular",
+            "other",
+        ]
+        | None
+    ) = None
     optimization_objective: str | None = Field(default=None, max_length=2000)
     note: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
     def validate_orthogonal_target(self) -> Self:
+        if self.in_plane_outline and self.dimensional_form != "discrete_planar_crystal":
+            raise ValueError("in_plane_outline requires discrete_planar_crystal")
         keys = [region.region_key for region in self.material_regions]
         if len(keys) != len(set(keys)):
             raise ValueError("material region keys must be unique")
@@ -371,6 +390,7 @@ class SpinCoatStagePayload(BaseModel):
 
 
 class SpinCoatPreparationParametersPayload(PreparationParametersPayload):
+    solvent: str | None = Field(default=None, min_length=1, max_length=128, pattern=r"\S")
     stages: list[SpinCoatStagePayload] = Field(min_length=1)
 
     @model_validator(mode="before")
@@ -396,7 +416,7 @@ class PelletizePreparationParametersPayload(PreparationParametersPayload):
     die_diameter_mm: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
 
-class PreAnnealPreparationParametersPayload(PreparationParametersPayload):
+class DryPreparationParametersPayload(PreparationParametersPayload):
     temperature_C: float = Field(gt=-273.15, allow_inf_nan=False)
     duration_min: float = Field(gt=0, allow_inf_nan=False)
     atmosphere: str | None = Field(default=None, max_length=32)
@@ -439,13 +459,22 @@ class NamedPreparationParameterPayload(BaseModel):
         return value
 
 
-class MixPreparationParametersPayload(PreparationParametersPayload):
+class OtherPreparationParametersPayload(PreparationParametersPayload):
+    other_name: str = Field(min_length=1, max_length=128, pattern=r"\S")
     items: list[NamedPreparationParameterPayload] = Field(default_factory=list)
 
 
-class OtherPreparationParametersPayload(PreparationParametersPayload):
-    other_name: str = Field(min_length=1, max_length=128, pattern=r"\S")
-    items: list[NamedPreparationParameterPayload] = Field(min_length=1)
+class SolutionPreparationParametersPayload(PreparationParametersPayload):
+    solvent: str = Field(min_length=1, max_length=128, pattern=r"\S")
+
+
+class DipCoatPreparationParametersPayload(SolutionPreparationParametersPayload):
+    duration_min: float = Field(gt=0, allow_inf_nan=False)
+
+
+class MeltPreparationParametersPayload(PreparationParametersPayload):
+    temperature_C: float = Field(gt=-273.15, allow_inf_nan=False)
+    duration_min: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
 
 class PreparationStepBasePayload(BaseModel):
@@ -464,9 +493,9 @@ class GrindPreparationStepPayload(PreparationStepBasePayload):
     parameters: OptionalDurationPreparationParametersPayload = Field(default_factory=dict)
 
 
-class MixPreparationStepPayload(PreparationStepBasePayload):
-    step_type: Literal["mix"]
-    parameters: MixPreparationParametersPayload = Field(default_factory=dict)
+class MeltPreparationStepPayload(PreparationStepBasePayload):
+    step_type: Literal["melt"]
+    parameters: MeltPreparationParametersPayload
 
 
 class PelletizePreparationStepPayload(PreparationStepBasePayload):
@@ -479,9 +508,19 @@ class SpinCoatPreparationStepPayload(PreparationStepBasePayload):
     parameters: SpinCoatPreparationParametersPayload
 
 
-class PreAnnealPreparationStepPayload(PreparationStepBasePayload):
-    step_type: Literal["pre_anneal"]
-    parameters: PreAnnealPreparationParametersPayload
+class DryPreparationStepPayload(PreparationStepBasePayload):
+    step_type: Literal["dry"]
+    parameters: DryPreparationParametersPayload
+
+
+class DropCastPreparationStepPayload(PreparationStepBasePayload):
+    step_type: Literal["drop_cast"]
+    parameters: SolutionPreparationParametersPayload
+
+
+class DipCoatPreparationStepPayload(PreparationStepBasePayload):
+    step_type: Literal["dip_coat"]
+    parameters: DipCoatPreparationParametersPayload
 
 
 class OtherPreparationStepPayload(PreparationStepBasePayload):
@@ -492,10 +531,12 @@ class OtherPreparationStepPayload(PreparationStepBasePayload):
 PreparationStepPayload = Annotated[
     DirectLoadPreparationStepPayload
     | GrindPreparationStepPayload
-    | MixPreparationStepPayload
+    | MeltPreparationStepPayload
     | PelletizePreparationStepPayload
     | SpinCoatPreparationStepPayload
-    | PreAnnealPreparationStepPayload
+    | DryPreparationStepPayload
+    | DropCastPreparationStepPayload
+    | DipCoatPreparationStepPayload
     | OtherPreparationStepPayload,
     Field(discriminator="step_type"),
 ]
@@ -522,21 +563,6 @@ class SourceIngredientPayload(BaseModel):
         ]
         | None
     ) = None
-    process_roles: list[
-        Literal[
-            "reaction_or_nucleation_promoter",
-            "flux_or_salt_assistant",
-            "transport_agent",
-            "solvent_or_dispersion_medium",
-            "reducing_agent",
-            "oxidizing_agent",
-            "etchant",
-            "other",
-        ]
-    ] = Field(default_factory=list)
-    process_role_other: str | None = Field(
-        default=None, min_length=1, max_length=128, pattern=r"\S"
-    )
     amount: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     unit: str | None = Field(default=None, min_length=1, max_length=32, pattern=r"\S")
     concentration_value: float | None = Field(default=None, gt=0, allow_inf_nan=False)
@@ -566,10 +592,6 @@ class SourceIngredientPayload(BaseModel):
     def validate_quantity(self) -> Self:
         if (self.amount is None) != (self.unit is None):
             raise ValueError("amount and unit must be provided together")
-        if len(self.process_roles) != len(set(self.process_roles)):
-            raise ValueError("process_roles must be unique")
-        if ("other" in self.process_roles) != (self.process_role_other is not None):
-            raise ValueError("process_role_other is required only for the other process role")
         if (self.concentration_value is None) != (self.concentration_unit is None):
             raise ValueError("concentration value and unit must be provided together")
         if (self.concentration_unit == "other") != (self.concentration_unit_other is not None):
@@ -587,7 +609,6 @@ class SourceLoadPayload(BaseModel):
         "crucible",
         "substrate_surface",
         "gas_line",
-        "bubbler",
         "other",
     ]
     preparation_steps: list[PreparationStepPayload] = Field(default_factory=list)
@@ -602,15 +623,45 @@ class SourceLoadPayload(BaseModel):
     ingredients: list[SourceIngredientPayload] = Field(min_length=1)
     attrs: JsonObject = Field(default_factory=dict)
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_treatments(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return normalize_source_loads_for_read({"items": [value]})["items"][0]
+        return value
+
     @model_validator(mode="after")
     def validate_load(self) -> Self:
+        if self.loading_method == "other":
+            name = self.attrs.get("loading_other")
+            if not isinstance(name, str) or not name.strip() or len(name) > 128:
+                raise ValueError("other loading methods require a name of 1–128 characters")
         if len({item.material_lot_id for item in self.ingredients}) != len(self.ingredients):
             raise ValueError("a material lot may appear only once in one source load")
         positions = [self.initial_position, *self.position_program]
         legacy = any(ingredient.function_role is not None for ingredient in self.ingredients)
-        if self.loading_method != "gas_line" and any(
-            ingredient.amount is None and ingredient.function_role is None
-            for ingredient in self.ingredients
+        step_types = {step.step_type for step in self.preparation_steps}
+        allowed = {"direct_load", "other", "dry"}
+        if self.loading_method in {"boat", "crucible"}:
+            allowed |= {"grind", "pelletize", "melt"}
+        elif self.loading_method == "substrate_surface":
+            allowed |= {"spin_coat", "drop_cast", "dip_coat"}
+        elif self.loading_method == "other":
+            allowed = {"other"}
+        else:
+            allowed = set()
+        if not step_types <= allowed:
+            raise ValueError("preparation method does not apply to this loading method")
+        if "direct_load" in step_types and len(self.preparation_steps) != 1:
+            raise ValueError("direct loading cannot be combined with other treatments")
+        immersion_only = "dip_coat" in step_types and not step_types & {"drop_cast", "spin_coat"}
+        if (
+            self.loading_method != "gas_line"
+            and not immersion_only
+            and any(
+                ingredient.amount is None and ingredient.function_role is None
+                for ingredient in self.ingredients
+            )
         ):
             raise ValueError("non-gas source loads require ingredient amount and unit")
         if self.loading_method == "substrate_surface" and not legacy:
@@ -632,11 +683,20 @@ class SourceLoadPayload(BaseModel):
             )
         ):
             raise ValueError("independent source loads require a heating zone position")
-        has_spin_coat = any(step.step_type == "spin_coat" for step in self.preparation_steps)
-        if not has_spin_coat and any(
+        has_solution = bool(step_types & {"spin_coat", "drop_cast", "dip_coat"})
+        if not has_solution and any(
             ingredient.concentration_value is not None for ingredient in self.ingredients
         ):
-            raise ValueError("concentration applies only to source loads with spin coating")
+            raise ValueError("concentration applies only to solution coating")
+        if step_types & {"drop_cast", "dip_coat"} and any(
+            ingredient.concentration_value is None for ingredient in self.ingredients
+        ):
+            raise ValueError("drop casting and immersion require solution concentration")
+        if "drop_cast" in step_types and any(
+            ingredient.amount is None or ingredient.unit not in {"μL", "µL", "uL", "mL", "L"}
+            for ingredient in self.ingredients
+        ):
+            raise ValueError("drop casting requires a volume amount and unit")
         if (
             any(
                 position is not None and position.reference == "zone_thermocouple"
@@ -668,10 +728,43 @@ class SourceLoadsPayload(BaseModel):
 
 
 def normalize_source_loads_for_read(payload: dict[str, Any]) -> dict[str, Any]:
-    """Normalize legacy spin scalars without revalidating immutable historical payloads."""
+    """Adapt old display values without changing immutable historical payloads."""
     normalized = deepcopy(payload)
-    for item in normalized.get("items") or []:
+    if not isinstance(normalized.get("items"), list):
+        return normalized
+    for item in normalized["items"]:
+        if not isinstance(item, dict):
+            continue
+        ingredients = item.get("ingredients")
+        if isinstance(ingredients, list):
+            for ingredient in ingredients:
+                if isinstance(ingredient, dict):
+                    ingredient.pop("process_roles", None)
+                    ingredient.pop("process_role_other", None)
+        if not isinstance(item.get("preparation_steps", []), list):
+            continue
         for step in item.get("preparation_steps") or []:
+            if not isinstance(step, dict):
+                continue
+            if step.get("step_type") in ("mix", "pre_anneal"):
+                old_type = step["step_type"]
+                parameters = step.get("parameters") or {}
+                if not isinstance(parameters, dict) or not isinstance(
+                    parameters.get("items", []), list
+                ):
+                    continue
+                units = {"temperature_C": "°C", "duration_min": "min"}
+                entries = list(parameters.get("items") or [])
+                entries.extend(
+                    {"name": key, "value": value, "unit": units.get(key, "—")}
+                    for key, value in parameters.items()
+                    if key != "items" and value is not None
+                )
+                step["step_type"] = "other"
+                step["parameters"] = {
+                    "other_name": "旧记录：混合" if old_type == "mix" else "旧记录：预退火",
+                    "items": entries,
+                }
             if step.get("step_type") != "spin_coat":
                 continue
             parameters = step.get("parameters")
@@ -805,7 +898,8 @@ class ProcessChannelPayload(BaseModel):
             self.gas_species_code = (self.gas_species_code or "").strip() or None
             if self.subject_type != "gas_species" or self.gas_species_code is None:
                 raise ValueError("flow channels require an explicit gas species subject")
-            self.gas_species_code = canonical_gas_species(self.gas_species_code)
+            if self.gas_species_code != "premixed":
+                self.gas_species_code = canonical_gas_species(self.gas_species_code)
             self.subject_ref = self.gas_species_code
             if self.gas_lot_id is None or self.gas_lot_version is None:
                 raise ValueError("flow channels require a gas cylinder lot")
@@ -877,18 +971,49 @@ class PreparationGasSourcePayload(BaseModel):
     material_lot_id: UUID
     material_lot_version: int = Field(ge=1)
     snapshot: JsonObject | None = None
+    flow_sccm: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+
+
+def normalize_preparation_operation_for_read(operation: dict[str, Any]) -> dict[str, Any]:
+    if operation.get("operation_type") == "leak_check":
+        return {**operation, "operation_type": "other", "other_name": "旧记录：检漏"}
+    return operation
+
+
+def normalize_process_preparation_for_read(payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get("pressure_regime") == "ultra_high_vacuum":
+        payload = {**payload, "pressure_regime": "low_pressure"}
+    operations = payload.get("preparation_operations")
+    if not isinstance(operations, list):
+        return payload
+    return {
+        **payload,
+        "preparation_operations": [
+            normalize_preparation_operation_for_read(operation)
+            if isinstance(operation, dict)
+            else operation
+            for operation in operations
+        ],
+    }
 
 
 class PreparationOperationPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    operation_type: Literal["pump_down", "gas_exchange", "leak_check", "other"]
+    operation_type: Literal["pump_down", "gas_exchange", "other"]
+    exchange_mode: Literal["continuous_flow", "evacuation_backfill"] | None = None
     duration_min: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     target_absolute_pressure_Pa: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    backfill_absolute_pressure_Pa: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     cycle_count: int | None = Field(default=None, ge=1)
     gas_sources: list[PreparationGasSourcePayload] = Field(default_factory=list)
     gases: list[str] | None = None
     other_name: str | None = Field(default=None, max_length=255)
+
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_legacy_operation(cls, value: Any) -> Any:
+        return normalize_preparation_operation_for_read(value) if isinstance(value, dict) else value
 
     @model_validator(mode="after")
     def validate_operation(self) -> Self:
@@ -896,10 +1021,20 @@ class PreparationOperationPayload(BaseModel):
             if self.duration_min is None and self.target_absolute_pressure_Pa is None:
                 raise ValueError("pump down requires target pressure or duration")
         elif self.operation_type == "gas_exchange":
-            if self.duration_min is None:
+            if self.exchange_mode != "evacuation_backfill" and self.duration_min is None:
                 raise ValueError("gas exchange requires duration")
-            if self.cycle_count is None or not (self.gas_sources or self.gases):
-                raise ValueError("gas exchange requires cycle_count and a gas source")
+            if not (self.gas_sources or self.gases):
+                raise ValueError("gas exchange requires a gas source")
+            if self.exchange_mode != "continuous_flow" and self.cycle_count is None:
+                raise ValueError("cyclic or legacy gas exchange requires cycle_count")
+            if self.exchange_mode == "continuous_flow" and self.cycle_count is not None:
+                raise ValueError("continuous flow does not use cycle_count")
+            if (
+                self.target_absolute_pressure_Pa is not None
+                and self.backfill_absolute_pressure_Pa is not None
+                and self.backfill_absolute_pressure_Pa <= self.target_absolute_pressure_Pa
+            ):
+                raise ValueError("backfill pressure must exceed evacuation pressure")
             if self.gas_sources and self.gases:
                 raise ValueError("gas_sources and legacy gases are mutually exclusive")
             source_ids = [item.material_lot_id for item in self.gas_sources]
@@ -909,11 +1044,24 @@ class PreparationOperationPayload(BaseModel):
             if self.duration_min is None:
                 raise ValueError("preparation operation requires duration")
         if self.operation_type != "gas_exchange" and (
-            self.cycle_count is not None or self.gas_sources or self.gases
+            self.cycle_count is not None or self.gas_sources or self.gases or self.exchange_mode
         ):
             raise ValueError("cycle_count and gas sources are only valid for gas exchange")
-        if self.operation_type != "pump_down" and self.target_absolute_pressure_Pa is not None:
-            raise ValueError("target pressure is only valid for pump down")
+        cyclic = (
+            self.operation_type == "gas_exchange" and self.exchange_mode == "evacuation_backfill"
+        )
+        if (
+            self.operation_type != "pump_down"
+            and not cyclic
+            and self.target_absolute_pressure_Pa is not None
+        ):
+            raise ValueError("evacuation pressure is only valid for pump down or cyclic exchange")
+        if not cyclic and self.backfill_absolute_pressure_Pa is not None:
+            raise ValueError("backfill pressure is only valid for cyclic exchange")
+        if self.exchange_mode != "continuous_flow" and any(
+            source.flow_sccm is not None for source in self.gas_sources
+        ):
+            raise ValueError("flow_sccm is only valid for continuous exchange")
         if (self.operation_type == "other") != bool((self.other_name or "").strip()):
             raise ValueError("other preparation operation requires other_name")
         return self
@@ -939,20 +1087,41 @@ class PostReactionOperationPayload(BaseModel):
         return self
 
 
+CoolingMethod = Literal[
+    "furnace_cooling",
+    "open_lid_cooling",
+    "rapid_furnace_move_cooling",
+    "controlled_cooling",
+    "other",
+]
+
+
+class CoolingStepPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    method: CoolingMethod
+    lid_open_temperature_C: float | None = Field(default=None, allow_inf_nan=False)
+    other_name: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_step(self) -> Self:
+        if (self.method == "open_lid_cooling") != (self.lid_open_temperature_C is not None):
+            raise ValueError("lid-opening temperature is required only for open-lid cooling")
+        if (self.method == "other") != bool((self.other_name or "").strip()):
+            raise ValueError("other_name is required only for other cooling")
+        return self
+
+
 class ProcessTimelinePayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     segments: list[ProcessSegmentPayload] = Field(default_factory=list)
     channels: list[ProcessChannelPayload] = Field(min_length=1)
     process_events_confirmed: bool | None = None
-    pressure_regime: Literal["atmospheric", "low_pressure", "ultra_high_vacuum", "other"]
-    cooling_method: Literal[
-        "furnace_cooling",
-        "open_lid_cooling",
-        "rapid_furnace_move_cooling",
-        "controlled_cooling",
-        "other",
-    ]
+    process_duration_min: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    pressure_regime: Literal["atmospheric", "low_pressure", "high_pressure", "other"]
+    cooling_method: CoolingMethod | Literal["staged_cooling"]
+    cooling_sequence: list[CoolingStepPayload] = Field(default_factory=list)
     cooling_other: str | None = Field(default=None, max_length=1000)
     cooling_rate_C_per_min: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     lid_open_temperature_C: float | None = Field(default=None, allow_inf_nan=False)
@@ -964,6 +1133,11 @@ class ProcessTimelinePayload(BaseModel):
     external_fields: list[Literal["plasma", "electric_field", "magnetic_field", "light"]] = Field(
         default_factory=list
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_history(cls, value: Any) -> Any:
+        return normalize_process_preparation_for_read(value) if isinstance(value, dict) else value
 
     @model_validator(mode="after")
     def validate_timeline(self) -> Self:
@@ -988,6 +1162,30 @@ class ProcessTimelinePayload(BaseModel):
             raise ValueError("segment sequence must be consecutive from one")
         if not any(item.channel_type == "flow" for item in self.channels):
             raise ValueError("timeline requires at least one gas flow channel")
+        if self.process_duration_min is not None:
+            process_end = self.process_duration_min * 60
+            if (
+                any(item.end_s > process_end for item in self.segments)
+                or any(
+                    (point.end_s if point.end_s is not None else point.start_s) > process_end
+                    for channel in self.channels
+                    for point in channel.series or []
+                )
+                or any(field.end_min * 60 > process_end for field in self.field_params)
+            ):
+                raise ValueError("process data exceed the explicit total duration")
+            if any(
+                point.timing_preset == "whole_process"
+                and (
+                    point.start_s != 0
+                    or point.end_s is None
+                    or abs(point.end_s - process_end) > 1e-6
+                )
+                for channel in self.channels
+                if channel.channel_type == "flow"
+                for point in channel.series or []
+            ):
+                raise ValueError("whole-process flow must span the explicit total duration")
         ordered = sorted(self.segments, key=lambda item: item.start_s)
         if any(
             left.end_s > right.start_s for left, right in zip(ordered, ordered[1:], strict=False)
@@ -1020,19 +1218,26 @@ class ProcessTimelinePayload(BaseModel):
             pressure = working_pressure_channels[0]
             if pressure.data_kind != "scalar" or pressure.scalar_value is None:
                 raise ValueError("working pressure must be a scalar value")
-            pressure_pa = float(
-                normalize_process_value("pressure", pressure.unit, pressure.scalar_value)
-            )
-            if self.pressure_regime == "low_pressure" and not (1e-6 < pressure_pa < 80_000):
-                raise ValueError("low-pressure value is outside its absolute-pressure range")
-            if self.pressure_regime == "ultra_high_vacuum" and not (0 < pressure_pa <= 1e-6):
-                raise ValueError("ultra-high-vacuum value is outside its range")
         if (self.cooling_method == "other") != bool((self.cooling_other or "").strip()):
             raise ValueError("cooling_other is required only for other cooling method")
-        if (self.cooling_method == "controlled_cooling") != (
-            self.cooling_rate_C_per_min is not None
-        ):
-            raise ValueError("cooling rate is required only for controlled cooling")
+        if self.cooling_rate_C_per_min is not None and self.cooling_method != "controlled_cooling":
+            raise ValueError("legacy cooling rate is only valid for programmed cooling")
+        if self.cooling_method == "staged_cooling":
+            if len(self.cooling_sequence) < 2:
+                raise ValueError("sequential cooling requires at least two ordered operations")
+        elif self.cooling_sequence:
+            raise ValueError("cooling_sequence is only valid for sequential cooling")
+        programmed = self.cooling_method == "controlled_cooling" or any(
+            step.method == "controlled_cooling" for step in self.cooling_sequence
+        )
+        has_descent = any(
+            float(right.value) < float(left.value)
+            for channel in self.channels
+            if channel.channel_type == "temperature" and channel.source_type == "setpoint"
+            for left, right in zip(channel.series or [], (channel.series or [])[1:], strict=False)
+        )
+        if programmed and not has_descent and self.cooling_rate_C_per_min is None:
+            raise ValueError("programmed cooling requires descending temperature steps")
         if (self.cooling_method == "open_lid_cooling") != (self.lid_open_temperature_C is not None):
             raise ValueError("lid-open temperature is required only for open-lid cooling")
         if (
@@ -1062,6 +1267,29 @@ class TimeRangePayload(BaseModel):
         return self
 
 
+def normalize_process_event_for_read(raw: Any) -> Any:
+    """Merge retired event categories without discarding the original observation."""
+    if not isinstance(raw, dict) or not isinstance(raw.get("observed_deviations"), list):
+        return raw
+    labels = load_field_source()["scientific_contract"]["process_event"]["legacy_deviation_labels"]
+    deviations = raw["observed_deviations"]
+    legacy = [item for item in deviations if isinstance(item, str) and item in labels]
+    if not legacy or not all(isinstance(item, str) for item in deviations):
+        return raw
+    description = raw.get("description")
+    if description is not None and not isinstance(description, str):
+        return raw
+    normalized = deepcopy(raw)
+    normalized["observed_deviations"] = list(
+        dict.fromkeys("plan_changed" if item in labels else item for item in deviations)
+    )
+    original_types = "、".join(dict.fromkeys(labels[item] for item in legacy))
+    normalized["description"] = f"原记录类型：{original_types}。" + (
+        f"\n{description}" if description else ""
+    )
+    return normalized
+
+
 class ScientificProcessEventPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1082,15 +1310,13 @@ class ScientificProcessEventPayload(BaseModel):
     ] = Field(default_factory=list)
     observed_deviations: list[
         Literal[
-            "line_blockage",
-            "pressure_excursion",
-            "signal_anomaly",
-            "manual_intervention",
-            "equipment_alarm",
-            "manual_stop",
             "power_interruption",
             "water_interruption",
             "gas_interruption",
+            "line_blockage",
+            "pressure_excursion",
+            "equipment_alarm",
+            "signal_anomaly",
             "plan_changed",
             "other",
         ]
@@ -1120,8 +1346,14 @@ class ScientificProcessEventPayload(BaseModel):
     outcome: Literal["recovered", "partially_recovered", "terminated", "unknown"] | None = None
     data_validity_impact: Literal["none", "partial", "invalid", "unknown"] | None = None
     excluded_time_ranges: list[TimeRangePayload] = Field(default_factory=list)
-    description: str | None = Field(default=None, max_length=2000)
+    # Leave room for the original category above a legacy 2,000-character description.
+    description: str | None = Field(default=None, max_length=2048)
     attachment_file_ids: list[UUID] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_types(cls, raw: Any) -> Any:
+        return normalize_process_event_for_read(raw)
 
     @model_validator(mode="after")
     def validate_event(self) -> Self:
@@ -1282,6 +1514,19 @@ class ScanRange(BaseModel):
         return self
 
 
+class SignedScanRange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: float = Field(allow_inf_nan=False, strict=True)
+    end: float = Field(allow_inf_nan=False, strict=True)
+
+    @model_validator(mode="after")
+    def ordered(self) -> Self:
+        if self.end <= self.start:
+            raise ValueError("scan end must be greater than start")
+        return self
+
+
 class Size2D(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1310,6 +1555,29 @@ class MeasurementConditions(BaseModel):
     excitation_wavelength_nm: float | None = Field(
         default=None, gt=0, allow_inf_nan=False, strict=True
     )
+    raman_shift_range_cm1: SignedScanRange | None = None
+    scan_range_deg: SignedScanRange | None = None
+    angle_range_deg: SignedScanRange | None = None
+    image_scale_um_per_px: float | None = Field(
+        default=None, gt=0, allow_inf_nan=False, strict=True
+    )
+    pulse_width_fs: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    repetition_rate_MHz: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    filter_configuration: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    mode_other: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    geometry_other: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    scan_axis: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    scan_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    data_type: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    acquisition_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    image_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    diffraction_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    spectrum_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    excitation_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    input_polarization: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    analyzer_polarization: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    angle_reference: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    polarization_scan_axis: str | None = Field(default=None, max_length=128, pattern=r"\S")
     power_setting: str | None = Field(default=None, max_length=128, pattern=r"\S")
     excitation_power_value: float | None = Field(
         default=None, gt=0, allow_inf_nan=False, strict=True
@@ -1348,6 +1616,8 @@ class MeasurementConditions(BaseModel):
     sample_preparation: str | None = Field(default=None, max_length=1000, pattern=r"\S")
     height_processing: str | None = Field(default=None, max_length=1000, pattern=r"\S")
     illumination_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    image_object_type: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    image_size_metric: str | None = Field(default=None, max_length=128, pattern=r"\S")
     method_description: str | None = Field(
         default=None, min_length=1, max_length=1000, pattern=r"\S"
     )
@@ -1362,6 +1632,8 @@ class MeasurementConditions(BaseModel):
         "sample_preparation",
         "height_processing",
         "illumination_mode",
+        "image_object_type",
+        "image_size_metric",
         "method_description",
         mode="before",
     )
@@ -1388,6 +1660,11 @@ class MeasurementConditions(BaseModel):
     def validate_power_pair(self) -> Self:
         if (self.excitation_power_value is None) != (self.excitation_power_basis is None):
             raise ValueError("excitation power value and basis must be provided together")
+        if (
+            self.excitation_power_basis == "instrument_percent"
+            and self.excitation_power_value > 100
+        ):
+            raise ValueError("instrument power percentage cannot exceed 100")
         return self
 
 
@@ -1404,7 +1681,7 @@ class MeasurementRunCreate(BaseModel):
         strict=True,
     )
     measured_at: datetime
-    sample_region: SampleRegion
+    sample_region: SampleRegion | None = None
     typed_conditions: MeasurementConditions
     raw_file_ids: list[UUID] = Field(default_factory=list)
     quality_flag: Literal["valid", "suspect"] = "valid"
@@ -1432,6 +1709,23 @@ class MeasurementRunCreate(BaseModel):
         required = set(profile["required_condition_keys"])
         allowed = {item["key"] for item in profile["condition_fields"]}
         conditions = self.typed_conditions.model_dump(exclude_none=True)
+        # Legacy 2θ and TEM mode inputs have explicit, unambiguous axes/data types.
+        if self.method_profile == "XRD" and "scan_range_2theta_deg" in conditions:
+            conditions.setdefault("scan_axis", "two_theta")
+            conditions.setdefault("scan_range_deg", conditions["scan_range_2theta_deg"])
+        if self.method_profile == "TEM" and "mode" in conditions:
+            legacy_mode = conditions["mode"]
+            conditions.setdefault(
+                "data_type",
+                "spectrum"
+                if legacy_mode in {"EDS", "EELS"}
+                else "diffraction"
+                if legacy_mode == "SAED"
+                else "image",
+            )
+            if legacy_mode in {"EDS", "EELS"}:
+                conditions.setdefault("spectrum_mode", legacy_mode)
+        self.typed_conditions = MeasurementConditions.model_validate(conditions)
         missing = sorted(required - conditions.keys())
         if missing:
             raise ValueError(f"missing typed measurement conditions: {', '.join(missing)}")
@@ -1441,12 +1735,36 @@ class MeasurementRunCreate(BaseModel):
                 f"conditions do not apply to {self.method_profile}: {', '.join(unexpected)}"
             )
         for field in profile["condition_fields"]:
+            if field["key"] in conditions:
+                if any(
+                    conditions.get(key) not in values
+                    for key, values in field.get("when", {}).items()
+                ):
+                    raise ValueError(f"condition {field['key']} does not apply to these settings")
+                value = conditions[field["key"]]
+                values = list(value.values()) if isinstance(value, dict) else [value]
+                validation = field.get("validation", {})
+                for value in values:
+                    if isinstance(value, (int, float)) and (
+                        ("ge" in validation and value < validation["ge"])
+                        or ("gt" in validation and value <= validation["gt"])
+                        or ("le" in validation and value > validation["le"])
+                        or ("lt" in validation and value >= validation["lt"])
+                    ):
+                        raise ValueError(f"condition {field['key']} is out of range")
             if field.get("value_type") != "select" or field["key"] not in conditions:
                 continue
             options = {option["value"] for option in field.get("options", [])}
             if conditions[field["key"]] not in options:
                 raise ValueError(f"unsupported value for measurement condition {field['key']}")
-        if self.sample_region.geometry_type not in profile["allowed_region_types"]:
+        if self.method_profile == "XRD" and self.typed_conditions.scan_axis == "two_theta":
+            scan = self.typed_conditions.scan_range_deg
+            if scan and not 0 <= scan.start < scan.end <= 180:
+                raise ValueError("2theta scan range must be within 0 to 180 degrees")
+        if (
+            self.sample_region
+            and self.sample_region.geometry_type not in profile["allowed_region_types"]
+        ):
             raise ValueError(
                 f"{self.sample_region.geometry_type} does not apply to {self.method_profile}"
             )
@@ -1573,6 +1891,27 @@ class PropertyValueWrite(BaseModel):
             raise ValueError(
                 f"{self.property_code} requires {expected_value_type} value representation"
             )
+        if schema := definition.get("structured_schema"):
+            error = next(
+                Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(
+                    self.structured_value
+                ),
+                None,
+            )
+            if error is not None:
+                raise ValueError(f"{self.property_code}: {error.message}")
+        if self.property_code == "spectral_peaks":
+            peaks = self.structured_value["peaks"]
+            if len({peak["id"] for peak in peaks}) != len(peaks):
+                raise ValueError("peak IDs must be unique within the spectrum")
+        if self.property_code == "elemental_composition":
+            components = self.structured_value["components"]
+            if any(item["species"] not in ELEMENT_SYMBOLS for item in components):
+                raise ValueError("elemental composition requires element symbols")
+            if len({item["species"] for item in components}) != len(components):
+                raise ValueError("composition elements must be unique")
+            if abs(sum(item["fraction"] for item in components) - 1) > 1e-6:
+                raise ValueError("composition fractions must sum to one")
         if self.numeric_value is not None and not self.unit:
             raise ValueError("numeric property requires a unit")
         if self.numeric_value is not None and self.unit != expected_unit:
@@ -1742,6 +2081,45 @@ class MeasurementBundleCreate(BaseModel):
                 f"{', '.join(unsupported_assertions)}"
             )
         mode = self.measurement.typed_conditions.mode
+        conditions = self.measurement.typed_conditions.model_dump(exclude_none=True)
+        for item in self.properties:
+            if any(
+                conditions.get(key) not in values
+                for key, values in profile.get("property_conditions", {})
+                .get(item.property_code, {})
+                .items()
+            ):
+                raise ValueError(
+                    f"{item.property_code} does not apply to these measurement settings"
+                )
+            allowed_modes = profile.get("property_modes", {}).get(item.property_code)
+            if allowed_modes is not None and mode not in allowed_modes:
+                raise ValueError(f"{item.property_code} does not apply to mode {mode}")
+            if item.property_code == "spectral_peaks":
+                series = item.structured_value
+                if series["position_unit"] not in profile.get("peak_position_units", []):
+                    raise ValueError("peak position unit does not apply to this method")
+                if self.measurement.method_profile == "XRD":
+                    axis_unit = {"two_theta": "° 2θ", "omega": "° ω", "phi": "° φ", "chi": "° χ"}[
+                        conditions["scan_axis"]
+                    ]
+                    if series["position_unit"] != axis_unit:
+                        raise ValueError("peak position unit must match the XRD scan axis")
+                if series.get("source_file_id") and series["source_file_id"] not in {
+                    str(file_id) for file_id in self.measurement.raw_file_ids
+                }:
+                    raise ValueError("spectral peaks must reference a raw file in this measurement")
+                if (
+                    self.measurement.method_profile != "XRD"
+                    or conditions.get("scan_axis") != "two_theta"
+                ) and any("d_spacing_nm" in peak for peak in series["peaks"]):
+                    raise ValueError("d-spacing is only applicable to XRD 2theta peaks")
+            if item.property_code in {"image_object_size_um", "image_object_density_cm2"}:
+                if not self.measurement.typed_conditions.image_object_type:
+                    raise ValueError("image statistics require the counted object type")
+            if item.property_code == "image_object_size_um":
+                if not self.measurement.typed_conditions.image_size_metric:
+                    raise ValueError("image object size requires a size definition")
         if any(item.assertion_type == "composition" for item in self.assertions):
             if self.measurement.method_profile == "SEM" and mode != "EDS":
                 raise ValueError("SEM composition requires EDS/EDX analysis mode")

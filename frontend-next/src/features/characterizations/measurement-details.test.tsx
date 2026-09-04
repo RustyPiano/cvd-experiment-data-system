@@ -237,14 +237,14 @@ describe('MeasurementDetails', () => {
     })
     renderDetails()
 
-    expect(await screen.findByText('统计量：mean')).toBeInTheDocument()
+    expect(await screen.findByText('统计方式：平均值')).toBeInTheDocument()
     expect(
       screen.getByText('不确定度：0.4 cm⁻¹（standard_deviation）'),
     ).toBeInTheDocument()
     expect(screen.getByText('样本数：5')).toBeInTheDocument()
     expect(screen.getByText('置信度：0.92')).toBeInTheDocument()
     expect(
-      screen.getAllByText('分析运行：LabFit 2.0 · analysis-1'),
+      screen.getAllByText('数据处理记录：LabFit 2.0 · analysis-1'),
     ).toHaveLength(2)
     expect(screen.getByText('分析开始时间').parentElement).toHaveTextContent(
       new Date(detail.analyses[0].started_at).toLocaleString('zh'),
@@ -254,6 +254,32 @@ describe('MeasurementDetails', () => {
     )
   })
 
+  it('still displays deferred conditions and results from historical records', async () => {
+    measurementApi.getMeasurement.mockResolvedValue({
+      ...detail,
+      method_profile: 'AFM',
+      typed_conditions: {
+        scan_size_um: { x: 5, y: 5 },
+        height_processing: '逐行校平',
+      },
+      properties: [
+        {
+          ...detail.properties[0],
+          property_code: 'afm_rms_roughness',
+          numeric_value: 0.3,
+          unit: 'nm',
+        },
+      ],
+    })
+    renderDetails()
+    expect(await screen.findByText('0.3 nm')).toBeInTheDocument()
+    expect(screen.getByText('高度数据处理')).toBeInTheDocument()
+    expect(screen.getByText('高度数据处理').parentElement).toHaveTextContent(
+      '逐行校平',
+    )
+    expect(screen.getByText('fitted.csv')).toBeInTheDocument()
+  })
+
   it('uses the server permission flag and submits an append-only invalidation', async () => {
     const user = userEvent.setup()
     renderDetails()
@@ -261,7 +287,7 @@ describe('MeasurementDetails', () => {
     await user.click(
       await screen.findByRole('button', { name: '标记此记录失效' }),
     )
-    await user.type(screen.getByLabelText('失效原因'), 'wrong sample')
+    await user.type(screen.getByLabelText(/^失效原因/), 'wrong sample')
     await user.click(screen.getByRole('button', { name: '确认失效' }))
 
     await waitFor(() =>
@@ -271,6 +297,20 @@ describe('MeasurementDetails', () => {
         'token',
       ),
     )
+  })
+
+  it('does not interpret a missing instrument record as no instrument used', async () => {
+    measurementApi.getMeasurement.mockResolvedValue({
+      ...detail,
+      instrument_snapshot_json: null,
+    })
+    renderDetails()
+    expect(await screen.findByText('未记录仪器')).toBeInTheDocument()
+    expect(screen.queryByText('未使用仪器')).toBeNull()
+    await i18n.changeLanguage('en')
+    expect(
+      await screen.findByText('Instrument not recorded'),
+    ).toBeInTheDocument()
   })
 
   it('does not offer invalidation without server authorization', async () => {
@@ -317,6 +357,7 @@ describe('MeasurementDetails', () => {
           ...detail.properties[0],
           numeric_value: 0,
           quality_flag: 'below_detection_limit',
+          quality_note: '仪器标定阈值',
         },
       ],
       raw_files: [
@@ -336,6 +377,7 @@ describe('MeasurementDetails', () => {
 
     expect(await screen.findByText('记录阈值：0 cm⁻¹')).toBeInTheDocument()
     expect(screen.getAllByText('低于检出限')).not.toHaveLength(0)
+    expect(screen.getByText('检出限依据：仪器标定阈值')).toBeInTheDocument()
     expect(screen.getAllByText('已删除')).not.toHaveLength(0)
     expect(
       screen.getByRole('button', { name: '下载 deleted.txt' }),
