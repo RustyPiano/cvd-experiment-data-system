@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.16.0,<2.0.0",
   "fastapi[standard]>=0.115.0,<1.0.0",
+  "jsonschema>=4.20.0,<5.0.0",
   "openpyxl>=3.1.5,<4.0.0", # docs/standard spreadsheet rendering scripts
   "psycopg[binary]>=3.2.0,<4.0.0",
   "pwdlib[argon2]>=0.3.0,<1.0.0",
@@ -18,7 +19,6 @@ dependencies = [
 [dependency-groups]
 dev = [
   "httpx>=0.28.0,<1.0.0",
-  "jsonschema>=4.20.0,<5.0.0",
   "pytest>=8.3.0,<9.0.0",
   "pytest-cov>=6.1.0,<7.0.0",
   "ruff>=0.11.0,<1.0.0",
