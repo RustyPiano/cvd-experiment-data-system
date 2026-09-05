@@ -2,7 +2,7 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `2c3c3832543de1eb3c5354b96b83b37a8e3d91c0`。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `caaf618` / v4.0-alpha.40。
 - 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-09-02 最新发布前本地后端 408 passed、4 skipped，前端 402/402，格式、类型、构建、字段源与生成物检查全绿。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 旧 v1 数据仍在禁连归档库 `cvd_v1_archive_20260724` 中；2026-08-07 仅清空当前 v2 `cvd` 数据库中的测试数据与附件。
@@ -120,6 +120,14 @@
 - 2026-09-02 20:41 CST 发布 `2c3c383` / v4.0-alpha.25。普通 `./deploy.sh` 从 `2036f98` 快进，先自动备份数据库与附件到 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260902_204136`，再构建并重建 backend/frontend；未清理生产数据，未连接或修改 v1 离线归档库。
 - 备份根目录与本次目录权限为 `0700`，三个备份文件权限为 `0600`；`database.sql` 为 204K，`storage.tar.gz` 为 4.0K，`SHA256SUMS` 双项校验及 tar 可读性均通过。
 - 没有新增数据库迁移，生产 Alembic 保持 `20260813_0011 (head)`；服务器分支为 `codex/product-simplification-v1` 且工作树干净，backend/frontend 均为 running + healthy，近 5 分钟日志无 ERROR/Traceback/FATAL/panic，字段源为 v4.0-alpha.25。公网 `/health`、首页、`runtime-config.js` 与匿名 401 边界通过，匿名登录页正常渲染；未写入验收数据。
+
+## 2026-09-05 v4.0-alpha.40 发布
+
+- 经用户授权，按普通 `./deploy.sh` 发布提交 `caaf618` / v4.0-alpha.40；未清理生产数据，未连接或修改 v1 离线归档库。
+- 首次构建因 `jsonschema` 被误列为开发依赖而在生产镜像中缺失，后端健康检查阻止了服务完成启动；未绕过 schema guard。修复为运行时依赖后重新构建并成功发布。
+- 两次部署均先完成数据库与附件备份；有效发布前备份为 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260905_080309`，前一次失败尝试的备份为 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260905_075615`。
+- 生产 Alembic 已前滚到 `20260904_0015 (head)`；backend/frontend 均为 running + healthy，服务器分支 `codex/product-simplification-v1` 工作树干净。后端近 5 分钟日志无 ERROR/Traceback/FATAL。
+- 本机与公网 `/health` 返回正常，首页返回 200，匿名 `/api/v1/auth/me` 保持 401；未写入验收数据。
 
 ## 尚待真实数据验收
 
