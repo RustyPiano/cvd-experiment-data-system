@@ -2,8 +2,8 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `caaf618` / v4.0-alpha.40。
-- 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-09-02 最新发布前本地后端 408 passed、4 skipped，前端 402/402，格式、类型、构建、字段源与生成物检查全绿。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `0736d2f` / v4.0-alpha.41。
+- 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-09-09 发布前本地后端 465 passed、4 skipped，另 PostgreSQL 27/27；前端 428/428，格式、类型、构建、字段源与生成物检查全绿。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 旧 v1 数据仍在禁连归档库 `cvd_v1_archive_20260724` 中；2026-08-07 仅清空当前 v2 `cvd` 数据库中的测试数据与附件。
 - 用户指定的管理员账号已创建，API 登录与身份读取通过；真实浏览器留给用户在线逐项复核。
@@ -128,6 +128,15 @@
 - 两次部署均先完成数据库与附件备份；有效发布前备份为 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260905_080309`，前一次失败尝试的备份为 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260905_075615`。
 - 生产 Alembic 已前滚到 `20260904_0015 (head)`；backend/frontend 均为 running + healthy，服务器分支 `codex/product-simplification-v1` 工作树干净。后端近 5 分钟日志无 ERROR/Traceback/FATAL。
 - 本机与公网 `/health` 返回正常，首页返回 200，匿名 `/api/v1/auth/me` 保持 401；未写入验收数据。
+
+## 2026-09-09 v4.0-alpha.41 发布
+
+- 经用户授权，普通 `./deploy.sh` 从 `af4d173` 发布至 `0736d2f`，包含目标材料逐区域填写、形态拆分、附加能力多名称、处理步骤溶液用量，以及衬底三等分布局与角度示意。
+- 发布前全门禁通过：后端465 passed/4 PostgreSQL-only skipped；隔离PostgreSQL 27/27并验证空库迁移和带历史目标/锁定修订的0015→0016前滚；前端428/428（59 files）。字段源/xlsx逐格一致，重生成Schema、字段元数据和OpenAPI类型均零漂移。
+- 自动备份目录 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260909_170214`，数据库228K、附件归档4.0K；双项SHA-256与tar可读性通过，目录0700、文件0600。旧backend/frontend镜像分别保留为 `rollback-alpha40-20260909` 标签；未清理生产数据或访问v1归档库。
+- 生产Alembic前滚至 `20260909_0016 (head)`，三列可空字段已验证；backend/frontend均running + healthy，近5分钟日志无ERROR/Traceback/FATAL/panic。仓库字段源版本alpha.41，`cvd_v2`历史载荷标识保持不变。
+- 公网健康、首页、runtime-config均200，匿名身份API保持401；线上编辑器资源 `edit-DBccz3e9.js` 包含统一的 `α = +30°` / `φ = 60°` 标注。匿名登录页1440px/390px渲染正常，无页面错误或横向溢出；未登录或写入生产验收数据。
+- 本地发布日志、迁移检查与公网页面证据：`/tmp/cvd-alpha41-release.M2pKDd/`。
 
 ## 尚待真实数据验收
 
