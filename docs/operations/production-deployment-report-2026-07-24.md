@@ -2,7 +2,7 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `0736d2f` / v4.0-alpha.41。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `9d00ba7` / v4.0-alpha.41。
 - 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-09-09 发布前本地后端 465 passed、4 skipped，另 PostgreSQL 27/27；前端 428/428，格式、类型、构建、字段源与生成物检查全绿。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 旧 v1 数据仍在禁连归档库 `cvd_v1_archive_20260724` 中；2026-08-07 仅清空当前 v2 `cvd` 数据库中的测试数据与附件。
@@ -137,6 +137,12 @@
 - 生产Alembic前滚至 `20260909_0016 (head)`，三列可空字段已验证；backend/frontend均running + healthy，近5分钟日志无ERROR/Traceback/FATAL/panic。仓库字段源版本alpha.41，`cvd_v2`历史载荷标识保持不变。
 - 公网健康、首页、runtime-config均200，匿名身份API保持401；线上编辑器资源 `edit-DBccz3e9.js` 包含统一的 `α = +30°` / `φ = 60°` 标注。匿名登录页1440px/390px渲染正常，无页面错误或横向溢出；未登录或写入生产验收数据。
 - 本地发布日志、迁移检查与公网页面证据：`/tmp/cvd-alpha41-release.M2pKDd/`。
+
+## 2026-09-09 角度弧线标注补充发布
+
+- 用户授权后按普通 `deploy.sh` 发布 `9d00ba7`，只补夹角处两个α、一个φ及等角弧；字段源alpha.41、Alembic0016保持不变。
+- 前端31项相关测试、格式/lint/typecheck/build通过。自动备份 `backups/20260909_174751` 的数据库/附件双项校验和与tar可读性通过，目录0700、文件0600；旧前端镜像以 `rollback-before-arc-labels-20260909` 保留。
+- 前后端running + healthy，近5分钟日志无ERROR/Traceback/FATAL/panic；公网健康/首页/runtime为200，匿名API保持401。线上 `edit-4eHNHJLB.js` 已验证包含等角弧、两个α及一个φ；未写入验收数据。证据 `/tmp/cvd-angle-label-release.qfN8ru/`。
 
 ## 尚待真实数据验收
 
