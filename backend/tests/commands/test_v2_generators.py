@@ -482,7 +482,7 @@ def test_standard_schema_exports_current_scientific_and_result_models() -> None:
         "transformation",
         "dataset_query",
     }
-    assert schema["version"] == "v4.0-alpha.40"
+    assert schema["version"] == "v4.0-alpha.41"
     assert schema["status"] == "INTERNAL_VALIDATION"
     tilt_schema = schema["modules"]["substrates"]["$defs"]["SubstrateSizePlacementPayload"]
     assert tilt_schema["properties"]["tilt_angle_deg"]["anyOf"][0]["not"] == {"const": 0}
@@ -504,7 +504,7 @@ def test_field_dictionary_and_xlsx_expose_machine_validation_contract() -> None:
     assert headers[-1] == "机器约束"
     machine_column = len(headers)
     amount_row = next(
-        row for row in range(1, sheet.max_row + 1) if sheet.cell(row, 2).value == "使用量"
+        row for row in range(1, sheet.max_row + 1) if sheet.cell(row, 2).value == "实际物料用量"
     )
     assert '"gt":0' in sheet.cell(amount_row, machine_column).value
 
@@ -679,7 +679,7 @@ def test_setup_and_instrument_entity_contracts() -> None:
         _setup(field_devices=["other"], field_device_other_name="magnetic field")
     )
     assert named_field_setup.field_device_other_name == "magnetic field"
-    with pytest.raises(ValueError, match="field_device_other_name"):
+    with pytest.raises(ValueError, match="named additional capabilities"):
         SetupVersionPayload.model_validate(_setup(field_devices=["other"]))
 
     actual_other_field = ActualFieldPayload.model_validate(

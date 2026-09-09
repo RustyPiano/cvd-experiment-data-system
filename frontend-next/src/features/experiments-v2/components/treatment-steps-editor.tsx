@@ -96,6 +96,18 @@ export interface TreatmentStep {
 }
 
 type TreatmentFieldKey =
+  | 'mode'
+  | 'equipment_name'
+  | 'wiping_material'
+  | 'ultrasonic_frequency_kHz'
+  | 'ultrasonic_power_W'
+  | 'source_distance_mm'
+  | 'wavelength_nm'
+  | 'irradiance_mW_cm2'
+  | 'ozone_concentration_ppm'
+  | 'gas_flow_sccm'
+  | 'solution_volume_uL'
+  | 'bath_volume_mL'
   | 'temperature_C'
   | 'duration_min'
   | 'duration_s'
@@ -157,7 +169,7 @@ type ParameterDefinition = {
   kind: 'number' | 'text' | 'atmosphere' | 'select'
   required?: boolean
   requiredWhen?: { key: TreatmentFieldKey; values: readonly string[] }
-  visibleWhen?: { key: TreatmentFieldKey; value: string }
+  visibleWhen?: { key: TreatmentFieldKey; value?: string; notValue?: string }
   options?: readonly string[]
   positive?: boolean
   min?: number
@@ -256,6 +268,11 @@ const substrateDefinitions: Partial<
       visibleWhen: { key: 'cleaning_method', value: 'other' },
     },
     {
+      key: 'wiping_material',
+      kind: 'text',
+      visibleWhen: { key: 'cleaning_method', value: 'wipe' },
+    },
+    {
       key: 'duration_min',
       kind: 'number',
       positive: true,
@@ -264,6 +281,22 @@ const substrateDefinitions: Partial<
         key: 'cleaning_method',
         values: ['ultrasonic', 'soak'],
       },
+    },
+    { key: 'temperature_C', kind: 'number', min: -273.15, unit: '°C' },
+    { key: 'equipment_name', kind: 'text' },
+    {
+      key: 'ultrasonic_frequency_kHz',
+      kind: 'number',
+      positive: true,
+      unit: 'kHz',
+      visibleWhen: { key: 'cleaning_method', value: 'ultrasonic' },
+    },
+    {
+      key: 'ultrasonic_power_W',
+      kind: 'number',
+      positive: true,
+      unit: 'W',
+      visibleWhen: { key: 'cleaning_method', value: 'ultrasonic' },
     },
   ],
   nitrogen_dry: [
@@ -295,12 +328,49 @@ const substrateDefinitions: Partial<
   ],
   uv_ozone_treatment: [
     {
+      key: 'mode',
+      kind: 'select',
+      options: ['uv_ozone', 'uv_only', 'ozone_only'],
+    },
+    {
       key: 'duration_min',
       kind: 'number',
       required: true,
       positive: true,
       unit: 'min',
     },
+    { key: 'equipment_name', kind: 'text' },
+    {
+      key: 'source_distance_mm',
+      kind: 'number',
+      positive: true,
+      unit: 'mm',
+      visibleWhen: { key: 'mode', notValue: 'ozone_only' },
+    },
+    { key: 'atmosphere', kind: 'text' },
+    { key: 'temperature_C', kind: 'number', min: -273.15, unit: '°C' },
+    {
+      key: 'wavelength_nm',
+      kind: 'number',
+      positive: true,
+      unit: 'nm',
+      visibleWhen: { key: 'mode', notValue: 'ozone_only' },
+    },
+    {
+      key: 'irradiance_mW_cm2',
+      kind: 'number',
+      positive: true,
+      unit: 'mW·cm⁻²',
+      visibleWhen: { key: 'mode', notValue: 'ozone_only' },
+    },
+    {
+      key: 'ozone_concentration_ppm',
+      kind: 'number',
+      positive: true,
+      unit: 'ppm',
+      visibleWhen: { key: 'mode', notValue: 'uv_only' },
+    },
+    { key: 'gas_flow_sccm', kind: 'number', positive: true, unit: 'sccm' },
   ],
 }
 
@@ -311,9 +381,16 @@ const sourceLoadDefinitions: Partial<
   grind: precursorDefinitions.grind,
   pelletize: precursorDefinitions.pelletize,
   melt: precursorDefinitions.melt_solidify,
-  spin_coat: [{ key: 'solvent', kind: 'text' }],
-  drop_cast: [{ key: 'solvent', kind: 'text', required: true }],
+  spin_coat: [
+    { key: 'solvent', kind: 'text' },
+    { key: 'solution_volume_uL', kind: 'number', positive: true, unit: 'μL' },
+  ],
+  drop_cast: [
+    { key: 'solvent', kind: 'text', required: true },
+    { key: 'solution_volume_uL', kind: 'number', positive: true, unit: 'μL' },
+  ],
   dip_coat: [
+    { key: 'bath_volume_mL', kind: 'number', positive: true, unit: 'mL' },
     { key: 'solvent', kind: 'text', required: true },
     {
       key: 'duration_min',
@@ -361,6 +438,7 @@ function emptyParameters(
   kind: TreatmentKind,
   type: TreatmentType,
 ): TreatmentParameters {
+  if (type === 'uv_ozone_treatment') return { mode: 'uv_ozone' }
   if (type === 'spin_coat') {
     return { stages: [{ speed_rpm: null, duration_s: null }] }
   }
@@ -441,7 +519,10 @@ function parameterVisible(
 ): boolean {
   return (
     !definition.visibleWhen ||
-    parameters[definition.visibleWhen.key] === definition.visibleWhen.value
+    (definition.visibleWhen.notValue
+      ? parameters[definition.visibleWhen.key] !==
+        definition.visibleWhen.notValue
+      : parameters[definition.visibleWhen.key] === definition.visibleWhen.value)
   )
 }
 
@@ -502,6 +583,9 @@ export function normalizeTreatmentSteps(
             ...(step.parameters.solvent == null
               ? {}
               : { solvent: step.parameters.solvent }),
+            ...(step.parameters.solution_volume_uL == null
+              ? {}
+              : { solution_volume_uL: step.parameters.solution_volume_uL }),
             stages: spinCoatStages(step.parameters),
           },
         }
@@ -530,6 +614,8 @@ export function treatmentStepsAreValid(
         (step.parameters.solvent == null ||
           (typeof step.parameters.solvent === 'string' &&
             Boolean(step.parameters.solvent.trim()))) &&
+        (step.parameters.solution_volume_uL == null ||
+          Number(step.parameters.solution_volume_uL) > 0) &&
         stages.length > 0 &&
         stages.every(
           (stage) =>
@@ -566,7 +652,14 @@ export function treatmentStepsAreValid(
     const namedMode = namedParametersMode(kind, step.type)
     if (namedMode) allowedParameterKeys.add('items')
     if (
-      Object.keys(step.parameters).some((key) => !allowedParameterKeys.has(key))
+      Object.entries(step.parameters).some(
+        ([key, value]) =>
+          !allowedParameterKeys.has(key) &&
+          !(
+            parameterMissing(value) &&
+            definitions.some((definition) => definition.key === key)
+          ),
+      )
     ) {
       return false
     }
@@ -1031,7 +1124,13 @@ function TreatmentStepRow({
             <SelectGroup>
               {(allowedTypes ?? typesFor(kind)).map((type) => (
                 <SelectItem key={type} value={type}>
-                  {labels.types[type]}
+                  {type === 'uv_ozone_treatment' &&
+                  type === step.type &&
+                  ['uv_only', 'ozone_only'].includes(
+                    String(step.parameters.mode),
+                  )
+                    ? labels.options[String(step.parameters.mode)]
+                    : labels.types[type]}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -1072,6 +1171,9 @@ function TreatmentStepRow({
                 ...(step.parameters.solvent == null
                   ? {}
                   : { solvent: step.parameters.solvent }),
+                ...(step.parameters.solution_volume_uL == null
+                  ? {}
+                  : { solution_volume_uL: step.parameters.solution_volume_uL }),
                 stages,
               },
             })
@@ -1208,6 +1310,10 @@ function TreatmentStepRow({
                         ) {
                           delete parameters.cleaning_method_other
                         }
+                        for (const candidate of definitions) {
+                          if (!parameterVisible(candidate, parameters))
+                            delete parameters[candidate.key]
+                        }
                         onChange({ ...step, parameters })
                       }}
                     >
@@ -1259,7 +1365,7 @@ function TreatmentStepRow({
                             [definition.key]:
                               definition.kind === 'number'
                                 ? numberFromInput(event.target.value)
-                                : event.target.value,
+                                : event.target.value || undefined,
                           },
                         })
                       }

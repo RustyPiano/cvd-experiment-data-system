@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "standard_id": "cvd-2d-process",
   "title": "CVD-2D 科学数据契约 / CVD-2D Scientific Data Contract",
-  "version": "v4.0-alpha.40",
+  "version": "v4.0-alpha.41",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "module_payload_schema_version": "cvd_v2",
@@ -2969,6 +2969,23 @@
           "default": null,
           "title": "Field Device Other Name"
         },
+        "field_device_other_names": {
+          "anyOf": [
+            {
+              "items": {
+                "minLength": 1,
+                "pattern": "\\S",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field Device Other Names"
+        },
         "setup_diagram": {
           "anyOf": [
             {
@@ -2994,7 +3011,7 @@
       ],
       "title": "EquipmentPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.40/equipment.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.41/equipment.schema.json"
     },
     "substrates": {
       "$defs": {
@@ -3277,21 +3294,6 @@
           "title": "PlasmaTreatmentParametersPayload",
           "type": "object"
         },
-        "RequiredDurationParametersPayload": {
-          "additionalProperties": false,
-          "properties": {
-            "duration_min": {
-              "exclusiveMinimum": 0,
-              "title": "Duration Min",
-              "type": "number"
-            }
-          },
-          "required": [
-            "duration_min"
-          ],
-          "title": "RequiredDurationParametersPayload",
-          "type": "object"
-        },
         "SolventCleaningParametersPayload": {
           "additionalProperties": false,
           "properties": {
@@ -3346,6 +3348,73 @@
               ],
               "default": null,
               "title": "Cleaning Method Other"
+            },
+            "temperature_C": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": -273.15,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Temperature C"
+            },
+            "wiping_material": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Wiping Material"
+            },
+            "equipment_name": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Equipment Name"
+            },
+            "ultrasonic_frequency_kHz": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Ultrasonic Frequency Khz"
+            },
+            "ultrasonic_power_W": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Ultrasonic Power W"
             },
             "duration_min": {
               "anyOf": [
@@ -3679,6 +3748,144 @@
           "title": "SubstrateSizePlacementPayload",
           "type": "object"
         },
+        "UvOzoneParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "duration_min": {
+              "exclusiveMinimum": 0,
+              "title": "Duration Min",
+              "type": "number"
+            },
+            "mode": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "uv_ozone",
+                    "uv_only",
+                    "ozone_only"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Mode"
+            },
+            "equipment_name": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Equipment Name"
+            },
+            "source_distance_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Source Distance Mm"
+            },
+            "atmosphere": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Atmosphere"
+            },
+            "temperature_C": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": -273.15,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Temperature C"
+            },
+            "wavelength_nm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Wavelength Nm"
+            },
+            "irradiance_mW_cm2": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Irradiance Mw Cm2"
+            },
+            "ozone_concentration_ppm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Ozone Concentration Ppm"
+            },
+            "gas_flow_sccm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Gas Flow Sccm"
+            }
+          },
+          "required": [
+            "duration_min"
+          ],
+          "title": "UvOzoneParametersPayload",
+          "type": "object"
+        },
         "UvOzonePretreatmentPayload": {
           "additionalProperties": false,
           "properties": {
@@ -3688,7 +3895,7 @@
               "type": "string"
             },
             "parameters": {
-              "$ref": "#/$defs/RequiredDurationParametersPayload"
+              "$ref": "#/$defs/UvOzoneParametersPayload"
             }
           },
           "required": [
@@ -3746,7 +3953,7 @@
       },
       "title": "SubstratesPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.40/substrates.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.41/substrates.schema.json"
     },
     "basic_info": {
       "$defs": {
@@ -3920,7 +4127,7 @@
       ],
       "title": "ScientificBasicInfo",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.40/basic_info.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.41/basic_info.schema.json"
     },
     "target_product": {
       "$defs": {
@@ -4135,6 +4342,7 @@
           "anyOf": [
             {
               "enum": [
+                "planar",
                 "continuous_film",
                 "discrete_planar_crystal",
                 "ribbon",
@@ -4178,6 +4386,50 @@
           "default": null,
           "title": "In Plane Outline"
         },
+        "film_form": {
+          "anyOf": [
+            {
+              "enum": [
+                "discrete",
+                "continuous"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Film Form"
+        },
+        "dimensional_form_other": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dimensional Form Other"
+        },
+        "in_plane_outline_other": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "In Plane Outline Other"
+        },
         "optimization_objective": {
           "anyOf": [
             {
@@ -4211,7 +4463,7 @@
       ],
       "title": "TargetSpecPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.40/target_product.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.41/target_product.schema.json"
     },
     "precursors": {
       "$defs": {
@@ -4224,6 +4476,19 @@
               "pattern": "\\S",
               "title": "Solvent",
               "type": "string"
+            },
+            "bath_volume_mL": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Bath Volume Ml"
             },
             "duration_min": {
               "exclusiveMinimum": 0,
@@ -4642,6 +4907,19 @@
         "SolutionPreparationParametersPayload": {
           "additionalProperties": false,
           "properties": {
+            "solution_volume_uL": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Solution Volume Ul"
+            },
             "solvent": {
               "maxLength": 128,
               "minLength": 1,
@@ -5062,6 +5340,19 @@
         "SpinCoatPreparationParametersPayload": {
           "additionalProperties": false,
           "properties": {
+            "solution_volume_uL": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Solution Volume Ul"
+            },
             "solvent": {
               "anyOf": [
                 {
@@ -5155,7 +5446,7 @@
       ],
       "title": "SourceLoadsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.40/precursors.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.41/precursors.schema.json"
     },
     "process_steps": {
       "$defs": {
@@ -5171,6 +5462,20 @@
               ],
               "title": "Field Type",
               "type": "string"
+            },
+            "capability_name": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Capability Name"
             },
             "start_min": {
               "minimum": 0,
@@ -6073,7 +6378,7 @@
       ],
       "title": "ProcessTimelinePayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.40/process_steps.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.41/process_steps.schema.json"
     },
     "process_events": {
       "$defs": {
@@ -6280,7 +6585,7 @@
       },
       "title": "ScientificProcessEventsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.40/process_events.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.41/process_events.schema.json"
     }
   },
   "entities": {
@@ -7237,6 +7542,23 @@
           ],
           "default": null,
           "title": "Field Device Other Name"
+        },
+        "field_device_other_names": {
+          "anyOf": [
+            {
+              "items": {
+                "minLength": 1,
+                "pattern": "\\S",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field Device Other Names"
         },
         "setup_diagram": {
           "anyOf": [

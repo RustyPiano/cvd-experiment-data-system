@@ -5,9 +5,9 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v4.0-alpha.40
+  version: v4.0-alpha.41
   status: INTERNAL_VALIDATION
-  updated: '2026-09-04'
+  updated: '2026-09-09'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
@@ -1168,6 +1168,7 @@ option_labels_en:
   合金: Alloy
   垂直异质结: Vertical heterostructure
   横向异质结: Lateral heterostructure
+  横向拼接: Lateral junction
   未指定: Not specified
   连续膜: Continuous film
   分立片状晶体/晶畴: Isolated planar crystal/domain
@@ -1255,6 +1256,7 @@ option_labels_en:
   氮气吹干: Nitrogen blow-drying
   等离子体: Plasma treatment
   紫外/臭氧处理: UV/ozone treatment
+  紫外臭氧联合处理: UV–ozone treatment
   有批号: Lot number provided
   未提供批号: Lot number not provided
   超声: Ultrasonic cleaning
@@ -1382,6 +1384,7 @@ option_codes:
   合金: alloy
   垂直异质结: vertical_heterostructure
   横向异质结: lateral_heterostructure
+  横向拼接: lateral_junction
   连续膜: continuous_film
   纳米片(flake): nanoflake
   纳米带: nanoribbon
@@ -1451,6 +1454,7 @@ option_codes:
   溶剂清洗: solvent_cleaning
   氮气吹干: nitrogen_dry
   等离子体: plasma_treatment
+  紫外臭氧联合处理: uv_ozone_treatment
   紫外/臭氧处理: uv_ozone_treatment
   有批号: batch_number_reported
   未提供批号: batch_number_not_provided
@@ -1579,7 +1583,13 @@ option_codes:
   wt%: wt_percent
   vol%: vol_percent
 field_option_codes:
+  film_form:
+    分立片状: discrete
+    连续膜: continuous
   dimensional_form:
+    片/膜状: planar
+    颗粒状: particle
+    块状: bulk_crystal
     连续膜: continuous_film
     分立片状晶体/晶畴: discrete_planar_crystal
     带状: ribbon
@@ -1590,6 +1600,8 @@ field_option_codes:
     块状晶体: bulk_crystal
     其他: other
   in_plane_outline:
+    其他多边形: other_regular_polygon
+    枝晶状: dendritic_fractal
     三角形: triangle
     截角三角形: truncated_triangle
     六边形: hexagon
@@ -1802,7 +1814,7 @@ experiment_record:
       note: 实测时保存数值与时刻；未测量不伪造数值
       r0: true
     - module: 基本信息
-      label: 环境湿度
+      label: 环境相对湿度
       label_en: Ambient relative humidity
       key: ambient_humidity
       meaning: 实验间相对湿度及其测量来源；未测量时显式记为not_measured
@@ -1866,12 +1878,12 @@ experiment_record:
       note: 化学式在每个材料区域中保存；复合结构不再伪造一个合并化学式
       r0: true
     - module: 目标产物
-      label: 结构架构
+      label: 结构形式
       label_en: Architecture type
       key: architecture_type
       meaning: 目标材料区域的空间组织方式
       input: 下拉
-      options: 单一区域/垂直堆叠/横向结/混合架构
+      options: 单一区域/垂直堆叠/横向拼接/混合架构
       unit: —
       requirement:
         raw: 必填
@@ -1893,7 +1905,7 @@ experiment_record:
         level: optional
       example: '{relation_type: doped_by, host_region_key: main, species: Nb, value_basis: unspecified}'
       source: 科学修订契约
-      note: 成分关系与空间架构正交；不再将掺杂或合金写成结构类型
+      note: 各区域独立记录合金组分及掺杂，合金与掺杂可同时存在；区域排列、组成、晶相、层数独立；不按化学式自动判定同质或异质结
       r0: true
     - module: 目标产物
       label: 目标层数
@@ -1920,7 +1932,7 @@ experiment_record:
       label: 目标体相空间群
       label_en: Target bulk space group
       key: target_bulk_space_group_number
-      meaning: 非异质结构目标材料的晶体对称性：International Tables 空间群号（1–230）；异质结构改在每层或区域填写
+      meaning: 各目标材料区域所选结构的参考体相空间群：International Tables 空间群号（1–230）
       ui:
         visibility_gated: true
       input: 数值
@@ -1931,41 +1943,83 @@ experiment_record:
         level: recommended
       example: '194'
       source: 复审
-      note: 本征、掺杂、合金和其他结构推荐填写；垂直或横向异质结构在组成明细逐层或逐区域填写；常见体相候选仅作快速录入，不自动判定物相
+      note: 各区域独立选填参考体相空间群；主标签保留目标晶体结构；常见体相候选仅作快速录入，不自动判定实测物相或单层实际对称性
       placeholder: 搜索编号或符号，例如 194 或 P6₃/mmc
       placeholder_en: Search by number or symbol, e.g. 194 or P6₃/mmc
       help: 输入化学式后，先从常见物相中选择；没有合适候选时，可搜索全部空间群编号或符号。
       help_en: After entering the formula, choose a common phase first. If none fits, search all space-group numbers or symbols.
     - module: 目标产物
-      label: 目标产物形态
+      label: 目标几何形态
       label_en: Target product form
       key: dimensional_form
-      meaning: 实验前希望制备出的主要宏观形态；连续膜与分立片状晶体作为互斥的目标产物形式
+      meaning: 实验前希望获得的几何形态；片/膜状的连接状态由目标成膜形式单独记录
       input: 下拉
-      options: 连续膜·分立片状晶体/晶畴·带状·线状·管状·棒状·颗粒·块状晶体·其他
+      options: 片/膜状·带状·线状·管状·棒状·颗粒状·块状·其他
       unit: —
       requirement:
         raw: 选填
         level: optional
-      example: 分立片状晶体/晶畴
+      example: 片/膜状
       source: 2026-09-03用户目标材料复核
       note: 只记实验前可设定的目标形态，不记未知的覆盖率或实测覆盖状态；不作R0必填
     - module: 目标产物
       label: 目标平面轮廓
       label_en: Target in-plane outline
       key: in_plane_outline
-      meaning: 分立片状晶体或晶畴的目标平面几何轮廓
+      meaning: 分立片状产物的目标平面几何轮廓
       ui:
         visibility_gated: true
       input: 下拉
-      options: 三角形·截角三角形·六边形·四边形（矩形/平行四边形/菱形）·其他规则多边形·圆形/椭圆形·星形/多裂片状·枝晶状/分形·不规则·其他
+      options: 三角形·截角三角形·六边形·四边形（矩形/平行四边形/菱形）·其他多边形·圆形/椭圆形·星形/多裂片状·枝晶状·不规则·其他
       unit: —
       requirement:
         raw: 选填
         level: optional
       example: 三角形
       source: 2026-09-03用户目标材料复核
-      note: 仅当目标产物形态=分立片状晶体/晶畴时显示；连续膜不要求预设晶畴轮廓
+      note: 片/膜状且目标成膜形式为分立片状时显示；连续膜不要求预设晶畴轮廓。旧 continuous_film/discrete_planar_crystal 读取兼容，旧轮廓编码保留
+    - module: 目标产物
+      label: 目标成膜形式
+      label_en: Target film form
+      key: film_form
+      meaning: 仅片/膜状适用；分立片状与连续膜，未指定可留空
+      input: 下拉
+      options: 分立片状·连续膜
+      unit: —
+      requirement:
+        raw: 条件选填；随目标形态展开
+        level: optional
+      example: —
+      source: 2026-09-09用户制备字段复核
+      note: 目标与实测分开；旧不可变记录不回填推断值
+    - module: 目标产物
+      label: 其他目标形态
+      label_en: Other target form
+      key: dimensional_form_other
+      meaning: 目标几何形态为其他时填写名称
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件选填；随目标形态展开
+        level: optional
+      example: —
+      source: 2026-09-09用户制备字段复核
+      note: 目标与实测分开；旧不可变记录不回填推断值
+    - module: 目标产物
+      label: 其他目标轮廓
+      label_en: Other target outline
+      key: in_plane_outline_other
+      meaning: 目标平面轮廓为其他或其他多边形时填写名称
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件选填；随目标形态展开
+        level: optional
+      example: —
+      source: 2026-09-09用户制备字段复核
+      note: 目标与实测分开；旧不可变记录不回填推断值
     - module: 目标产物
       label: 实验目标
       label_en: Target performance
@@ -2120,7 +2174,7 @@ experiment_record:
       source: 2026-07-28用户逐项复核
       note: 由所引用Setup版本只读带出
     - module: 设备
-      label: 壁型
+      label: 反应器类型（热壁/冷壁）
       label_en: Furnace wall type
       key: wall_type
       meaning: 热壁炉还是冷壁炉（影响生长机理）
@@ -2224,7 +2278,7 @@ experiment_record:
       note: 实验中不重复填写，由Setup版本快照冻结
       r0: true
     - module: 设备
-      label: 外场能力
+      label: 装置附加能力
       label_en: External field capabilities
       key: field_devices
       meaning: 所引用装置是否具备等离子体、光、电场或其他外场能力；本炉实际使用情况在反应条件中记录
@@ -2238,7 +2292,7 @@ experiment_record:
       source: 2026-07-24导师走查
       note: 只读投影；不得当成本炉实际使用记录
     - module: 设备
-      label: 其他外场能力名称
+      label: 其他附加能力名称（历史）
       label_en: Other external-field capability name
       key: field_device_other_name
       meaning: 所引用装置登记的其他外场能力名称，只读带出
@@ -2246,15 +2300,29 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 条件必填(装置外场能力含其他)
-        level: conditional_required
+        raw: 历史单名称兼容
+        level: optional
         condition:
-          field: 设备.外场能力
+          field: 设备.装置附加能力
           op: eq
           value: 其他
       example: 磁场
       source: 2026-09-03用户在线复核
       note: 只读投影；实际使用时仍需记录时间区间和具名参数
+    - module: 设备
+      label: 其他附加能力
+      label_en: Other additional capabilities
+      key: field_device_other_names
+      meaning: 装置具备的其他附加能力，每项独立具名；不局限于物理场
+      input: 文本数组
+      options: —
+      unit: —
+      requirement:
+        raw: 选择其他时必填；旧单名称兼容
+        level: optional
+      example: '[磁场, 机械振动]'
+      source: 2026-09-09用户制备字段复核
+      note: 名称非空且不重复；无与所有能力互斥。生长条件中按名称分别引用并记录时间与参数
     - module: 设备
       label: 装置示意图与描述
       label_en: Setup diagram and description
@@ -2347,10 +2415,10 @@ experiment_record:
       note: 用户选择批次时由系统自动带入
       r0: true
     - module: 前驱体
-      label: 使用量
+      label: 实际物料用量
       label_en: Amount used
       key: amount
-      meaning: 本次投料量；滴涂记录滴加体积，不代表干燥后负载量
+      meaning: 本次投料量；溶液滴涂/旋涂在各处理步骤填写实际溶液用量，同一份混合溶液的体积只记录一次；旧物料条目用量兼容，不代表干燥后负载量
       input: 数值
       ui:
         visibility_gated: true
@@ -2388,7 +2456,7 @@ experiment_record:
       source: 科学修订契约
       note: 数值和单位成对填写；仅浸渍不要求用量；滴涂限体积单位；气路供给的量由过程流量通道表达
     - module: 前驱体
-      label: 溶液浓度
+      label: 该组分在溶液中的浓度
       label_en: Solution concentration
       key: concentration_value
       meaning: 本次旋涂、滴涂或浸渍所用该物料的溶液浓度
@@ -2468,7 +2536,7 @@ experiment_record:
         level: optional
       example: '[{type: 旋涂, parameters: {stages: [{speed_rpm: 1000, duration_s: 10}, {speed_rpm: 6000, duration_s: 30}]}}]'
       source: 2026-07-24导师走查·2026-07-28前驱体复核
-      note: 舟和坩埚可选直接加载/研磨/压片/熔融/干燥/其他；衬底可选直接加载/旋涂/滴涂/浸渍/干燥/其他；气路供给不显示；其他装载仅具名处理。有序可重复，直接加载互斥；滴涂记录溶剂、物料浓度与滴加体积，浸渍记录溶剂、物料浓度与浸渍时长；干燥记录温度和时长；熔融记录温度及选填时长。旧混合/预退火读取为具名其他，保留原参数，不修改历史原文
+      note: 舟和坩埚可选直接加载/研磨/压片/熔融/干燥/其他；衬底可选直接加载/旋涂/滴涂/浸渍/干燥/其他；气路供给不显示；其他装载仅具名处理。有序可重复，直接加载互斥；滴涂/旋涂每个处理步骤记录实际溶液用量solution_volume_uL，单位μL；同一装载记录为一份配方，各组分分别记录浓度，不重复计算溶液体积；不同配方分装载记录。滴涂记录溶剂、物料浓度与实际溶液用量，浸渍记录溶剂、物料浓度与浸渍时长；干燥记录温度和时长；熔融记录温度及选填时长。旧混合/预退火读取为具名其他，保留原参数，不修改历史原文
     - module: 前驱体
       label: 装载方式
       label_en: Loading arrangement
@@ -2799,14 +2867,14 @@ experiment_record:
       key: pretreatment_steps
       meaning: 预处理步骤序列（记顺序，展开参数）
       input: 衬底预处理步骤数组
-      options: '{type: 溶剂清洗|氮气吹干|退火|等离子体|紫外/臭氧处理|其他, other_name?, parameters: 溶剂清洗[solvent: 丙酮|异丙醇|乙醇|甲醇|去离子水|其他, solvent_other?, cleaning_method: 超声|浸泡|冲洗|擦拭|其他, cleaning_method_other?, duration_min?]；紫外/臭氧处理[duration_min]；其余为对应参数对象}'
+      options: '{type: 溶剂清洗|氮气吹干|退火|等离子体|紫外臭氧联合处理|其他, other_name?, parameters: 溶剂清洗[solvent: 丙酮|异丙醇|乙醇|甲醇|去离子水|其他, solvent_other?, cleaning_method: 超声|浸泡|冲洗|擦拭|其他, cleaning_method_other?, duration_min?, temperature_C?, wiping_material?, equipment_name?, ultrasonic_frequency_kHz?, ultrasonic_power_W?]；紫外臭氧联合处理[duration_min, mode?, equipment_name?, source_distance_mm?, atmosphere?, temperature_C?, wavelength_nm?, irradiance_mW_cm2?, ozone_concentration_ppm?, gas_flow_sccm?]；其余为对应参数对象}'
       unit: —
       requirement:
         raw: 推荐
         level: recommended
       example: '[{type: 溶剂清洗, parameters: {solvent: 丙酮, cleaning_method: 超声, duration_min: 10}}, {type: 溶剂清洗, parameters: {solvent: 异丙醇, cleaning_method: 冲洗}}, {type: 氮气吹干}]'
       source: 2026-07-24导师走查
-      note: 有序可重复且每步只记录一种溶剂；连续使用多种溶剂应拆成多步。溶剂清洗选择超声或浸泡时duration_min必填，冲洗或擦拭时选填；紫外/臭氧处理duration_min必填；等离子体展开power_W、gas_species、pressure_Pa和duration_min；其他步骤必须具名并至少填写一个参数
+      note: 有序可重复且每步只记录一种溶剂；连续使用多种溶剂应拆成多步。溶剂清洗选择超声或浸泡时duration_min必填，冲洗或擦拭时选填；紫外臭氧联合处理duration_min必填，模式可明确为联合/仅紫外/仅臭氧；其余参数按实际设置或资料选填，擦拭材料仅擦拭适用，超声频率/功率仅超声适用；等离子体展开power_W、gas_species、pressure_Pa和duration_min；其他步骤必须具名并至少填写一个参数
     - module: 衬底
       label: 预处理后等待时间
       label_en: Wait time after pretreatment
@@ -3222,20 +3290,20 @@ experiment_record:
       source: 2026-07-24导师走查
       note: method=开盖冷却时开盖温度必填；method=受控降温时降温速率必填；method=其他时method_other必填
     - module: 步·外场
-      label: 实际外场程序
-      label_en: Applied external-field program
+      label: 附加能力使用记录
+      label_en: Additional capability use
       key: field_params
       group: current
       meaning: 本炉实际启用的外场、时间区间与按类型展开的参数
       input: 实际外场数组
-      options: '{field_type: 等离子体|光|电|其他, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；其他[至少一个具名参数]；other_parameters?}'
+      options: '{field_type: 等离子体|光|电|其他, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；其他[capability_name, 至少一个具名参数]；other_parameters?}'
       unit: 按参数
       requirement:
         raw: 选填
         level: optional
       example: '[{field_type: 等离子体, start_min: 10, end_min: 40, parameters: [{name: power_W, value: 50, unit: W}, {name: gas_species, value: Ar, unit: —}, {name: pressure_Pa, value: 50, unit: Pa}]}]'
       source: 2026-07-24导师走查
-      note: 未添加表示本炉未使用外场；添加后field_type必须属于Setup能力，并填写时间区间及对应类型的必要参数；其他外场名称由Setup版本快照带出
+      note: 未添加表示本炉未使用外场；添加后field_type必须属于Setup能力，并填写时间区间及对应类型的必要参数；自定义能力名称须来自Setup版本快照列表；旧单名称兼容，不按标点猜拆
     - module: 过程步
       label: 其他记录名称
       label_en: Other record name
@@ -4574,7 +4642,7 @@ entities:
       source: 会议·用户复核2026-07-24
       note: 选择材质与截面后必须按形状完整填写；圆形填外径+壁厚，方形填外边长+壁厚，矩形填外宽+外高+壁厚，其他截面填写具名尺寸说明
     - module: 装置Setup
-      label: 壁型
+      label: 反应器类型（热壁/冷壁）
       label_en: Wall type
       key: wall_type
       meaning: 热壁/冷壁
@@ -4602,7 +4670,7 @@ entities:
       source: 2026-07-24导师走查
       note: 服务端写入固定机器码，管理员和成员均不可编辑
     - module: 装置Setup
-      label: 外场能力
+      label: 装置附加能力
       label_en: External field capabilities
       key: field_devices
       storage: attrs
@@ -4617,7 +4685,7 @@ entities:
       source: 2026-07-24导师走查
       note: 这里只登记能力；每炉实际使用情况在反应条件中记录
     - module: 装置Setup
-      label: 其他外场能力名称
+      label: 其他附加能力名称（历史）
       label_en: Other external-field capability name
       key: field_device_other_name
       storage: attrs
@@ -4626,10 +4694,10 @@ entities:
       options: —
       unit: —
       requirement:
-        raw: 条件必填(外场能力含其他)
-        level: conditional_required
+        raw: 历史单名称兼容
+        level: optional
         condition:
-          field: 装置Setup.外场能力
+          field: 装置Setup.装置附加能力
           op: eq
           value: 其他
       example: 磁场
@@ -4637,6 +4705,21 @@ entities:
       note: 一个装置版本登记一个其他外场名称；不同能力需要分别登记时再扩展为结构化列表
       placeholder: 例如 磁场
       placeholder_en: e.g. magnetic field
+    - module: 装置Setup
+      label: 其他附加能力
+      label_en: Other additional capabilities
+      key: field_device_other_names
+      storage: attrs
+      meaning: 装置具备的其他附加能力，每项独立具名；不局限于物理场
+      input: 文本数组
+      options: —
+      unit: —
+      requirement:
+        raw: 选择其他时必填；旧单名称兼容
+        level: optional
+      example: '[磁场, 机械振动]'
+      source: 2026-09-09用户制备字段复核
+      note: 名称非空且不重复；无与所有能力互斥。生长条件中按名称分别引用并记录时间与参数
     - module: 装置Setup
       label: 装置示意图与描述
       label_en: Setup diagram and description
@@ -4822,6 +4905,10 @@ changelog:
   - 改动
   - 类型
   rows:
+  - - v4.0-alpha.41
+    - 制备目标、附加能力与溶液/衬底处理
+    - 目标按区域独立组成、掺杂、晶相和层数；几何形态与成膜形式分开；附加能力逐项具名并引用到使用参数；溶液用量按处理步骤记录一次，衬底补适用的可选参数。实验字段125、实体字段63；新增20260909_0016仅增形态投影列，旧载荷保留。
+    - 用户确认
   - - v4.0-alpha.40
     - 制备实验记录文案
     - 删除重复提示，统一处理方式、外场和放置名称；明确设定温度与CSV时间原点，区分未选批次和批次未记录，按实际错误提示。仅调整界面文案，保留字段、校验规则和历史数据。

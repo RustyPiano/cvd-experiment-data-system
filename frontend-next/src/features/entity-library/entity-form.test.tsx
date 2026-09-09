@@ -814,3 +814,36 @@ describe('EntityForm — first-class entity attachments', () => {
     )
   })
 })
+
+describe('additional capability names', () => {
+  it('edits several names in the capability group and omits them when none is selected', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    renderForm({
+      kind: 'setup',
+      onSubmit,
+      defaultData: {
+        ...oneZoneSetupData,
+        field_devices: ['other'],
+        field_device_other_name: '磁场',
+      },
+    })
+    expect(screen.getByLabelText(/能力名称 1/)).toHaveValue('磁场')
+    await user.click(screen.getByRole('button', { name: '添加一项能力' }))
+    await user.type(screen.getByLabelText(/能力名称 2/), '机械振动')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      field_device_other_names: ['磁场', '机械振动'],
+    })
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty(
+      'field_device_other_name',
+    )
+    await user.click(screen.getByRole('checkbox', { name: /^无$/ }))
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2))
+    expect(onSubmit.mock.calls[1][0]).not.toHaveProperty(
+      'field_device_other_names',
+    )
+  })
+})

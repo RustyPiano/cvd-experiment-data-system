@@ -306,6 +306,7 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
 
 export interface ActualField {
   field_type: ActualFieldType | ''
+  capability_name?: string | null
   start_min: number | null
   end_min: number | null
   parameters: NamedProcessParameter[]
@@ -331,6 +332,7 @@ export interface FieldParamsEditorProps {
   value: ActualField[]
   onChange: (value: ActualField[]) => void
   allowedTypes?: readonly ActualFieldType[]
+  otherCapabilityNames?: string[]
   disabled?: boolean
   showErrors?: boolean
   labels: FieldParamsEditorLabels
@@ -1565,11 +1567,18 @@ function ExplicitFieldParameters({
 export function fieldParamsAreValid(
   value: ActualField[],
   allowedTypes: readonly ActualFieldType[] = actualFieldTypes,
+  otherCapabilityNames?: string[],
 ): boolean {
   const allowed = new Set(allowedTypes)
   return value.every(
     (field) =>
       Boolean(field.field_type && allowed.has(field.field_type)) &&
+      (field.field_type !== 'other'
+        ? !field.capability_name
+        : otherCapabilityNames === undefined ||
+          (field.capability_name
+            ? otherCapabilityNames.includes(field.capability_name)
+            : otherCapabilityNames.length === 1)) &&
       isFiniteNumber(field.start_min) &&
       field.start_min >= 0 &&
       isFiniteNumber(field.end_min) &&
@@ -1583,6 +1592,7 @@ export function FieldParamsEditor({
   value,
   onChange,
   allowedTypes = actualFieldTypes,
+  otherCapabilityNames,
   disabled,
   showErrors,
   labels,
@@ -1606,7 +1616,11 @@ export function FieldParamsEditor({
                 {labels.fieldType}
               </Label>
               <Select
-                value={field.field_type}
+                value={
+                  field.field_type === 'other' && otherCapabilityNames?.length
+                    ? `other:${field.capability_name ?? (otherCapabilityNames.length === 1 ? otherCapabilityNames[0] : '')}`
+                    : field.field_type
+                }
                 disabled={disabled}
                 onValueChange={(fieldType) =>
                   onChange(
@@ -1614,7 +1628,12 @@ export function FieldParamsEditor({
                       position === index
                         ? {
                             ...item,
-                            field_type: fieldType as ActualFieldType,
+                            field_type: (fieldType.startsWith('other:')
+                              ? 'other'
+                              : fieldType) as ActualFieldType,
+                            capability_name: fieldType.startsWith('other:')
+                              ? fieldType.slice(6)
+                              : undefined,
                             parameters: [],
                           }
                         : item,
@@ -1631,11 +1650,22 @@ export function FieldParamsEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {allowedTypes.map((fieldType) => (
-                      <SelectItem key={fieldType} value={fieldType}>
-                        {labels.fieldTypes[fieldType]}
-                      </SelectItem>
-                    ))}
+                    {allowedTypes.flatMap((fieldType) =>
+                      fieldType === 'other' && otherCapabilityNames?.length
+                        ? otherCapabilityNames.map((name) => (
+                            <SelectItem
+                              key={`other:${name}`}
+                              value={`other:${name}`}
+                            >
+                              {name}
+                            </SelectItem>
+                          ))
+                        : [
+                            <SelectItem key={fieldType} value={fieldType}>
+                              {labels.fieldTypes[fieldType]}
+                            </SelectItem>,
+                          ],
+                    )}
                   </SelectGroup>
                 </SelectContent>
               </Select>

@@ -134,19 +134,21 @@ describe('simple target phase editing', () => {
     }
     render(<Wrapper />)
 
-    expect(screen.getByText(/目标材料体系/)).toBeInTheDocument()
+    expect(screen.getByText(/结构形式/)).toBeInTheDocument()
     expect(
-      screen.getByRole('combobox', { name: '目标材料体系' }),
+      screen.getByRole('combobox', { name: '结构形式' }),
     ).toBeInTheDocument()
     expect(screen.queryByText('补充目标信息')).not.toBeInTheDocument()
     expect(screen.getByText('目标层数')).toBeInTheDocument()
-    expect(screen.getByText('目标产物形态')).toBeInTheDocument()
+    expect(screen.getByText('目标几何形态')).toBeInTheDocument()
     expect(screen.queryByText('目标覆盖状态')).not.toBeInTheDocument()
     expect(screen.queryByText('目标平面轮廓')).not.toBeInTheDocument()
     expect(screen.queryByText('目标生长取向')).not.toBeInTheDocument()
     expect(screen.getByText('实验目标')).toBeInTheDocument()
     expect(screen.getByText('补充说明')).toBeInTheDocument()
-    expect(document.querySelectorAll('.text-destructive')).toHaveLength(2)
+    expect(
+      screen.getByRole('combobox', { name: '组成填写方式' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('目标晶体结构')).toBeInTheDocument()
     expect(document.querySelector('details')).toBeNull()
 
@@ -189,7 +191,7 @@ describe('simple target phase editing', () => {
 
     expect(screen.getAllByText('材料化学式')).toHaveLength(2)
     expect(screen.getAllByText('目标摩尔分数')).toHaveLength(2)
-    expect(screen.getByText('Mo₀.₅W₀.₅S₂')).toBeInTheDocument()
+    expect(screen.getByText('目标化学式：Mo₀.₅W₀.₅S₂')).toBeInTheDocument()
     expect(screen.queryByText('被取代元素')).not.toBeInTheDocument()
     expect(screen.queryByText('取代元素')).not.toBeInTheDocument()
   })
@@ -222,7 +224,7 @@ describe('simple target phase editing', () => {
 
     expect(screen.getByText('目标平面轮廓')).toBeInTheDocument()
     expect(screen.queryByText('目标覆盖状态')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('combobox', { name: '目标产物形态' }))
+    await user.click(screen.getByRole('combobox', { name: '目标几何形态' }))
     await user.click(screen.getByRole('option', { name: '管状' }))
 
     expect(onChange).toHaveBeenLastCalledWith(
@@ -264,7 +266,7 @@ describe('simple target phase editing', () => {
     )
 
     expect(screen.getByText('目标层数')).toBeInTheDocument()
-    await user.click(screen.getByRole('combobox', { name: '目标位点' }))
+    await user.click(screen.getByRole('combobox', { name: '目标掺杂位点' }))
 
     expect(screen.getByText('取代位点')).toBeInTheDocument()
     expect(screen.getByText('非取代位点')).toBeInTheDocument()
@@ -567,19 +569,19 @@ describe('simple precursor position editing', () => {
     ).not.toBeInTheDocument()
     await user.click(screen.getByRole('option', { name: '滴涂' }))
     await user.type(screen.getByRole('textbox', { name: /^溶剂/ }), '水')
-    expect(screen.getByText('滴加体积')).toBeInTheDocument()
-    await user.type(screen.getByLabelText(/^溶液浓度/), '0.1')
+    expect(screen.getByLabelText(/^实际溶液用量/)).toBeInTheDocument()
+    await user.type(screen.getByLabelText(/^该组分在溶液中的浓度/), '0.1')
     await user.click(screen.getByRole('combobox', { name: /^浓度单位/ }))
     await user.click(screen.getByRole('option', { name: 'mol/L' }))
-    await user.type(screen.getByRole('spinbutton', { name: '' }), '20')
-    await user.type(screen.getByLabelText(/^单位/), 'μL')
+    await user.type(screen.getByLabelText(/^实际溶液用量/), '20')
     let load = JSON.parse(
       screen.getByTestId('coating-loads').textContent ?? '',
     )[0] as SimpleSourceLoad
     expect(
-      sourceLoadIngredientsAreValid(load.ingredients, true, true, true, true),
+      sourceLoadIngredientsAreValid(load.ingredients, true, false, true, false),
     ).toBe(true)
-    expect(load.ingredients[0].amount).toBe(20)
+    expect(load.ingredients[0].amount).toBeUndefined()
+    expect(load.preparation_steps[0].parameters.solution_volume_uL).toBe(20)
     await user.click(screen.getByRole('combobox', { name: /^处理方式/ }))
     await user.click(screen.getByRole('option', { name: '浸渍' }))
     await user.type(screen.getByRole('textbox', { name: /^溶剂/ }), '水')
@@ -901,7 +903,10 @@ describe('simple precursor position editing', () => {
     }
     render(<Wrapper />)
 
-    await user.type(screen.getByRole('spinbutton', { name: '溶液浓度' }), '0.5')
+    await user.type(
+      screen.getByRole('spinbutton', { name: '该组分在溶液中的浓度' }),
+      '0.5',
+    )
     expect(screen.getByText('填写浓度后，请选择单位。')).toBeInTheDocument()
     await user.click(screen.getByRole('combobox', { name: /浓度单位/ }))
     await user.click(screen.getByRole('option', { name: 'mol/L' }))
@@ -1021,6 +1026,54 @@ describe('simple substrate validation', () => {
         2,
       ),
     ).toBe(false)
+  })
+
+  it('shows angle examples only for tilted placement without filling in example values', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    function Editor() {
+      const [substrates, setSubstrates] = useState([substrate])
+      return (
+        <SimpleSubstratesEditor
+          substrates={substrates}
+          placementRelations={[]}
+          zoneCount={1}
+          disabled={false}
+          onChange={(next) => {
+            onChange(next)
+            setSubstrates(next as typeof substrates)
+          }}
+          onPlacementRelationsChange={vi.fn()}
+        />
+      )
+    }
+    render(<Editor />)
+    expect(screen.queryByText('角度示意')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('combobox', { name: /放置方式/ }))
+    await user.click(screen.getByRole('option', { name: '倾斜' }))
+    expect(screen.getByText('角度示意').closest('details')).toHaveAttribute(
+      'open',
+    )
+    expect(screen.getByRole('img', { name: /^倾角示例/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /^方位角示例/ })).toBeInTheDocument()
+    const tilt = screen.getByRole('spinbutton', { name: /倾角 α/ })
+    const azimuth = screen.getByRole('spinbutton', { name: /方位角 φ/ })
+    expect(tilt).toHaveValue(null)
+    expect(azimuth).toHaveValue(null)
+    fireEvent.change(tilt, { target: { value: '-30' } })
+    fireEvent.change(azimuth, { target: { value: '0' } })
+    expect(
+      JSON.parse(onChange.mock.lastCall![0][0].size_placement),
+    ).toMatchObject({
+      tilt_angle_deg: -30,
+      tilt_azimuth_deg: 0,
+    })
+    await user.click(screen.getByRole('combobox', { name: /放置方式/ }))
+    await user.click(screen.getByRole('option', { name: '生长面朝上（平放）' }))
+    expect(screen.queryByText('角度示意')).not.toBeInTheDocument()
+    const placement = JSON.parse(onChange.mock.lastCall![0][0].size_placement)
+    expect(placement).not.toHaveProperty('tilt_angle_deg')
+    expect(placement).not.toHaveProperty('tilt_azimuth_deg')
   })
 
   it('requires a thermocouple reference and rejects invalid tilt boundaries', () => {
@@ -1527,5 +1580,77 @@ describe('simple growth preparation editing', () => {
         ],
       }),
     )
+  })
+})
+
+describe('regional target composition', () => {
+  it('keeps alloy components and another region while adding a dopant and changing layer count', async () => {
+    const user = userEvent.setup()
+    const initial: SimpleTarget = {
+      architecture_type: 'lateral_junction',
+      material_regions: [
+        {
+          region_key: 'a',
+          formula: 'Mo0.5W0.5S2',
+          spatial_role: 'lateral_region',
+          lateral_region: 'A',
+          target_layer_count: 1,
+        },
+        {
+          region_key: 'b',
+          formula: 'MoTe2',
+          spatial_role: 'lateral_region',
+          lateral_region: 'B',
+          target_layer_count: 2,
+        },
+      ],
+      composition_relations: ['MoS2', 'WS2'].map((species) => ({
+        relation_type: 'solid_solution_component',
+        host_region_key: 'a',
+        species,
+        nominal_value: 0.5,
+        value_basis: 'mol_fraction',
+      })),
+    }
+    function Wrapper() {
+      const [target, setTarget] = useState(initial)
+      return (
+        <I18nextProvider i18n={i18n}>
+          <SimpleTargetEditor
+            target={target}
+            onChange={setTarget}
+            disabled={false}
+          />
+          <output data-testid="regional-target">
+            {JSON.stringify(target)}
+          </output>
+        </I18nextProvider>
+      )
+    }
+    render(<Wrapper />)
+    await user.click(
+      screen.getAllByRole('checkbox', { name: '填写掺杂目标' })[0],
+    )
+    await user.type(screen.getByLabelText(/掺杂元素/), 'Nb')
+    fireEvent.change(
+      screen.getAllByRole('spinbutton', { name: '目标层数' })[1],
+      { target: { value: '3' } },
+    )
+    const target = JSON.parse(
+      screen.getByTestId('regional-target').textContent ?? '',
+    ) as SimpleTarget
+    expect(target.composition_relations).toHaveLength(3)
+    expect(target.composition_relations[2]).toMatchObject({
+      host_region_key: 'a',
+      relation_type: 'doped_by',
+      species: 'Nb',
+    })
+    expect(
+      target.material_regions.map((region) => region.target_layer_count),
+    ).toEqual([1, 3])
+    expect(target.material_regions.map((region) => region.formula)).toEqual([
+      'Mo0.5W0.5S2',
+      'MoTe2',
+    ])
   })
 })

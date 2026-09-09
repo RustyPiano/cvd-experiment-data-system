@@ -21,6 +21,7 @@ from app.services.v2_entity_snapshot_service import (
 from app.services.v2_field_source import (
     RESULT_MODULE_KEYS,
     SCHEMA_VERSION,
+    additional_capability_is_available,
     canonical_option_value,
     condition_local_key,
     condition_matches,
@@ -1005,21 +1006,8 @@ def _process_semantic_checks(
     )
 
     setup_attrs = (run.setup_ref_snapshot_json or {}).get("attrs_snapshot") or {}
-    raw_devices = setup_attrs.get("field_devices")
-    configured_devices = (
-        {
-            canonical_option_value(value, field_key="field_devices")
-            for value in raw_devices
-            if isinstance(value, str)
-        }
-        if isinstance(raw_devices, list)
-        else set()
-    )
-    configured_devices.discard("none")
     fields_valid = all(
-        canonical_option_value(field.get("field_type"), field_key="field_type")
-        in configured_devices
-        for field in actual_fields
+        additional_capability_is_available(field, setup_attrs) for field in actual_fields
     )
     checks.append(
         _semantic_item(

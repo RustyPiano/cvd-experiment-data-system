@@ -2,6 +2,25 @@
 // 字段标签（labelZh/labelEn）不放这里——它们由生成器⑤从 field-source.yaml 产出，
 // 见 src/shared/generated/field-metadata.ts。
 export const common = {
+  substrateAngleGuide: {
+    title: '角度示意',
+    sideTitle: '倾角 α · 侧视',
+    sideAlt:
+      '倾角示例：衬底与水平面夹角为 30°，蓝色生长面朝上，填写 +30°。垂直生长面向外的箭头为法向，虚线箭头为其水平投影。',
+    growthFace: '生长面',
+    substrate: '衬底',
+    horizontal: '水平面',
+    normal: '生长面法向',
+    normalTerm: '垂直生长面向外',
+    projection: '水平投影',
+    topTitle: '方位角 φ · 俯视',
+    topAlt:
+      '方位角示例：从上往下看，以下游为 0°，顺时针经过右侧 90°、上游 180°、左侧 270°。生长面法向的水平投影在下游顺时针 60° 方向，填写 60°。',
+    downstream: '下游 0°',
+    upstream: '上游 180°',
+    projectionLine1: '法向的',
+    projectionLine2: '水平投影',
+  },
   units: {
     按通道: '按通道',
   },
@@ -28,6 +47,8 @@ export const common = {
     greeting: '你好，世界',
   },
   validation: {
+    additionalCapabilityNames:
+      '请逐项填写能力名称（最多128字），名称不能重复。',
     required: '此项为必填',
     spaceGroupRange: '请输入 1–230 的整数',
     finiteNumber: '请输入有效数值',
@@ -144,6 +165,10 @@ export const common = {
         other: '其他',
       },
       options: {
+        uv_ozone: '紫外臭氧联合',
+        uv_only: '仅紫外',
+        ozone_only: '仅臭氧',
+
         acetone: '丙酮',
         isopropanol: '异丙醇',
         ethanol: '乙醇',
@@ -171,9 +196,22 @@ export const common = {
         solvent_cleaning: '溶剂清洗',
         nitrogen_dry: '氮气吹干',
         plasma_treatment: '等离子体处理',
-        uv_ozone_treatment: '紫外/臭氧处理',
+        uv_ozone_treatment: '紫外臭氧联合处理',
       },
       fields: {
+        mode: '处理模式',
+        equipment_name: '设备或程序标识',
+        wiping_material: '擦拭材料',
+        ultrasonic_frequency_kHz: '超声频率',
+        ultrasonic_power_W: '超声功率',
+        source_distance_mm: '样品到光源距离',
+        wavelength_nm: '波长',
+        irradiance_mW_cm2: '样品处辐照度',
+        ozone_concentration_ppm: '臭氧浓度',
+        gas_flow_sccm: '供气流量',
+        solution_volume_uL: '实际溶液用量',
+        bath_volume_mL: '浸渍液体积',
+
         temperature_C: '温度',
         duration_min: '时长',
         duration_s: '时长',
@@ -302,10 +340,10 @@ export const common = {
       clear: '清除降温参数',
     },
     fieldParams: {
-      addField: '新增实际外场',
-      field: '实际外场 {{position}}',
-      fieldType: '外场类型',
-      selectFieldType: '请选择外场类型',
+      addField: '添加使用记录',
+      field: '附加能力使用记录 {{position}}',
+      fieldType: '附加能力',
+      selectFieldType: '请选择附加能力',
       fieldTypes: {
         plasma: '等离子体',
         light: '光照',
@@ -314,12 +352,12 @@ export const common = {
       },
       startMinutes: '开始时间（min）',
       endMinutes: '结束时间（min）',
-      removeField: '删除实际外场',
+      removeField: '删除使用记录',
       parameterGroups: {
         plasma: '等离子体参数',
         light: '光照参数',
         electric_field: '电场参数',
-        other: '其他外场参数',
+        other: '附加能力参数',
       },
       explicitParameters: {
         plasmaPowerW: '功率（W）',
@@ -581,6 +619,10 @@ export const common = {
       emptyValue: '—',
     },
     form: {
+      capabilityName: '能力名称',
+      addCapability: '添加一项能力',
+      removeCapability: '移除能力 {{index}}',
+
       methodName: '方法名称',
       addMethod: '添加方法',
       removeMethod: '删除方法 {{index}}',

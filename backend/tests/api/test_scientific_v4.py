@@ -194,7 +194,7 @@ def test_target_planar_outline_requires_discrete_planar_crystal() -> None:
     assert TargetSpecPayload.model_validate(target).in_plane_outline == "triangle"
 
     target["dimensional_form"] = "continuous_film"
-    with pytest.raises(ValueError, match="requires discrete_planar_crystal"):
+    with pytest.raises(ValueError, match="requires a discrete planar target"):
         TargetSpecPayload.model_validate(target)
 
 
@@ -1348,7 +1348,12 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
 
     setup = client.post(
         "/api/v1/setups",
-        json=setup_payload(setup_code="SETUP-GOLDEN", zone_count=1),
+        json=setup_payload(
+            setup_code="SETUP-GOLDEN",
+            zone_count=1,
+            field_devices=["other"],
+            field_device_other_names=["磁场", "机械振动"],
+        ),
         headers=admin_headers,
     )
     assert setup.status_code == 201, setup.text
@@ -1466,6 +1471,45 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
             "growth_present",
         ),
         ("G5", single, "no_growth"),
+        (
+            "G6",
+            {
+                "architecture_type": "lateral_junction",
+                "material_regions": [
+                    {
+                        "region_key": "a",
+                        "formula": "MoTe2",
+                        "spatial_role": "lateral_region",
+                        "lateral_region": "A",
+                        "target_bulk_phase": "2H",
+                        "target_bulk_space_group_number": 194,
+                        "target_layer_count": 1,
+                    },
+                    {
+                        "region_key": "b",
+                        "formula": "MoTe2",
+                        "spatial_role": "lateral_region",
+                        "lateral_region": "B",
+                        "target_bulk_phase": "1T′",
+                        "target_bulk_space_group_number": 11,
+                        "target_layer_count": 2,
+                    },
+                ],
+                "composition_relations": [
+                    {
+                        "relation_type": "doped_by",
+                        "host_region_key": "b",
+                        "species": "Nb",
+                        "value_basis": "unspecified",
+                    }
+                ],
+                "dimensional_form": "planar",
+                "film_form": "discrete",
+                "in_plane_outline": "other_regular_polygon",
+                "in_plane_outline_other": "五边形",
+            },
+            "growth_present",
+        ),
     ]
 
     for index, (_case, target, expected_state) in enumerate(cases, start=1):
@@ -1540,6 +1584,18 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
             }
             source_load.pop("heating_zone_ref")
             source_load.pop("initial_position")
+            source_load["preparation_steps"] = [
+                {
+                    "sequence": 1,
+                    "step_type": "drop_cast",
+                    "parameters": {"solvent": "water", "solution_volume_uL": 20},
+                }
+            ]
+            source_load["ingredients"][0].pop("amount")
+            source_load["ingredients"][0].pop("unit")
+            source_load["ingredients"][0].update(
+                concentration_value=0.1, concentration_unit="mol_per_L"
+            )
         _put_module(
             headers,
             run_id,
@@ -1552,6 +1608,15 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
             "process_steps",
             {
                 "segments": [],
+                "field_params": [
+                    {
+                        "field_type": "other",
+                        "capability_name": "磁场",
+                        "start_min": 0,
+                        "end_min": 1,
+                        "parameters": [{"name": "磁感应强度", "value": 0.5, "unit": "T"}],
+                    }
+                ],
                 "channels": [
                     {
                         "channel_key": (
@@ -1611,6 +1676,13 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
         assert locked.status_code == 200, locked.text
         revision = db_session.get(RunRevision, UUID(locked.json()["current_revision_id"]))
         assert revision is not None
+        assert (
+            revision.content_json["modules"]["process_steps"]["field_params"][0]["capability_name"]
+            == "磁场"
+        )
+        projected = db_session.query(TargetSpec).filter_by(run_revision_id=revision.id).one()
+        assert projected.film_form == target.get("film_form")
+        assert projected.in_plane_outline_other == target.get("in_plane_outline_other")
         if index == 1:
             assert (
                 revision.content_json["modules"]["substrates"]["items"][0]["source_id"]
@@ -1654,3 +1726,25 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
         assert sample.status_code == 200, sample.text
         assert sample.json()["actual_state"] == "unknown"
         assert sample.json()["characterization_count"] == 1
+
+
+def test_additional_capability_names_round_trip_without_rewriting_versions(admin_user) -> None:
+    headers = _headers(admin_user.email)
+    payload = setup_payload(
+        setup_code="SETUP-CAPABILITIES", field_devices=["other"], field_device_other_name="磁场"
+    )
+    created = client.post("/api/v1/setups", headers=headers, json=payload)
+    assert created.status_code == 201, created.text
+    entity_id = created.json()["id"]
+    payload.pop("field_device_other_name")
+    payload["field_device_other_names"] = [" 磁场 ", "机械振动"]
+    updated = client.post(f"/api/v1/setups/{entity_id}/versions", headers=headers, json=payload)
+    assert updated.status_code == 201, updated.text
+    assert updated.json()["data"]["field_device_other_names"] == ["磁场", "机械振动"]
+    versions = client.get(f"/api/v1/setups/{entity_id}/versions", headers=headers)
+    old = next(item for item in versions.json()["items"] if item["version"] == 1)
+    assert old["data"]["field_device_other_name"] == "磁场"
+    assert old["data"] == created.json()["latest_version"]["data"]
+    payload["field_device_other_names"] = ["磁场", " 磁场 "]
+    invalid = client.post(f"/api/v1/setups/{entity_id}/versions", headers=headers, json=payload)
+    assert invalid.status_code == 422, invalid.text

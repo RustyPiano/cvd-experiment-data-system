@@ -267,52 +267,122 @@ function siteLabel(value: string | undefined): string {
 }
 
 export function targetSummary(target: TargetSummaryInput): string {
-  const regions = target.material_regions.filter((region) =>
+  const regions = [...target.material_regions].filter((region) =>
     region.formula.trim(),
   )
-  const relation = target.composition_relations[0]
-  if (target.architecture_type === 'vertical_stack') {
-    return [...regions]
-      .sort((a, b) => (a.layer_index ?? 0) - (b.layer_index ?? 0))
-      .map((region) =>
-        [
-          phaseFormula(region),
-          region.target_layer_count ? `（${region.target_layer_count}层）` : '',
-        ]
+  if (target.architecture_type === 'vertical_stack')
+    regions.sort((a, b) => (a.layer_index ?? 0) - (b.layer_index ?? 0))
+  const summaries = regions.map((region) => {
+    const dopants = target.composition_relations.filter(
+      (relation) =>
+        relation.host_region_key === region.region_key &&
+        relation.relation_type === 'doped_by',
+    )
+    if (dopants.length === 1) {
+      const dopant = dopants[0]
+      const amount =
+        dopant.nominal_value === undefined
+          ? ''
+          : `${dopant.value_basis === 'mol_fraction' ? dopant.nominal_value * 100 : dopant.nominal_value} ${dopant.value_basis === 'mol_fraction' ? 'mol.%' : 'at.%'}`
+      const detail = [amount, siteLabel(dopant.site_or_location)]
+        .filter(Boolean)
+        .join('；')
+      const body = `${dopant.species.trim()} 掺杂 ${phaseFormula(region)}${region.target_layer_count ? `（${region.target_layer_count}层）` : ''}`
+      return detail ? `${body}（${detail}）` : body
+    }
+    const details = dopants
+      .map((relation) => {
+        const value =
+          relation.nominal_value === undefined
+            ? ''
+            : `${relation.value_basis === 'mol_fraction' ? relation.nominal_value * 100 : relation.nominal_value} ${relation.value_basis === 'mol_fraction' ? 'mol.%' : 'at.%'}`
+        const detail = [value, siteLabel(relation.site_or_location)]
           .filter(Boolean)
-          .join(''),
-      )
+          .join('；')
+        return `${relation.species.trim()}${detail ? `（${detail}）` : ''}`
+      })
       .filter(Boolean)
-      .join(' / ')
-  }
-  if (target.architecture_type === 'lateral_junction') {
-    const body = regions.map(phaseFormula).filter(Boolean).join('–')
-    return [body, body ? '横向异质结构' : ''].filter(Boolean).join(' ')
-  }
-  const host = regions[0]
-  if (!host) return ''
-  if (relation?.relation_type === 'doped_by') {
-    const value =
-      relation.nominal_value === undefined
-        ? undefined
-        : relation.value_basis === 'mol_fraction'
-          ? relation.nominal_value * 100
-          : relation.nominal_value
-    const amount =
-      value === undefined
-        ? ''
-        : `${value} ${relation.value_basis === 'mol_fraction' ? 'mol.%' : 'at.%'}`
-    const site = siteLabel(relation.site_or_location)
-    const details = [amount, site].filter(Boolean).join('；')
-    const body = [relation.species.trim(), '掺杂', phaseFormula(host)]
-      .filter(Boolean)
-      .join(' ')
-    return details ? `${body}（${details}）` : body
-  }
-  return phaseFormula(host)
+    return [
+      details.length ? `${details.join('、')} 掺杂 ` : '',
+      phaseFormula(region),
+      region.target_layer_count ? `（${region.target_layer_count}层）` : '',
+    ].join('')
+  })
+  const body = summaries.join(
+    target.architecture_type === 'vertical_stack' ? ' / ' : '–',
+  )
+  return target.architecture_type === 'lateral_junction' && body
+    ? `${body} 横向拼接`
+    : body
 }
 
 export function targetValidationIssue(
+  target: TargetSummaryInput,
+): string | null {
+  const regions = target.material_regions
+  if (!regions.length) return '请填写目标材料。'
+  if (
+    new Set(regions.map((region) => region.region_key)).size !== regions.length
+  )
+    return '目标区域标识不能重复。'
+  if (
+    target.composition_relations.some(
+      (relation) =>
+        !regions.some(
+          (region) => region.region_key === relation.host_region_key,
+        ),
+    )
+  )
+    return '组成关系必须关联已有材料区域。'
+  if (target.architecture_type === 'single_region' && regions.length !== 1)
+    return '单一区域只能填写一份材料信息。'
+  if (
+    ['vertical_stack', 'lateral_junction'].includes(target.architecture_type) &&
+    regions.length < 2
+  )
+    return '堆叠或拼接至少需要两个材料区域。'
+  if (
+    target.architecture_type === 'vertical_stack' &&
+    regions.some((region, index) => region.layer_index !== index + 1)
+  )
+    return '垂直层序必须从 1 连续编号。'
+  for (const region of regions) {
+    const relations = target.composition_relations.filter(
+      (relation) => relation.host_region_key === region.region_key,
+    )
+    const base = {
+      architecture_type: 'single_region',
+      material_regions: [region],
+      composition_relations: relations.filter(
+        (relation) => relation.relation_type !== 'doped_by',
+      ),
+    }
+    const issue = singleTargetValidationIssue(base)
+    if (issue) return issue
+    const dopants = relations.filter(
+      (relation) => relation.relation_type === 'doped_by',
+    )
+    if (
+      new Set(
+        dopants.map(
+          (relation) =>
+            `${relation.species}:${relation.site_or_location ?? ''}`,
+        ),
+      ).size !== dopants.length
+    )
+      return '同一区域的掺杂元素和位点不能重复。'
+    for (const relation of dopants) {
+      const dopantIssue = singleTargetValidationIssue({
+        ...base,
+        composition_relations: [relation],
+      })
+      if (dopantIssue) return dopantIssue
+    }
+  }
+  return null
+}
+
+function singleTargetValidationIssue(
   target: TargetSummaryInput,
 ): string | null {
   const regions = target.material_regions
@@ -411,40 +481,6 @@ export function targetValidationIssue(
       return '目标层数必须为正整数。'
     }
   }
-  if (target.architecture_type === 'vertical_stack') {
-    if (regions.length < 2) return '垂直异质结构至少需要两层。'
-    if (
-      regions.some(
-        (region) =>
-          region.target_layer_count !== undefined &&
-          (!Number.isInteger(region.target_layer_count) ||
-            region.target_layer_count < 1),
-      )
-    ) {
-      return '每层的目标层数必须为正整数。'
-    }
-    if (regions.some((region, index) => region.layer_index !== index + 1)) {
-      return '垂直层序必须从 1 连续编号。'
-    }
-    return null
-  }
-  if (target.architecture_type === 'lateral_junction') {
-    if (regions.length < 2) return '横向异质结构至少需要两个区域。'
-    if (
-      regions.some(
-        (region) =>
-          region.target_layer_count !== undefined &&
-          (!Number.isInteger(region.target_layer_count) ||
-            region.target_layer_count < 1),
-      )
-    ) {
-      return '整体目标层数必须为正整数。'
-    }
-    if (new Set(regions.map((region) => region.target_layer_count)).size > 1) {
-      return '横向异质结构的整体目标层数必须对所有区域一致。'
-    }
-    return null
-  }
   const relation = target.composition_relations[0]
   if (!relation) return null
   if (relation.relation_type === 'solid_solution_component') return null
@@ -468,10 +504,10 @@ export function targetValidationIssue(
         (relation.value_basis === 'mol_fraction' &&
           relation.nominal_value >= 1))
     ) {
-      return '目标含量必须大于 0 且小于 100%。'
+      return '目标掺杂含量必须大于 0 且小于 100%。'
     }
     if (relation.site_or_location === 'other:') {
-      return '请填写其他目标位点。'
+      return '请填写其他目标掺杂位点。'
     }
     return null
   }

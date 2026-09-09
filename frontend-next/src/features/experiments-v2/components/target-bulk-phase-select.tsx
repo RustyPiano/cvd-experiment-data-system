@@ -70,7 +70,7 @@ export function TargetBulkPhaseSelect({
 
   return (
     <div className="flex flex-col gap-2">
-      <Label>{label}</Label>
+      <Label htmlFor={`${id}-select`}>{label}</Label>
       <Select
         value={value}
         disabled={disabled || formulaMissing}
@@ -94,7 +94,7 @@ export function TargetBulkPhaseSelect({
           }
         }}
       >
-        <SelectTrigger className="w-full">
+        <SelectTrigger id={`${id}-select`} className="w-full">
           <SelectValue placeholder="请选择" />
         </SelectTrigger>
         <SelectContent>

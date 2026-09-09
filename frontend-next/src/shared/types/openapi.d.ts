@@ -3065,6 +3065,8 @@ export interface components {
             field_devices: ("electric_field" | "light" | "none" | "other" | "plasma")[];
             /** Field Device Other Name */
             field_device_other_name?: string | null;
+            /** Field Device Other Names */
+            field_device_other_names?: string[] | null;
             setup_diagram?: components["schemas"]["FileAssetReferencePayload"] | null;
             /** Component Bindings */
             component_bindings?: {

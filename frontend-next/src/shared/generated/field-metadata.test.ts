@@ -20,8 +20,8 @@ describe('generated field metadata', () => {
       'process_steps',
       'process_events',
     ])
-    expect(Object.values(experimentModules).flat()).toHaveLength(86)
-    expect(Object.values(entities).flat()).toHaveLength(51)
+    expect(Object.values(experimentModules).flat()).toHaveLength(90)
+    expect(Object.values(entities).flat()).toHaveLength(52)
     expect(optionLabelsZh.gas_exchange).toBe('气氛置换')
     expect(optionLabelsEn.gas_exchange).toBe('Atmosphere exchange')
     expect(optionCodes['气路置换']).toBe('gas_exchange')

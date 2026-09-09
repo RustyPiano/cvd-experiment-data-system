@@ -27,6 +27,8 @@ const EXCLUDED_FILES = new Set([
   'features/experiments-v2/simple-characterization-workspace.tsx',
   'features/experiments-v2/simple-form-adapters.ts',
   'features/experiments-v2/simple-preparation-editors.tsx',
+  // Target editor extracted from the same Chinese-first preparation screen.
+  'features/experiments-v2/simple-target-editor.tsx',
   'features/samples/sample-detail-page.tsx',
   'features/samples/sample-list-page.tsx',
 ])

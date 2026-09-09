@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from 'lucide-react'
+import { additionalCapabilityNames } from '@/shared/additional-capabilities'
+import { Copy, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -20,8 +21,6 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectLabel,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -43,7 +42,6 @@ import { emptySubstrateValues, moduleValueAsString } from './field-logic'
 import { EntityReferenceSelect } from './components/entity-reference-select'
 import { gasCylinderMatchesSpecies } from './components/reference-snapshot'
 import { ExperimentAttachments } from './components/experiment-attachments'
-import { FormulaInput } from './components/formula-input'
 import {
   actualFieldTypes,
   FieldParamsEditor,
@@ -51,7 +49,7 @@ import {
 import type { ActualField } from './components/process-detail-editors'
 import { materialLotProjection } from './material-lot-projection'
 import { ModuleCard } from './components/module-card'
-import { TargetBulkPhaseSelect } from './components/target-bulk-phase-select'
+import { SubstrateAngleGuide } from './components/substrate-angle-guide'
 import {
   TreatmentStepsEditor,
   sourceTreatmentTypesFor,
@@ -63,25 +61,8 @@ import type {
   TreatmentType,
 } from './components/treatment-steps-editor'
 import {
-  ELEMENT_SYMBOLS,
-  formatChemicalFormula,
-  generateSolidSolutionFormula,
-  validateChemicalFormula,
-} from './formula'
-import {
-  targetSummary,
-  targetValidationIssue,
-} from './scientific-form-workflow'
-import {
-  commonSuggestedBulkSpaceGroups,
-  couldMatchMaterialPhaseCatalog,
-  suggestedBulkSpaceGroups,
-} from './space-groups'
-import {
   PROCESS_DEVIATION_OPTIONS,
   buildEventDescription,
-  compositionValueForDisplay,
-  compositionValueForPayload,
   simplePreparationIssue,
   splitEventDescription,
   temperatureStepOperation,
@@ -130,7 +111,11 @@ export type SimpleTarget = {
     | 'mixed_architecture'
   material_regions: SimpleRegion[]
   composition_relations: SimpleCompositionRelation[]
+  film_form?: 'discrete' | 'continuous'
+  dimensional_form_other?: string
+  in_plane_outline_other?: string
   dimensional_form?:
+    | 'planar'
     | 'continuous_film'
     | 'discrete_planar_crystal'
     | 'ribbon'
@@ -354,86 +339,56 @@ function number(value: string): number | undefined {
   return value.trim() === '' ? undefined : Number(value)
 }
 
-export type TargetKind = 'single' | 'doped' | 'alloy' | 'vertical' | 'lateral'
+export type TargetKind = 'single' | 'vertical' | 'lateral'
 
 export type TargetDrafts = Partial<Record<TargetKind, SimpleTarget>>
 
 export function targetKind(target: SimpleTarget): TargetKind {
-  if (target.architecture_type === 'vertical_stack') return 'vertical'
-  if (target.architecture_type === 'lateral_junction') return 'lateral'
-  if (
-    target.composition_relations.some((relation) =>
-      ['substitutional_alloy', 'solid_solution_component'].includes(
-        relation.relation_type,
-      ),
-    )
-  ) {
-    return 'alloy'
-  }
-  return target.composition_relations[0]?.relation_type === 'doped_by'
-    ? 'doped'
-    : 'single'
+  return target.architecture_type === 'vertical_stack'
+    ? 'vertical'
+    : target.architecture_type === 'lateral_junction'
+      ? 'lateral'
+      : 'single'
 }
 
 export function changeTargetKind(
   target: SimpleTarget,
-  kindValue: TargetKind,
+  kind: TargetKind,
 ): SimpleTarget {
-  const firstFormula = target.material_regions[0]?.formula ?? ''
-  const singleRegion: SimpleRegion = {
-    region_key: 'film',
-    formula: firstFormula,
-    spatial_role: 'single_region',
-  }
-  if (kindValue === 'single') {
-    return {
-      ...target,
-      architecture_type: 'single_region',
-      material_regions: [singleRegion],
-      composition_relations: [],
-    }
-  }
-  if (kindValue === 'doped') {
-    return {
-      ...target,
-      architecture_type: 'single_region',
-      material_regions: [singleRegion],
-      composition_relations: [
-        {
-          relation_type: 'doped_by',
-          host_region_key: 'film',
-          species: '',
-          value_basis: 'unspecified',
-        },
-      ],
-    }
-  }
-  if (kindValue === 'alloy') {
-    return {
-      ...target,
-      architecture_type: 'single_region',
-      material_regions: [{ ...singleRegion, formula: '' }],
-      composition_relations: [firstFormula, ''].map((species) => ({
-        relation_type: 'solid_solution_component',
-        host_region_key: 'film',
-        species,
-        value_basis: 'mol_fraction',
-      })),
-    }
-  }
-  const vertical = kindValue === 'vertical'
+  const architecture =
+    kind === 'vertical'
+      ? 'vertical_stack'
+      : kind === 'lateral'
+        ? 'lateral_junction'
+        : 'single_region'
+  const regions =
+    kind === 'single'
+      ? target.material_regions.slice(0, 1)
+      : [...target.material_regions]
+  while (regions.length < (kind === 'single' ? 1 : 2))
+    regions.push({
+      region_key: key('region'),
+      formula: '',
+      spatial_role: 'single_region',
+    })
   return {
     ...target,
-    architecture_type: vertical ? 'vertical_stack' : 'lateral_junction',
-    material_regions: [0, 1].map((index) => ({
-      region_key: vertical ? `layer_${index + 1}` : `region_${index + 1}`,
-      formula: index === 0 ? firstFormula : '',
-      spatial_role: vertical ? 'layer' : 'lateral_region',
-      ...(vertical
-        ? { layer_index: index + 1 }
-        : { lateral_region: String.fromCharCode(65 + index) }),
+    architecture_type: architecture,
+    material_regions: regions.map((region, index) => ({
+      ...region,
+      spatial_role:
+        kind === 'vertical'
+          ? 'layer'
+          : kind === 'lateral'
+            ? 'lateral_region'
+            : 'single_region',
+      layer_index: kind === 'vertical' ? index + 1 : undefined,
+      lateral_region:
+        kind === 'lateral' ? String.fromCharCode(65 + index) : undefined,
     })),
-    composition_relations: [],
+    composition_relations: target.composition_relations.filter((relation) =>
+      regions.some((region) => region.region_key === relation.host_region_key),
+    ),
   }
 }
 
@@ -447,896 +402,7 @@ export function switchTargetDraft(
   return [next, { ...saved, [nextKind]: next }]
 }
 
-export function SimpleTargetEditor({
-  target,
-  onChange,
-  onKindChange,
-  disabled,
-  showErrors,
-}: {
-  target: SimpleTarget
-  onChange: (target: SimpleTarget) => void
-  onKindChange?: (kind: TargetKind) => void
-  disabled: boolean
-  showErrors?: boolean
-}) {
-  const kindValue = targetKind(target)
-  const relation = target.composition_relations[0]
-  const [phaseWarnings, setPhaseWarnings] = useState<Record<string, boolean>>(
-    {},
-  )
-  const setRegion = (index: number, patch: Partial<SimpleRegion>) =>
-    onChange({
-      ...target,
-      material_regions: target.material_regions.map((region, current) =>
-        current === index ? { ...region, ...patch } : region,
-      ),
-    })
-  const setRelation = (patch: Partial<SimpleCompositionRelation>) =>
-    onChange({
-      ...target,
-      composition_relations: relation ? [{ ...relation, ...patch }] : [],
-    })
-  const alloyRelations = target.composition_relations.filter(
-    (item) => item.relation_type === 'solid_solution_component',
-  )
-  const setAlloyRelations = (relations: SimpleCompositionRelation[]) => {
-    const formula =
-      generateSolidSolutionFormula(
-        relations.map((item) => ({
-          formula: item.species,
-          fraction: item.nominal_value,
-        })),
-      ) ?? ''
-    const currentRegion = target.material_regions[0]
-    const candidates = commonSuggestedBulkSpaceGroups(
-      relations.map((item) => item.species),
-    )
-    const previousCandidates = commonSuggestedBulkSpaceGroups(
-      alloyRelations.map((item) => item.species),
-    )
-    const clearPhase =
-      previousCandidates.some(
-        (candidate) =>
-          candidate.phase === currentRegion?.target_bulk_phase &&
-          candidate.number === currentRegion.target_bulk_space_group_number,
-      ) &&
-      !candidates.some(
-        (candidate) =>
-          candidate.phase === currentRegion.target_bulk_phase &&
-          candidate.number === currentRegion.target_bulk_space_group_number,
-      )
-    onChange({
-      ...target,
-      material_regions: target.material_regions.map((item, index) =>
-        index === 0
-          ? {
-              ...item,
-              formula,
-              ...(clearPhase
-                ? {
-                    target_bulk_phase: undefined,
-                    target_bulk_space_group_number: undefined,
-                  }
-                : {}),
-            }
-          : item,
-      ),
-      composition_relations: relations,
-    })
-    if (clearPhase) {
-      setPhaseWarnings((current) => ({
-        ...current,
-        [currentRegion.region_key]: true,
-      }))
-    }
-  }
-  const updateAlloyRelation = (
-    index: number,
-    patch: Partial<SimpleCompositionRelation>,
-  ) =>
-    setAlloyRelations(
-      alloyRelations.map((item, current) =>
-        current === index ? { ...item, ...patch } : item,
-      ),
-    )
-  const switchKind = (kind: TargetKind) => {
-    if (onKindChange) onKindChange(kind)
-    else onChange(changeTargetKind(target, kind))
-  }
-  const updateFormula = (index: number, formula: string) => {
-    const region = target.material_regions[index]
-    const matchingPhase = suggestedBulkSpaceGroups(formula).some(
-      (candidate) =>
-        candidate.phase === region.target_bulk_phase &&
-        candidate.number === region.target_bulk_space_group_number,
-    )
-    const clearPhase =
-      Boolean(region.target_bulk_phase) &&
-      !matchingPhase &&
-      !couldMatchMaterialPhaseCatalog(formula)
-    const elements = validateChemicalFormula(formula).elements
-    const currentSite = relation?.site_or_location
-    const clearSite =
-      kindValue === 'doped' &&
-      currentSite?.endsWith('_site') &&
-      !elements.includes(currentSite.slice(0, -5))
-    onChange({
-      ...target,
-      material_regions: target.material_regions.map((item, current) =>
-        current === index
-          ? {
-              ...item,
-              formula,
-              ...(clearPhase
-                ? {
-                    target_bulk_phase: undefined,
-                    target_bulk_space_group_number: undefined,
-                  }
-                : {}),
-            }
-          : item,
-      ),
-      composition_relations:
-        clearSite && relation
-          ? [{ ...relation, site_or_location: undefined }]
-          : target.composition_relations,
-    })
-    if (clearPhase) {
-      setPhaseWarnings((current) => ({
-        ...current,
-        [region.region_key]: true,
-      }))
-    }
-  }
-  const phaseSelect = (
-    region: SimpleRegion,
-    index: number,
-    label?: string,
-    candidateFormulas?: string[],
-  ) => (
-    <div className="flex flex-col gap-1">
-      <TargetBulkPhaseSelect
-        formula={region.formula}
-        candidateFormulas={candidateFormulas}
-        phase={region.target_bulk_phase}
-        spaceGroupNumber={region.target_bulk_space_group_number}
-        disabled={disabled}
-        label={label}
-        onChange={(phase, spaceGroupNumber) => {
-          setPhaseWarnings((current) => ({
-            ...current,
-            [region.region_key]: false,
-          }))
-          setRegion(index, {
-            target_bulk_phase: phase,
-            target_bulk_space_group_number: spaceGroupNumber,
-          })
-        }}
-      />
-      {phaseWarnings[region.region_key] ? (
-        <p className="text-xs text-amber-700">
-          化学式已变更，原晶体结构选择已清除，请重新选择。
-        </p>
-      ) : null}
-    </div>
-  )
-  const region = target.material_regions[0] ?? {
-    region_key: 'film',
-    formula: '',
-    spatial_role: 'single_region' as const,
-  }
-  const targetIssue = showErrors ? targetValidationIssue(target) : null
-  const formulaInvalid = (formula: string) =>
-    Boolean(
-      showErrors &&
-      (!formula.trim() || !validateChemicalFormula(formula).valid),
-    )
-  const dopantInvalid = Boolean(
-    showErrors &&
-    (!relation?.species ||
-      !ELEMENT_SYMBOLS.includes(relation.species as never)),
-  )
-  const alloyFractionInvalid = (value: number | undefined) =>
-    Boolean(showErrors && (value === undefined || value <= 0 || value >= 1))
-  const dopantAmountInvalid = Boolean(
-    showErrors &&
-    relation?.nominal_value !== undefined &&
-    (!(relation.nominal_value > 0) ||
-      (relation.value_basis === 'at_percent'
-        ? relation.nominal_value >= 100
-        : relation.nominal_value >= 1)),
-  )
-  const elements = validateChemicalFormula(region?.formula ?? '').elements
-  const moveRegion = (index: number, offset: number) => {
-    const next = [...target.material_regions]
-    const destination = index + offset
-    if (destination < 0 || destination >= next.length) return
-    ;[next[index], next[destination]] = [next[destination], next[index]]
-    onChange({
-      ...target,
-      material_regions: next.map((item, current) => ({
-        ...item,
-        layer_index: current + 1,
-      })),
-    })
-  }
-  const moreInformation = (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {!['vertical', 'lateral'].includes(kindValue) ? (
-        <div className="flex flex-col gap-2">
-          <Label>目标层数</Label>
-          <Input
-            type="number"
-            min="1"
-            step="1"
-            value={region?.target_layer_count ?? ''}
-            disabled={disabled}
-            aria-label="目标层数"
-            onChange={(event) =>
-              setRegion(0, {
-                target_layer_count: number(event.target.value),
-              })
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            仅层状材料填写；例如单层 MoS₂ 填 1，非层状材料留空。
-          </p>
-        </div>
-      ) : null}
-      <div className="flex flex-col gap-2">
-        <Label>目标产物形态</Label>
-        <Select
-          value={target.dimensional_form ?? ''}
-          disabled={disabled}
-          onValueChange={(value) =>
-            onChange({
-              ...target,
-              dimensional_form: value as SimpleTarget['dimensional_form'],
-              in_plane_outline:
-                value === 'discrete_planar_crystal'
-                  ? target.in_plane_outline
-                  : undefined,
-            })
-          }
-        >
-          <SelectTrigger className="w-full" aria-label="目标产物形态">
-            <SelectValue placeholder="请选择" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="continuous_film">连续膜</SelectItem>
-              <SelectItem value="discrete_planar_crystal">
-                分立片状晶体/晶畴
-              </SelectItem>
-              <SelectItem value="ribbon">带状</SelectItem>
-              <SelectItem value="wire">线状</SelectItem>
-              <SelectItem value="tube">管状</SelectItem>
-              <SelectItem value="rod">棒状</SelectItem>
-              <SelectItem value="particle">颗粒</SelectItem>
-              <SelectItem value="bulk_crystal">块状晶体</SelectItem>
-              <SelectItem value="other">其他</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </div>
-      {target.dimensional_form === 'discrete_planar_crystal' ? (
-        <div className="flex flex-col gap-2">
-          <Label>目标平面轮廓</Label>
-          <Select
-            value={target.in_plane_outline ?? ''}
-            disabled={disabled}
-            onValueChange={(value) =>
-              onChange({
-                ...target,
-                in_plane_outline: value as SimpleTarget['in_plane_outline'],
-              })
-            }
-          >
-            <SelectTrigger className="w-full" aria-label="目标平面轮廓">
-              <SelectValue placeholder="请选择" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="triangle">三角形</SelectItem>
-                <SelectItem value="truncated_triangle">截角三角形</SelectItem>
-                <SelectItem value="hexagon">六边形</SelectItem>
-                <SelectItem value="quadrilateral">
-                  四边形（矩形/平行四边形/菱形）
-                </SelectItem>
-                <SelectItem value="other_regular_polygon">
-                  其他规则多边形
-                </SelectItem>
-                <SelectItem value="circular_elliptical">圆形/椭圆形</SelectItem>
-                <SelectItem value="lobed_star">星形/多裂片状</SelectItem>
-                <SelectItem value="dendritic_fractal">枝晶状/分形</SelectItem>
-                <SelectItem value="irregular">不规则</SelectItem>
-                <SelectItem value="other">其他</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-      <div className="flex flex-col gap-2 sm:col-span-2">
-        <Label>实验目标</Label>
-        <Textarea
-          value={target.optimization_objective ?? ''}
-          disabled={disabled}
-          onChange={(event) =>
-            onChange({
-              ...target,
-              optimization_objective: event.target.value,
-            })
-          }
-        />
-      </div>
-      <div className="flex flex-col gap-2 sm:col-span-2">
-        <Label>补充说明</Label>
-        <Textarea
-          value={target.note ?? ''}
-          disabled={disabled}
-          onChange={(event) =>
-            onChange({ ...target, note: event.target.value })
-          }
-        />
-      </div>
-    </div>
-  )
-
-  return (
-    <ModuleCard id="module-target_product" title="目标材料">
-      {targetIssue ? (
-        <p className="text-destructive text-sm">{targetIssue}</p>
-      ) : null}
-      <div className="flex flex-col gap-2">
-        <Label>
-          目标材料体系 <RequiredMark />
-        </Label>
-        <Select
-          value={
-            kindValue === 'vertical' || kindValue === 'lateral'
-              ? 'heterostructure'
-              : kindValue
-          }
-          disabled={disabled}
-          onValueChange={(value) =>
-            switchKind(
-              value === 'heterostructure' ? 'vertical' : (value as TargetKind),
-            )
-          }
-        >
-          <SelectTrigger className="w-full" aria-label="目标材料体系">
-            <SelectValue placeholder="请选择" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="single">本征材料</SelectItem>
-              <SelectItem value="doped">掺杂材料</SelectItem>
-              <SelectItem value="alloy">合金</SelectItem>
-              <SelectItem value="heterostructure">异质结构</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {kindValue === 'vertical' || kindValue === 'lateral' ? (
-        <div className="flex flex-col gap-2">
-          <Label>
-            异质结构类型 <RequiredMark />
-          </Label>
-          <Select
-            value={kindValue}
-            disabled={disabled}
-            onValueChange={(value) => switchKind(value as TargetKind)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="vertical">垂直异质结构</SelectItem>
-                <SelectItem value="lateral">横向异质结构</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-
-      {kindValue === 'single' || kindValue === 'doped' ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div
-            className="flex flex-col gap-2"
-            data-invalid={formulaInvalid(region?.formula ?? '') || undefined}
-          >
-            <Label>
-              {kindValue === 'single' ? '目标材料化学式' : '基体材料化学式'}{' '}
-              <RequiredMark />
-            </Label>
-            <FormulaInput
-              value={region?.formula ?? ''}
-              disabled={disabled}
-              placeholder="例如 MoS2"
-              required
-              showErrors={showErrors}
-              onChange={(value) => updateFormula(0, value)}
-            />
-          </div>
-          <div>
-            {phaseSelect(
-              region,
-              0,
-              kindValue === 'doped' ? '基体晶体结构' : undefined,
-            )}
-          </div>
-          {kindValue === 'doped' ? (
-            <>
-              <div
-                className="flex flex-col gap-2"
-                data-invalid={dopantInvalid || undefined}
-              >
-                <Label>
-                  掺杂元素 <RequiredMark />
-                </Label>
-                <Input
-                  list="target-element-symbols"
-                  value={relation?.species ?? ''}
-                  disabled={disabled}
-                  placeholder="搜索元素符号，例如 Pt"
-                  aria-invalid={dopantInvalid || undefined}
-                  onChange={(event) =>
-                    setRelation({ species: event.target.value })
-                  }
-                />
-                {dopantInvalid ? (
-                  <p className="text-destructive text-sm">
-                    请选择合法的掺杂元素。
-                  </p>
-                ) : null}
-              </div>
-              <div
-                className="flex flex-col gap-2"
-                data-invalid={dopantAmountInvalid || undefined}
-              >
-                <Label>目标含量</Label>
-                <div className="grid grid-cols-[1fr_8rem] gap-2">
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="any"
-                    value={compositionValueForDisplay(
-                      relation?.nominal_value,
-                      relation?.value_basis ?? 'at_percent',
-                    )}
-                    disabled={disabled}
-                    placeholder="例如 1"
-                    aria-invalid={dopantAmountInvalid || undefined}
-                    onChange={(event) =>
-                      setRelation({
-                        nominal_value: compositionValueForPayload(
-                          event.target.value,
-                          relation?.value_basis === 'mol_fraction'
-                            ? 'mol_fraction'
-                            : 'at_percent',
-                        ),
-                        value_basis:
-                          event.target.value.trim() === ''
-                            ? 'unspecified'
-                            : relation?.value_basis === 'mol_fraction'
-                              ? 'mol_fraction'
-                              : 'at_percent',
-                      })
-                    }
-                  />
-                  <Select
-                    value={
-                      relation?.value_basis === 'mol_fraction'
-                        ? 'mol_fraction'
-                        : 'at_percent'
-                    }
-                    disabled={disabled}
-                    onValueChange={(value) =>
-                      setRelation({
-                        value_basis:
-                          value as SimpleCompositionRelation['value_basis'],
-                        nominal_value: compositionValueForPayload(
-                          compositionValueForDisplay(
-                            relation?.nominal_value,
-                            relation?.value_basis ?? 'at_percent',
-                          ),
-                          value,
-                        ),
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="at_percent">at.%</SelectItem>
-                        <SelectItem value="mol_fraction">mol.%</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {dopantAmountInvalid ? (
-                  <p className="text-destructive text-sm">
-                    目标含量必须大于 0 且小于 100%。
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>目标位点</Label>
-                <Select
-                  value={
-                    relation?.site_or_location?.startsWith('other:')
-                      ? 'other'
-                      : (relation?.site_or_location ?? 'unspecified')
-                  }
-                  disabled={disabled}
-                  onValueChange={(value) =>
-                    setRelation({
-                      site_or_location: value === 'other' ? 'other:' : value,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-full" aria-label="目标位点">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {elements.length > 0 ? (
-                      <>
-                        <SelectGroup>
-                          <SelectLabel>取代位点</SelectLabel>
-                          {elements.map((element) => (
-                            <SelectItem key={element} value={`${element}_site`}>
-                              {element} 位点
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                        <SelectSeparator />
-                      </>
-                    ) : null}
-                    <SelectGroup>
-                      <SelectLabel>非取代位点</SelectLabel>
-                      <SelectItem value="interstitial">间隙位点</SelectItem>
-                      <SelectItem value="interlayer">层间位置</SelectItem>
-                      <SelectItem value="surface">表面位置</SelectItem>
-                    </SelectGroup>
-                    <SelectSeparator />
-                    <SelectGroup>
-                      <SelectItem value="unspecified">未指定</SelectItem>
-                      <SelectItem value="other">其他</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                {relation?.site_or_location?.startsWith('other:') ? (
-                  <Input
-                    value={relation.site_or_location.slice(6)}
-                    disabled={disabled}
-                    placeholder="请输入目标位点"
-                    onChange={(event) =>
-                      setRelation({
-                        site_or_location: `other:${event.target.value}`,
-                      })
-                    }
-                  />
-                ) : null}
-              </div>
-            </>
-          ) : null}
-          <div className="rounded-lg bg-muted/50 p-3 sm:col-span-2">
-            <p className="text-xs text-muted-foreground">目标材料预览</p>
-            <p className="mt-1 font-medium">
-              {targetSummary(target) || '请填写目标材料'}
-            </p>
-          </div>
-        </div>
-      ) : kindValue === 'alloy' ? (
-        <div className="flex flex-col gap-4">
-          <div>
-            <Label>
-              合金组分 <RequiredMark />
-            </Label>
-            <p className="mt-1 text-sm text-muted-foreground">
-              至少填写两个组分，摩尔分数之和为 1。
-            </p>
-          </div>
-          {alloyRelations.map((component, index) => (
-            <div
-              key={`${index}-${component.host_region_key}`}
-              className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
-            >
-              <div className="flex items-center justify-between gap-3 sm:col-span-2">
-                <p className="font-medium">
-                  组分 {String.fromCharCode(65 + index)}
-                </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={disabled || alloyRelations.length <= 2}
-                  onClick={() =>
-                    setAlloyRelations(
-                      alloyRelations.filter((_, current) => current !== index),
-                    )
-                  }
-                >
-                  <Trash2 data-icon="inline-start" />
-                  删除
-                </Button>
-              </div>
-              <div
-                className="flex flex-col gap-2"
-                data-invalid={formulaInvalid(component.species) || undefined}
-              >
-                <Label>
-                  材料化学式 <RequiredMark />
-                </Label>
-                <FormulaInput
-                  value={component.species}
-                  disabled={disabled}
-                  placeholder={index === 0 ? '例如 MoS2' : '例如 WS2'}
-                  required
-                  showErrors={showErrors}
-                  onChange={(species) =>
-                    updateAlloyRelation(index, { species })
-                  }
-                />
-              </div>
-              <div
-                className="flex flex-col gap-2"
-                data-invalid={
-                  alloyFractionInvalid(component.nominal_value) || undefined
-                }
-              >
-                <Label>
-                  目标摩尔分数 <RequiredMark />
-                </Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="any"
-                  value={component.nominal_value ?? ''}
-                  disabled={disabled}
-                  placeholder="例如 0.5"
-                  aria-invalid={
-                    alloyFractionInvalid(component.nominal_value) || undefined
-                  }
-                  onChange={(event) =>
-                    updateAlloyRelation(index, {
-                      nominal_value: number(event.target.value),
-                      value_basis: 'mol_fraction',
-                    })
-                  }
-                />
-                {alloyFractionInvalid(component.nominal_value) ? (
-                  <p className="text-destructive text-sm">
-                    请填写大于 0 且小于 1 的目标摩尔分数。
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            onClick={() =>
-              setAlloyRelations([
-                ...alloyRelations,
-                {
-                  relation_type: 'solid_solution_component',
-                  host_region_key: 'film',
-                  species: '',
-                  value_basis: 'mol_fraction',
-                },
-              ])
-            }
-          >
-            <Plus data-icon="inline-start" />
-            添加组分
-          </Button>
-          {phaseSelect(
-            region,
-            0,
-            undefined,
-            alloyRelations.map((component) => component.species),
-          )}
-          <div className="rounded-lg bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground">目标材料预览</p>
-            <p className="mt-1 font-medium">
-              {region.formula
-                ? [
-                    region.target_bulk_phase,
-                    formatChemicalFormula(region.formula),
-                  ]
-                    .filter(Boolean)
-                    .join('-')
-                : '请填写有效组分并使摩尔分数总和为 1'}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {target.material_regions.map((materialRegion, index) => (
-            <div
-              key={materialRegion.region_key}
-              className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
-            >
-              <div className="flex items-center justify-between gap-3 sm:col-span-2">
-                <p className="font-medium">
-                  {kindValue === 'vertical'
-                    ? `材料 ${index + 1}${index === 0 ? '（靠近衬底）' : ''}`
-                    : `区域 ${String.fromCharCode(65 + index)}`}
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {kindValue === 'vertical' ? (
-                    <>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={disabled || index === 0}
-                        onClick={() => moveRegion(index, -1)}
-                      >
-                        <ArrowUp />
-                        上移
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={
-                          disabled ||
-                          index === target.material_regions.length - 1
-                        }
-                        onClick={() => moveRegion(index, 1)}
-                      >
-                        <ArrowDown />
-                        下移
-                      </Button>
-                    </>
-                  ) : null}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={disabled || target.material_regions.length <= 2}
-                    onClick={() =>
-                      onChange({
-                        ...target,
-                        material_regions: target.material_regions
-                          .filter((_, current) => current !== index)
-                          .map((item, current) => ({
-                            ...item,
-                            ...(kindValue === 'vertical'
-                              ? { layer_index: current + 1 }
-                              : {
-                                  lateral_region: String.fromCharCode(
-                                    65 + current,
-                                  ),
-                                }),
-                          })),
-                      })
-                    }
-                  >
-                    <Trash2 data-icon="inline-start" />
-                    删除
-                  </Button>
-                </div>
-              </div>
-              <div
-                className="flex flex-col gap-2"
-                data-invalid={
-                  formulaInvalid(materialRegion.formula) || undefined
-                }
-              >
-                <Label>
-                  材料化学式 <RequiredMark />
-                </Label>
-                <FormulaInput
-                  value={materialRegion.formula}
-                  disabled={disabled}
-                  placeholder="例如 MoS2"
-                  required
-                  showErrors={showErrors}
-                  onChange={(value) => updateFormula(index, value)}
-                />
-              </div>
-              <div>{phaseSelect(materialRegion, index)}</div>
-              {kindValue === 'vertical' ? (
-                <div className="flex flex-col gap-2">
-                  <Label>目标层数</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={materialRegion.target_layer_count ?? ''}
-                    disabled={disabled}
-                    onChange={(event) =>
-                      setRegion(index, {
-                        target_layer_count: number(event.target.value),
-                      })
-                    }
-                  />
-                </div>
-              ) : null}
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            onClick={() => {
-              const index = target.material_regions.length
-              onChange({
-                ...target,
-                material_regions: [
-                  ...target.material_regions,
-                  {
-                    region_key: key(
-                      kindValue === 'vertical' ? 'layer' : 'region',
-                    ),
-                    formula: '',
-                    spatial_role:
-                      kindValue === 'vertical' ? 'layer' : 'lateral_region',
-                    ...(kindValue === 'vertical'
-                      ? { layer_index: index + 1 }
-                      : {
-                          lateral_region: String.fromCharCode(65 + index),
-                          target_layer_count:
-                            target.material_regions[0]?.target_layer_count,
-                        }),
-                  },
-                ],
-              })
-            }}
-          >
-            <Plus data-icon="inline-start" />
-            {kindValue === 'vertical' ? '添加材料' : '添加区域'}
-          </Button>
-          {kindValue === 'lateral' ? (
-            <div className="flex flex-col gap-2">
-              <Label>整体目标层数</Label>
-              <Input
-                type="number"
-                min="1"
-                step="1"
-                value={target.material_regions[0]?.target_layer_count ?? ''}
-                disabled={disabled}
-                onChange={(event) => {
-                  const targetLayerCount = number(event.target.value)
-                  onChange({
-                    ...target,
-                    material_regions: target.material_regions.map((item) => ({
-                      ...item,
-                      target_layer_count: targetLayerCount,
-                    })),
-                  })
-                }}
-              />
-            </div>
-          ) : null}
-          <div className="rounded-lg bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground">目标材料预览</p>
-            <p className="mt-1 font-medium">
-              {targetSummary(target) || '请填写目标材料'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <datalist id="target-element-symbols">
-        {ELEMENT_SYMBOLS.map((element) => (
-          <option key={element} value={element} />
-        ))}
-      </datalist>
-      {moreInformation}
-    </ModuleCard>
-  )
-}
+export { SimpleTargetEditor } from './simple-target-editor'
 
 function newIngredient(): SimpleIngredient {
   return {
@@ -1398,6 +464,14 @@ export function sourcePreparationStepsAreValid(
   steps: SimpleSourceLoad['preparation_steps'],
   loadingMethod?: string,
 ) {
+  const coating = steps.filter((step) =>
+    ['drop_cast', 'spin_coat'].includes(step.step_type),
+  )
+  if (
+    coating.some((step) => step.parameters.solution_volume_uL != null) &&
+    !sourceSolutionVolumesRecorded(steps)
+  )
+    return false
   if (
     loadingMethod &&
     steps.some(
@@ -1409,6 +483,18 @@ export function sourcePreparationStepsAreValid(
   )
     return false
   return treatmentStepsAreValid('source_load', treatmentStepsForEditor(steps))
+}
+
+export function sourceSolutionVolumesRecorded(
+  steps: SimpleSourceLoad['preparation_steps'],
+): boolean {
+  const coating = steps.filter((step) =>
+    ['drop_cast', 'spin_coat'].includes(step.step_type),
+  )
+  return (
+    coating.length > 0 &&
+    coating.every((step) => Number(step.parameters.solution_volume_uL) > 0)
+  )
 }
 
 export function sourceSolutionMode(
@@ -1507,7 +593,10 @@ export function SimpleSourceLoadsEditor({
             volumeRequired,
             immersionOnly,
           } = sourceSolutionMode(load.preparation_steps)
-          const amountRequired = !isGasLine && !immersionOnly
+          const amountRequired =
+            !isGasLine &&
+            !immersionOnly &&
+            !sourceSolutionVolumesRecorded(load.preparation_steps)
           return (
             <div
               key={load.load_key}
@@ -1813,6 +902,22 @@ export function SimpleSourceLoadsEditor({
                 {!isGasLine ? (
                   <div className="flex flex-col gap-2 sm:col-span-2">
                     <Label>处理方式</Label>
+                    {hasSolution ? (
+                      <p className="text-xs text-muted-foreground">
+                        同一份溶液的体积在处理步骤中填写一次；不同配方请分别添加装载记录。
+                      </p>
+                    ) : null}
+                    {showErrors &&
+                    hasSolution &&
+                    !immersionOnly &&
+                    !sourceSolutionVolumesRecorded(load.preparation_steps) &&
+                    load.ingredients.some(
+                      (item) => item.amount === undefined,
+                    ) ? (
+                      <p role="alert" className="text-sm text-destructive">
+                        请在各滴涂或旋涂步骤填写实际溶液用量。
+                      </p>
+                    ) : null}
                     <TreatmentStepsEditor
                       kind="source_load"
                       allowedTypes={sourceTreatmentTypesFor(
@@ -1837,7 +942,8 @@ export function SimpleSourceLoadsEditor({
                                   concentration_unit: undefined,
                                   concentration_unit_other: undefined,
                                 }),
-                            ...(nextMode.immersionOnly
+                            ...(nextMode.immersionOnly ||
+                            sourceSolutionVolumesRecorded(preparationSteps)
                               ? { amount: undefined, unit: undefined }
                               : {}),
                           })),
@@ -1961,14 +1067,17 @@ export function SimpleSourceLoadsEditor({
                           </p>
                         ) : null}
                       </div>
-                      {amountRequired ? (
+                      {amountRequired &&
+                      (!hasSolution || ingredient.amount !== undefined) ? (
                         <div className="grid grid-cols-2 gap-3">
                           <div
                             className="flex flex-col gap-2"
                             data-invalid={amountInvalid || undefined}
                           >
                             <Label>
-                              {volumeRequired ? '滴加体积' : '用量'}{' '}
+                              {hasSolution
+                                ? '历史物料条目用量'
+                                : '实际物料用量'}{' '}
                               <RequiredMark />
                             </Label>
                             <Input
@@ -2057,7 +1166,7 @@ export function SimpleSourceLoadsEditor({
                             }
                           >
                             <Label htmlFor={concentrationValueId}>
-                              溶液浓度{' '}
+                              该组分在溶液中的浓度{' '}
                               {hasConcentration || concentrationRequired ? (
                                 <RequiredMark />
                               ) : null}
@@ -2849,214 +1958,237 @@ export function SimpleSubstratesEditor({
                     此记录使用旧装置原点位置；请按当前规则重新确认温区和相对测温点位置。
                   </p>
                 ) : null}
-                <div
-                  className="flex flex-col gap-2 sm:col-span-2"
-                  data-invalid={placementInvalid || undefined}
-                >
-                  <Label>
-                    放置方式 <RequiredMark />
-                  </Label>
-                  <Select
-                    value={placementMode}
-                    disabled={disabled}
-                    onValueChange={(value) =>
-                      update(index, {
-                        size_placement: jsonValue({
-                          ...placement,
-                          placement: value,
-                          tilt_angle_deg:
-                            value === 'tilted'
-                              ? placement.tilt_angle_deg
-                              : undefined,
-                          tilt_azimuth_deg:
-                            value === 'tilted'
-                              ? placement.tilt_azimuth_deg
-                              : undefined,
-                          upright_growth_face_direction:
-                            value === 'upright'
-                              ? placement.upright_growth_face_direction
-                              : undefined,
-                          ...(value === 'other'
-                            ? {
-                                placement_other:
-                                  placement.placement === 'other'
-                                    ? placement.placement_other
-                                    : '',
-                              }
-                            : { placement_other: undefined }),
-                        }),
-                      })
-                    }
+                <FieldGroup className="grid gap-4 sm:col-span-3 sm:grid-cols-3">
+                  <Field
+                    className="gap-2"
+                    data-invalid={placementInvalid || undefined}
+                    data-disabled={disabled || undefined}
                   >
-                    <SelectTrigger
-                      className="w-full"
-                      aria-invalid={placementInvalid || undefined}
-                    >
-                      <SelectValue placeholder="请选择" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="face_up">
-                          生长面朝上（平放）
-                        </SelectItem>
-                        <SelectItem value="face_down">
-                          生长面朝下（倒扣）
-                        </SelectItem>
-                        <SelectItem value="tilted">倾斜</SelectItem>
-                        <SelectItem value="upright">竖放</SelectItem>
-                        <SelectItem value="other">其他</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  {placementInvalid ? (
-                    <p className="text-destructive text-sm">请选择放置方式。</p>
-                  ) : null}
-                </div>
-                {placementMode === 'tilted' ? (
-                  <>
-                    <div
-                      className="flex flex-col gap-2"
-                      data-invalid={tiltInvalid || undefined}
-                    >
-                      <Label>
-                        倾角 α（°） <RequiredMark />
-                      </Label>
-                      <Input
-                        type="number"
-                        min="-90"
-                        max="90"
-                        step="any"
-                        value={String(placement.tilt_angle_deg ?? '')}
-                        disabled={disabled}
-                        aria-invalid={tiltInvalid || undefined}
-                        onChange={(event) =>
-                          update(index, {
-                            size_placement: jsonValue({
-                              ...placement,
-                              tilt_angle_deg: number(event.target.value),
-                            }),
-                          })
-                        }
-                      />
-                      {tiltInvalid ? (
-                        <p className="text-destructive text-sm">
-                          倾角须大于 -90°、小于 90°且不为 0°。
-                        </p>
-                      ) : null}
-                      <p className="text-muted-foreground text-sm">
-                        绝对值为衬底平面与水平面的夹角；生长面朝上为正，朝下为负。
-                      </p>
-                    </div>
-                    <div
-                      className="flex flex-col gap-2"
-                      data-invalid={tiltAzimuthInvalid || undefined}
-                    >
-                      <Label>
-                        方位角 φ（°） <RequiredMark />
-                      </Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="359.999"
-                        step="any"
-                        value={String(placement.tilt_azimuth_deg ?? '')}
-                        disabled={disabled}
-                        aria-invalid={tiltAzimuthInvalid || undefined}
-                        onChange={(event) =>
-                          update(index, {
-                            size_placement: jsonValue({
-                              ...placement,
-                              tilt_azimuth_deg: number(event.target.value),
-                            }),
-                          })
-                        }
-                      />
-                      {tiltAzimuthInvalid ? (
-                        <p className="text-destructive text-sm">
-                          请填写 0° 到小于 360° 的方位角。
-                        </p>
-                      ) : null}
-                      <p className="text-muted-foreground text-sm">
-                        生长面法向的水平投影：以下游为 0°，俯视时顺时针为正。
-                      </p>
-                    </div>
-                  </>
-                ) : null}
-                {placementMode === 'upright' ? (
-                  <div
-                    className="flex flex-col gap-2"
-                    data-invalid={uprightDirectionInvalid || undefined}
-                  >
-                    <Label>
-                      生长面朝向 <RequiredMark />
-                    </Label>
+                    <FieldLabel htmlFor={`substrate-placement-${pieceLabel}`}>
+                      放置方式 <RequiredMark />
+                    </FieldLabel>
                     <Select
-                      value={String(
-                        placement.upright_growth_face_direction ?? '',
-                      )}
+                      value={placementMode}
                       disabled={disabled}
                       onValueChange={(value) =>
                         update(index, {
                           size_placement: jsonValue({
                             ...placement,
-                            upright_growth_face_direction: value,
+                            placement: value,
+                            tilt_angle_deg:
+                              value === 'tilted'
+                                ? placement.tilt_angle_deg
+                                : undefined,
+                            tilt_azimuth_deg:
+                              value === 'tilted'
+                                ? placement.tilt_azimuth_deg
+                                : undefined,
+                            upright_growth_face_direction:
+                              value === 'upright'
+                                ? placement.upright_growth_face_direction
+                                : undefined,
+                            ...(value === 'other'
+                              ? {
+                                  placement_other:
+                                    placement.placement === 'other'
+                                      ? placement.placement_other
+                                      : '',
+                                }
+                              : { placement_other: undefined }),
                           }),
                         })
                       }
                     >
                       <SelectTrigger
+                        id={`substrate-placement-${pieceLabel}`}
                         className="w-full"
-                        aria-invalid={uprightDirectionInvalid || undefined}
+                        aria-invalid={placementInvalid || undefined}
                       >
-                        <SelectValue placeholder="请选择生长面朝向" />
+                        <SelectValue placeholder="请选择" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          <SelectItem value="downstream">朝下游</SelectItem>
-                          <SelectItem value="upstream">朝上游</SelectItem>
-                          <SelectItem value="tube_left">朝炉管左侧</SelectItem>
-                          <SelectItem value="tube_right">朝炉管右侧</SelectItem>
+                          <SelectItem value="face_up">
+                            生长面朝上（平放）
+                          </SelectItem>
+                          <SelectItem value="face_down">
+                            生长面朝下（倒扣）
+                          </SelectItem>
+                          <SelectItem value="tilted">倾斜</SelectItem>
+                          <SelectItem value="upright">竖放</SelectItem>
+                          <SelectItem value="other">其他</SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                    {uprightDirectionInvalid ? (
+                    {placementInvalid ? (
                       <p className="text-destructive text-sm">
-                        请选择竖放时的生长面朝向。
+                        请选择放置方式。
                       </p>
                     ) : null}
-                    <p className="text-muted-foreground text-sm">
-                      左右以面向下游时为准。
-                    </p>
-                  </div>
-                ) : null}
-                {placementMode === 'other' ? (
-                  <div
-                    className="flex flex-col gap-2"
-                    data-invalid={otherPlacementInvalid || undefined}
-                  >
-                    <Label>
-                      其他放置方式 <RequiredMark />
-                    </Label>
-                    <Input
-                      value={String(placement.placement_other ?? '')}
-                      disabled={disabled}
-                      aria-invalid={otherPlacementInvalid || undefined}
-                      onChange={(event) =>
-                        update(index, {
-                          size_placement: jsonValue({
-                            ...placement,
-                            placement_other: event.target.value,
-                          }),
-                        })
-                      }
-                    />
-                    {otherPlacementInvalid ? (
-                      <p className="text-destructive text-sm">
-                        请说明其他放置方式。
+                  </Field>
+                  {placementMode === 'tilted' ? (
+                    <>
+                      <Field
+                        className="gap-2"
+                        data-invalid={tiltInvalid || undefined}
+                        data-disabled={disabled || undefined}
+                      >
+                        <FieldLabel htmlFor={`substrate-tilt-${pieceLabel}`}>
+                          倾角 α（°） <RequiredMark />
+                        </FieldLabel>
+                        <Input
+                          id={`substrate-tilt-${pieceLabel}`}
+                          aria-describedby={`substrate-tilt-help-${pieceLabel}`}
+                          type="number"
+                          min="-90"
+                          max="90"
+                          step="any"
+                          value={String(placement.tilt_angle_deg ?? '')}
+                          disabled={disabled}
+                          aria-invalid={tiltInvalid || undefined}
+                          onChange={(event) =>
+                            update(index, {
+                              size_placement: jsonValue({
+                                ...placement,
+                                tilt_angle_deg: number(event.target.value),
+                              }),
+                            })
+                          }
+                        />
+                        {tiltInvalid ? (
+                          <p className="text-destructive text-sm">
+                            倾角须大于 -90°、小于 90°且不为 0°。
+                          </p>
+                        ) : null}
+                        <p
+                          id={`substrate-tilt-help-${pieceLabel}`}
+                          className="text-muted-foreground text-sm"
+                        >
+                          与水平面夹角；生长面朝上为正、朝下为负。
+                        </p>
+                      </Field>
+                      <Field
+                        className="gap-2"
+                        data-invalid={tiltAzimuthInvalid || undefined}
+                        data-disabled={disabled || undefined}
+                      >
+                        <FieldLabel htmlFor={`substrate-azimuth-${pieceLabel}`}>
+                          方位角 φ（°） <RequiredMark />
+                        </FieldLabel>
+                        <Input
+                          id={`substrate-azimuth-${pieceLabel}`}
+                          aria-describedby={`substrate-azimuth-help-${pieceLabel}`}
+                          type="number"
+                          min="0"
+                          max="359.999"
+                          step="any"
+                          value={String(placement.tilt_azimuth_deg ?? '')}
+                          disabled={disabled}
+                          aria-invalid={tiltAzimuthInvalid || undefined}
+                          onChange={(event) =>
+                            update(index, {
+                              size_placement: jsonValue({
+                                ...placement,
+                                tilt_azimuth_deg: number(event.target.value),
+                              }),
+                            })
+                          }
+                        />
+                        {tiltAzimuthInvalid ? (
+                          <p className="text-destructive text-sm">
+                            请填写 0° 到小于 360° 的方位角。
+                          </p>
+                        ) : null}
+                        <p
+                          id={`substrate-azimuth-help-${pieceLabel}`}
+                          className="text-muted-foreground text-sm"
+                        >
+                          生长面法向的水平投影；下游 0°，俯视顺时针为正。
+                        </p>
+                      </Field>
+                      <SubstrateAngleGuide />
+                    </>
+                  ) : null}
+                  {placementMode === 'upright' ? (
+                    <Field
+                      className="gap-2"
+                      data-invalid={uprightDirectionInvalid || undefined}
+                    >
+                      <Label>
+                        生长面朝向 <RequiredMark />
+                      </Label>
+                      <Select
+                        value={String(
+                          placement.upright_growth_face_direction ?? '',
+                        )}
+                        disabled={disabled}
+                        onValueChange={(value) =>
+                          update(index, {
+                            size_placement: jsonValue({
+                              ...placement,
+                              upright_growth_face_direction: value,
+                            }),
+                          })
+                        }
+                      >
+                        <SelectTrigger
+                          className="w-full"
+                          aria-invalid={uprightDirectionInvalid || undefined}
+                        >
+                          <SelectValue placeholder="请选择生长面朝向" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="downstream">朝下游</SelectItem>
+                            <SelectItem value="upstream">朝上游</SelectItem>
+                            <SelectItem value="tube_left">
+                              朝炉管左侧
+                            </SelectItem>
+                            <SelectItem value="tube_right">
+                              朝炉管右侧
+                            </SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {uprightDirectionInvalid ? (
+                        <p className="text-destructive text-sm">
+                          请选择竖放时的生长面朝向。
+                        </p>
+                      ) : null}
+                      <p className="text-muted-foreground text-sm">
+                        左右以面向下游时为准。
                       </p>
-                    ) : null}
-                  </div>
-                ) : null}
+                    </Field>
+                  ) : null}
+                  {placementMode === 'other' ? (
+                    <Field
+                      className="gap-2"
+                      data-invalid={otherPlacementInvalid || undefined}
+                    >
+                      <Label>
+                        其他放置方式 <RequiredMark />
+                      </Label>
+                      <Input
+                        value={String(placement.placement_other ?? '')}
+                        disabled={disabled}
+                        aria-invalid={otherPlacementInvalid || undefined}
+                        onChange={(event) =>
+                          update(index, {
+                            size_placement: jsonValue({
+                              ...placement,
+                              placement_other: event.target.value,
+                            }),
+                          })
+                        }
+                      />
+                      {otherPlacementInvalid ? (
+                        <p className="text-destructive text-sm">
+                          请说明其他放置方式。
+                        </p>
+                      ) : null}
+                    </Field>
+                  ) : null}
+                </FieldGroup>
                 <div className="flex flex-col gap-2 sm:col-span-3">
                   <Label>衬底处理</Label>
                   <TreatmentStepsEditor
@@ -5126,7 +4258,7 @@ export function SimpleGrowthEditor({
         {allowedFieldTypes.length > 0 ? (
           <Card size="sm">
             <CardHeader className="border-b">
-              <CardTitle>实际外场或等离子体</CardTitle>
+              <CardTitle>本次使用的附加能力</CardTitle>
               <CardDescription>
                 仅记录本炉实际启用的程序；未添加即表示本炉未使用。可选类型来自所选实验装置的能力。
               </CardDescription>
@@ -5135,12 +4267,10 @@ export function SimpleGrowthEditor({
               <FieldParamsEditor
                 value={settings.field_params ?? []}
                 allowedTypes={allowedFieldTypes}
+                otherCapabilityNames={additionalCapabilityNames(setupSnapshot)}
                 disabled={disabled}
                 showErrors={showErrors}
-                labels={buildFieldParamsEditorLabels(
-                  t,
-                  String(setupSnapshot?.field_device_other_name ?? ''),
-                )}
+                labels={buildFieldParamsEditorLabels(t)}
                 onChange={(field_params) =>
                   onSettingsChange({
                     ...settings,

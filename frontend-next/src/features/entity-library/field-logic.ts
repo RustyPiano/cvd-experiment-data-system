@@ -1,3 +1,4 @@
+import { additionalCapabilityNames } from '@/shared/additional-capabilities'
 // 一等实体表单的「元数据驱动」纯逻辑：可选项解析、条件显隐、有效必填、默认值。
 // 全部只读消费 field-metadata（生成物），不含 React/网络，便于 vitest 单测。
 import { entities, optionLabelsZh } from '@/shared/generated/field-metadata'
@@ -331,6 +332,8 @@ export function isFieldVisible(
   field: FieldMetadata,
   values: EntityFormValues,
 ): boolean {
+  if (kind === 'setup' && field.key === 'field_device_other_name') return false
+
   if (kind === 'instrument' && field.key === 'name_type') return false
 
   const subcategory = parseSubcategory(field.labelZh)
@@ -438,7 +441,9 @@ export function buildDefaultValues(
   const values: EntityFormValues = {}
   for (const field of getEntityFields(kind)) {
     const raw = source?.[field.key]
-    if (isMultiSelectInput(field.input)) {
+    if (field.key === 'field_device_other_names') {
+      values[field.key] = additionalCapabilityNames(source)
+    } else if (isMultiSelectInput(field.input)) {
       values[field.key] = Array.isArray(raw)
         ? raw
             .map(String)
@@ -525,7 +530,11 @@ export function buildSubmitPayload(
       const normalized = [
         ...new Set(
           value
-            .map((item) => canonicalFieldOption(field.key, item.trim()))
+            .map((item) =>
+              field.key === 'field_device_other_names'
+                ? item.trim()
+                : canonicalFieldOption(field.key, item.trim()),
+            )
             .filter(Boolean),
         ),
       ]
@@ -610,5 +619,10 @@ export function buildSubmitPayload(
           : item,
       )
   }
+  if (
+    kind === 'setup' &&
+    !(values['field_devices'] as string[] | undefined)?.includes('other')
+  )
+    delete payload.field_device_other_names
   return payload
 }

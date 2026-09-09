@@ -34,8 +34,8 @@ KNOWN_LEVELS = {
     "conditional_required",
     "conditional_recommended",
 }
-EXPECTED_FIELDS = 121
-EXPECTED_ENTITY_FIELDS = 62
+EXPECTED_FIELDS = 125
+EXPECTED_ENTITY_FIELDS = 63
 EXPECTED_R0 = 26
 
 errors: list[str] = []

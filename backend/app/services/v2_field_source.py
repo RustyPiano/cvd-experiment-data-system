@@ -424,3 +424,23 @@ def condition_matches(condition: dict[str, Any], value: Any) -> bool:
         return value in set(expected or [])
     msg = f"Unsupported condition op: {op}"
     raise ValueError(msg)
+
+
+def additional_capability_names(attrs: dict[str, Any]) -> list[str]:
+    names = attrs.get("field_device_other_names")
+    if isinstance(names, list):
+        return [name.strip() for name in names if isinstance(name, str) and name.strip()]
+    legacy = attrs.get("field_device_other_name")
+    return [legacy.strip()] if isinstance(legacy, str) and legacy.strip() else []
+
+
+def additional_capability_is_available(field: dict[str, Any], attrs: dict[str, Any]) -> bool:
+    devices = attrs.get("field_devices") or []
+    kind = canonical_option_value(field.get("field_type"), field_key="field_type")
+    if kind not in {canonical_option_value(item, field_key="field_devices") for item in devices}:
+        return False
+    name = field.get("capability_name")
+    if kind != "other":
+        return not name
+    names = additional_capability_names(attrs)
+    return name in names if name else len(names) == 1

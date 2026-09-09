@@ -332,7 +332,7 @@ describe('scientific experiment workflow helpers', () => {
         ],
         composition_relations: [],
       }),
-    ).toBe('2H-MoS₂–2H-WS₂ 横向异质结构')
+    ).toBe('2H-MoS₂–2H-WS₂ 横向拼接')
   })
 
   it('validates formulas, alloy fractions, layer order, and phase matches', () => {

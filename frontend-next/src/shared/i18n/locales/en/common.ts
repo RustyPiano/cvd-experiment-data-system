@@ -1,6 +1,25 @@
 // en locale. Mirrors the key shape of zh/common.ts (the authoritative default).
 // English UI polish is a post-v2.0 task (D12); keep keys in sync as文案 lands.
 export const common = {
+  substrateAngleGuide: {
+    title: 'Angle guide',
+    sideTitle: 'Tilt α · Side view',
+    sideAlt:
+      'Tilt example: the substrate is 30° from horizontal. The blue growth face points upward, so enter +30°. The arrow points outward perpendicular to the growth face; the dashed arrow is its horizontal projection.',
+    growthFace: 'Growth face',
+    substrate: 'Substrate',
+    horizontal: 'Horizontal',
+    normal: 'Surface normal',
+    normalTerm: 'Outward at 90°',
+    projection: 'Projection',
+    topTitle: 'Azimuth φ · Top view',
+    topAlt:
+      'Azimuth example: viewed from above, downstream is 0°. Clockwise, right is 90°, upstream is 180°, and left is 270°. The horizontal projection of the growth-face normal is 60° clockwise from downstream, so enter 60°.',
+    downstream: 'Downstream 0°',
+    upstream: 'Upstream 180°',
+    projectionLine1: 'Normal’s',
+    projectionLine2: 'projection',
+  },
   units: {
     按通道: 'per channel',
   },
@@ -26,6 +45,8 @@ export const common = {
     greeting: 'Hello, world',
   },
   validation: {
+    additionalCapabilityNames:
+      'Enter distinct capability names of 1–128 characters.',
     required: 'This field is required',
     spaceGroupRange: 'Enter an integer from 1 to 230',
     finiteNumber: 'Enter a valid number',
@@ -148,6 +169,10 @@ export const common = {
         other: 'Other',
       },
       options: {
+        uv_ozone: 'UV–ozone combined',
+        uv_only: 'UV only',
+        ozone_only: 'Ozone only',
+
         acetone: 'Acetone',
         isopropanol: 'Isopropanol',
         ethanol: 'Ethanol',
@@ -178,6 +203,19 @@ export const common = {
         uv_ozone_treatment: 'UV/ozone treatment',
       },
       fields: {
+        mode: 'Treatment mode',
+        equipment_name: 'Equipment or program identifier',
+        wiping_material: 'Wiping material',
+        ultrasonic_frequency_kHz: 'Ultrasonic frequency',
+        ultrasonic_power_W: 'Ultrasonic power',
+        source_distance_mm: 'Sample-to-source distance',
+        wavelength_nm: 'Wavelength',
+        irradiance_mW_cm2: 'Irradiance at sample',
+        ozone_concentration_ppm: 'Ozone concentration',
+        gas_flow_sccm: 'Gas flow rate',
+        solution_volume_uL: 'Actual solution volume',
+        bath_volume_mL: 'Immersion bath volume',
+
         temperature_C: 'Temperature',
         duration_min: 'Duration',
         duration_s: 'Duration',
@@ -308,8 +346,8 @@ export const common = {
       clear: 'Clear cooling parameters',
     },
     fieldParams: {
-      addField: 'Add applied field',
-      field: 'Applied field {{position}}',
+      addField: 'Add capability use',
+      field: 'Capability use {{position}}',
       fieldType: 'Field type',
       selectFieldType: 'Select a field type',
       fieldTypes: {
@@ -320,7 +358,7 @@ export const common = {
       },
       startMinutes: 'Start time (min)',
       endMinutes: 'End time (min)',
-      removeField: 'Remove applied field',
+      removeField: 'Remove capability use',
       parameterGroups: {
         plasma: 'Plasma parameters',
         light: 'Light parameters',
@@ -612,6 +650,10 @@ export const common = {
       emptyValue: '—',
     },
     form: {
+      capabilityName: 'Capability name',
+      addCapability: 'Add capability',
+      removeCapability: 'Remove capability {{index}}',
+
       methodName: 'Method name',
       addMethod: 'Add method',
       removeMethod: 'Remove method {{index}}',

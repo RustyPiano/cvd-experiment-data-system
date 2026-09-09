@@ -45,7 +45,7 @@ from app.services.process_timeseries import (
 )
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import material_lot_version_snapshot
-from app.services.v2_field_source import load_field_source
+from app.services.v2_field_source import additional_capability_is_available, load_field_source
 from app.services.v2_process_semantics import frozen_gas_components, valid_frozen_gas_reference
 
 
@@ -415,14 +415,8 @@ class ScientificRevisionService:
             )
         setup_snapshot = run.setup_ref_snapshot_json or {}
         setup_attrs = setup_snapshot.get("attrs_snapshot") or setup_snapshot
-        raw_field_capabilities = setup_attrs.get("field_devices") or []
-        field_capabilities = set(
-            raw_field_capabilities
-            if isinstance(raw_field_capabilities, list)
-            else [raw_field_capabilities]
-        )
         for field in timeline.get("field_params") or []:
-            if field["field_type"] not in field_capabilities:
+            if not additional_capability_is_available(field, setup_attrs):
                 self._invalid_process_reference(
                     "process_steps.field_params",
                     "setup_capability",
@@ -636,6 +630,9 @@ class ScientificRevisionService:
             run_revision_id=revision.id,
             architecture_type=payload["architecture_type"],
             dimensional_form=payload.get("dimensional_form"),
+            film_form=payload.get("film_form"),
+            dimensional_form_other=payload.get("dimensional_form_other"),
+            in_plane_outline_other=payload.get("in_plane_outline_other"),
             in_plane_outline=payload.get("in_plane_outline"),
             optimization_objective=payload.get("optimization_objective"),
             note=payload.get("note"),

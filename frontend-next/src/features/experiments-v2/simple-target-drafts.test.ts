@@ -4,7 +4,7 @@ import { switchTargetDraft } from './simple-preparation-editors'
 import type { SimpleTarget, TargetDrafts } from './simple-preparation-editors'
 
 describe('simple target drafts', () => {
-  it('restores dopant input after switching to alloy and back', () => {
+  it('restores dopant input after switching structure forms and back', () => {
     const doped: SimpleTarget = {
       architecture_type: 'single_region',
       material_regions: [
@@ -27,15 +27,13 @@ describe('simple target drafts', () => {
     }
     const [alloy, drafts] = switchTargetDraft(
       doped,
-      'alloy',
+      'vertical',
       {} satisfies TargetDrafts,
     )
-    const [restored] = switchTargetDraft(alloy, 'doped', drafts)
+    const [restored] = switchTargetDraft(alloy, 'single', drafts)
 
-    expect(alloy.composition_relations).toHaveLength(2)
-    expect(
-      alloy.composition_relations.map((relation) => relation.nominal_value),
-    ).toEqual([undefined, undefined])
+    expect(alloy.material_regions).toHaveLength(2)
+    expect(alloy.composition_relations).toEqual(doped.composition_relations)
     expect(restored).toEqual(doped)
   })
 })

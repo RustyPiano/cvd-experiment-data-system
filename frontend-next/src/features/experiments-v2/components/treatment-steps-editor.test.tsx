@@ -74,6 +74,19 @@ const labels: TreatmentStepsEditorLabels = {
     uv_ozone_treatment: 'UV/ozone treatment',
   },
   fields: {
+    mode: 'Treatment mode',
+    equipment_name: 'Equipment identifier',
+    wiping_material: 'Wiping material',
+    ultrasonic_frequency_kHz: 'Ultrasonic frequency',
+    ultrasonic_power_W: 'Ultrasonic power',
+    source_distance_mm: 'Source distance',
+    wavelength_nm: 'Wavelength',
+    irradiance_mW_cm2: 'Irradiance',
+    ozone_concentration_ppm: 'Ozone concentration',
+    gas_flow_sccm: 'Gas flow',
+    solution_volume_uL: 'Actual solution volume',
+    bath_volume_mL: 'Bath volume',
+
     temperature_C: 'Temperature',
     duration_min: 'Duration',
     duration_s: 'Duration',
@@ -337,4 +350,39 @@ describe('TreatmentStepsEditor', () => {
     })
     expect(treatmentStepsAreValid('source_load', value)).toBe(true)
   })
+})
+
+it('accepts null fields from saved treatments but rejects populated inapplicable fields', () => {
+  const saved: TreatmentStep[] = [
+    {
+      type: 'solvent_cleaning',
+      parameters: {
+        solvent: 'ethanol',
+        solvent_other: null,
+        cleaning_method: 'wipe',
+        cleaning_method_other: null,
+        duration_min: null,
+        wiping_material: '无尘布',
+        ultrasonic_frequency_kHz: null,
+        ultrasonic_power_W: null,
+      },
+    },
+  ]
+  expect(treatmentStepsAreValid('substrate', saved)).toBe(true)
+  expect(
+    treatmentStepsAreValid('substrate', [
+      {
+        ...saved[0],
+        parameters: { ...saved[0].parameters, ultrasonic_power_W: 100 },
+      },
+    ]),
+  ).toBe(false)
+  expect(
+    treatmentStepsAreValid('substrate', [
+      {
+        ...saved[0],
+        parameters: { ...saved[0].parameters, unknown_parameter: null },
+      },
+    ]),
+  ).toBe(false)
 })

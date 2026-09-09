@@ -220,6 +220,7 @@ class TargetSpecPayload(BaseModel):
     composition_relations: list[TargetCompositionRelationPayload] = Field(default_factory=list)
     dimensional_form: (
         Literal[
+            "planar",
             "continuous_film",
             "discrete_planar_crystal",
             "ribbon",
@@ -247,13 +248,28 @@ class TargetSpecPayload(BaseModel):
         ]
         | None
     ) = None
+    film_form: Literal["discrete", "continuous"] | None = None
+    dimensional_form_other: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    in_plane_outline_other: str | None = Field(default=None, max_length=128, pattern=r"\S")
     optimization_objective: str | None = Field(default=None, max_length=2000)
     note: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
     def validate_orthogonal_target(self) -> Self:
-        if self.in_plane_outline and self.dimensional_form != "discrete_planar_crystal":
-            raise ValueError("in_plane_outline requires discrete_planar_crystal")
+        discrete = self.dimensional_form == "discrete_planar_crystal" or (
+            self.dimensional_form == "planar" and self.film_form == "discrete"
+        )
+        if self.film_form and self.dimensional_form != "planar":
+            raise ValueError("film_form applies only to planar targets")
+        if self.in_plane_outline and not discrete:
+            raise ValueError("in_plane_outline requires a discrete planar target")
+        if self.dimensional_form_other and self.dimensional_form != "other":
+            raise ValueError("dimensional_form_other applies only to other forms")
+        if self.in_plane_outline_other and self.in_plane_outline not in {
+            "other",
+            "other_regular_polygon",
+        }:
+            raise ValueError("in_plane_outline_other applies only to other outlines")
         keys = [region.region_key for region in self.material_regions]
         if len(keys) != len(set(keys)):
             raise ValueError("material region keys must be unique")
@@ -272,54 +288,66 @@ class TargetSpecPayload(BaseModel):
             labels = [region.lateral_region for region in self.material_regions]
             if len(labels) < 2 or any(not label for label in labels):
                 raise ValueError("lateral_junction requires at least two named regions")
-            if len({region.target_layer_count for region in self.material_regions}) > 1:
-                raise ValueError("lateral target_layer_count must be shared")
         regions = {region.region_key: region for region in self.material_regions}
-        solid_components = [
-            relation
-            for relation in self.composition_relations
-            if relation.relation_type == "solid_solution_component"
-        ]
-        if solid_components:
-            if (
-                self.architecture_type != "single_region"
-                or len(self.material_regions) != 1
-                or len(solid_components) != len(self.composition_relations)
-            ):
-                raise ValueError("solid solution requires one region and component-only relations")
-            if len(solid_components) < 2:
-                raise ValueError("solid solution requires at least two components")
-            if any(
-                relation.value_basis != "mol_fraction"
-                or relation.nominal_value is None
-                or relation.site_or_location is not None
-                for relation in solid_components
-            ):
-                raise ValueError("solid-solution components require only mol_fraction values")
-            formulas = [validate_chemical_formula(item.species) for item in solid_components]
-            if len(formulas) != len(set(formulas)):
-                raise ValueError("solid-solution component formulas must be unique")
-            generated = solid_solution_formula(
-                [
-                    (formula, relation.nominal_value)
-                    for formula, relation in zip(formulas, solid_components, strict=True)
-                ]
-            )
-            region = self.material_regions[0]
-            if region.formula != generated:
-                raise ValueError("solid-solution formula does not match its components")
-            catalog_sets = [set(MATERIAL_PHASE_CATALOG.get(formula, ())) for formula in formulas]
-            common_phases = set.intersection(*catalog_sets) if catalog_sets else set()
-            catalog_codes = {phase for catalog in catalog_sets for phase, _space_group in catalog}
-            if (
-                region.target_bulk_phase in catalog_codes
-                and (
-                    region.target_bulk_phase,
-                    region.target_bulk_space_group_number,
+        for region in self.material_regions:
+            solid_components = [
+                relation
+                for relation in self.composition_relations
+                if relation.relation_type == "solid_solution_component"
+                and relation.host_region_key == region.region_key
+            ]
+            if solid_components:
+                if any(
+                    relation.relation_type not in {"solid_solution_component", "doped_by"}
+                    for relation in self.composition_relations
+                    if relation.host_region_key == region.region_key
+                ):
+                    raise ValueError(
+                        "solid solution allows only components and dopants in its region"
+                    )
+                if len(solid_components) < 2:
+                    raise ValueError("solid solution requires at least two components")
+                if any(
+                    relation.value_basis != "mol_fraction"
+                    or relation.nominal_value is None
+                    or relation.site_or_location is not None
+                    for relation in solid_components
+                ):
+                    raise ValueError("solid-solution components require only mol_fraction values")
+                formulas = [validate_chemical_formula(item.species) for item in solid_components]
+                if len(formulas) != len(set(formulas)):
+                    raise ValueError("solid-solution component formulas must be unique")
+                generated = solid_solution_formula(
+                    [
+                        (formula, relation.nominal_value)
+                        for formula, relation in zip(formulas, solid_components, strict=True)
+                    ]
                 )
-                not in common_phases
-            ):
-                raise ValueError("solid-solution catalog phase and space group do not match")
+                if region.formula != generated:
+                    raise ValueError("solid-solution formula does not match its components")
+                catalog_sets = [
+                    set(MATERIAL_PHASE_CATALOG.get(formula, ())) for formula in formulas
+                ]
+                common_phases = set.intersection(*catalog_sets) if catalog_sets else set()
+                catalog_codes = {
+                    phase for catalog in catalog_sets for phase, _space_group in catalog
+                }
+                if (
+                    region.target_bulk_phase in catalog_codes
+                    and (
+                        region.target_bulk_phase,
+                        region.target_bulk_space_group_number,
+                    )
+                    not in common_phases
+                ):
+                    raise ValueError("solid-solution catalog phase and space group do not match")
+        dopant_keys = [
+            (relation.host_region_key, relation.species, relation.site_or_location or "")
+            for relation in self.composition_relations
+            if relation.relation_type == "doped_by"
+        ]
+        if len(dopant_keys) != len(set(dopant_keys)):
+            raise ValueError("dopant and site must be unique within each region")
         for relation in self.composition_relations:
             if relation.relation_type not in {"doped_by", "substitutional_alloy"}:
                 continue
@@ -390,6 +418,7 @@ class SpinCoatStagePayload(BaseModel):
 
 
 class SpinCoatPreparationParametersPayload(PreparationParametersPayload):
+    solution_volume_uL: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     solvent: str | None = Field(default=None, min_length=1, max_length=128, pattern=r"\S")
     stages: list[SpinCoatStagePayload] = Field(min_length=1)
 
@@ -465,10 +494,13 @@ class OtherPreparationParametersPayload(PreparationParametersPayload):
 
 
 class SolutionPreparationParametersPayload(PreparationParametersPayload):
+    solution_volume_uL: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     solvent: str = Field(min_length=1, max_length=128, pattern=r"\S")
 
 
-class DipCoatPreparationParametersPayload(SolutionPreparationParametersPayload):
+class DipCoatPreparationParametersPayload(PreparationParametersPayload):
+    solvent: str = Field(min_length=1, max_length=128, pattern=r"\S")
+    bath_volume_mL: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     duration_min: float = Field(gt=0, allow_inf_nan=False)
 
 
@@ -654,10 +686,24 @@ class SourceLoadPayload(BaseModel):
             raise ValueError("preparation method does not apply to this loading method")
         if "direct_load" in step_types and len(self.preparation_steps) != 1:
             raise ValueError("direct loading cannot be combined with other treatments")
+        coating_steps = [
+            step for step in self.preparation_steps if step.step_type in {"drop_cast", "spin_coat"}
+        ]
+        recorded_volumes = [step.parameters.solution_volume_uL for step in coating_steps]
+        has_step_volumes = bool(recorded_volumes) and all(
+            value is not None for value in recorded_volumes
+        )
+        if any(value is not None for value in recorded_volumes) and not has_step_volumes:
+            raise ValueError("each coating step requires its actual solution volume")
+        if has_step_volumes and any(
+            ingredient.amount is not None for ingredient in self.ingredients
+        ):
+            raise ValueError("solution volume is recorded once per step, not once per ingredient")
         immersion_only = "dip_coat" in step_types and not step_types & {"drop_cast", "spin_coat"}
         if (
             self.loading_method != "gas_line"
             and not immersion_only
+            and not has_step_volumes
             and any(
                 ingredient.amount is None and ingredient.function_role is None
                 for ingredient in self.ingredients
@@ -692,9 +738,13 @@ class SourceLoadPayload(BaseModel):
             ingredient.concentration_value is None for ingredient in self.ingredients
         ):
             raise ValueError("drop casting and immersion require solution concentration")
-        if "drop_cast" in step_types and any(
-            ingredient.amount is None or ingredient.unit not in {"μL", "µL", "uL", "mL", "L"}
-            for ingredient in self.ingredients
+        if (
+            "drop_cast" in step_types
+            and not has_step_volumes
+            and any(
+                ingredient.amount is None or ingredient.unit not in {"μL", "µL", "uL", "mL", "L"}
+                for ingredient in self.ingredients
+            )
         ):
             raise ValueError("drop casting requires a volume amount and unit")
         if (

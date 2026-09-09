@@ -1,3 +1,4 @@
+import { capabilityNamesAreValid } from '@/shared/additional-capabilities'
 // 一等实体的动态表单（纯展示；数据获取/提交由页面注入 onSubmit）。
 // 字段清单、显隐、必填、选项均由 field-metadata 驱动；UI 文案全部走 i18n（D12）。
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
@@ -264,6 +265,21 @@ export function EntityForm({
       typeof rawTubeShape === 'string'
         ? String(parseStructuredValue(rawTubeShape).shape ?? '')
         : ''
+    if (
+      kind === 'setup' &&
+      (resolvedValues['field_devices'] as string[] | undefined)?.includes(
+        'other',
+      ) &&
+      !capabilityNamesAreValid(
+        (resolvedValues['field_device_other_names'] as string[] | undefined) ??
+          [],
+      )
+    ) {
+      errors['field_device_other_names'] = {
+        type: 'validate',
+        message: t('validation.additionalCapabilityNames'),
+      }
+    }
     for (const field of fields) {
       if (!isFieldVisible(kind, field, resolvedValues)) continue
       const required = isEffectivelyRequired(kind, field, resolvedValues)
@@ -526,6 +542,7 @@ export function EntityForm({
         <div className="grid gap-4 sm:grid-cols-2">
           {getDisplayEntityFields(kind, values).map((field) =>
             isFieldVisible(kind, field, values) &&
+            field.key !== 'field_device_other_names' &&
             !(
               kind === 'material_lot' &&
               field.key === 'lot_category' &&
@@ -655,7 +672,10 @@ function EntityFieldControl({
   const messageId = `${controlId}-message`
 
   const wideControl =
-    useTextarea || entityFileInput || isEntityJsonArrayField(field.key)
+    useTextarea ||
+    entityFileInput ||
+    isEntityJsonArrayField(field.key) ||
+    field.key === 'field_devices'
 
   return (
     <FormField
@@ -678,7 +698,128 @@ function EntityFieldControl({
             ) : null}
             {required ? <RequiredMark /> : null}
           </FormLabel>
-          {materialFormulaInput ? (
+          {field.key === 'field_devices' ? (
+            <fieldset
+              className="flex flex-col gap-4 rounded-md border border-input p-3"
+              aria-labelledby={labelId}
+            >
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(enumOptions ?? []).map((option) => (
+                  <label
+                    key={option}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={
+                        Array.isArray(rhf.value) && rhf.value.includes(option)
+                      }
+                      disabled={disabled}
+                      onCheckedChange={(checked) => {
+                        const selected = Array.isArray(rhf.value)
+                          ? rhf.value
+                          : []
+                        rhf.onChange(
+                          checked
+                            ? isNoneOption(option)
+                              ? [option]
+                              : [
+                                  ...selected.filter(
+                                    (item) =>
+                                      !isNoneOption(item) && item !== option,
+                                  ),
+                                  option,
+                                ]
+                            : selected.filter((item) => item !== option),
+                        )
+                      }}
+                    />
+                    {localizedOption(option, i18n.language)}
+                  </label>
+                ))}
+              </div>
+              {Array.isArray(rhf.value) && rhf.value.includes('other') ? (
+                <FormField
+                  control={control}
+                  name="field_device_other_names"
+                  render={({ field: namesField, fieldState: namesState }) => {
+                    const names =
+                      Array.isArray(namesField.value) && namesField.value.length
+                        ? namesField.value
+                        : ['']
+                    return (
+                      <FormItem className="border-t pt-3">
+                        <fieldset
+                          className="flex flex-col gap-3"
+                          disabled={disabled}
+                        >
+                          {names.map((name, index) => (
+                            <div key={index} className="flex items-end gap-2">
+                              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                                <Label
+                                  htmlFor={`${controlId}-capability-${index}`}
+                                >
+                                  {t('entityLibrary.form.capabilityName')}{' '}
+                                  {index + 1} <RequiredMark />
+                                </Label>
+                                <Input
+                                  id={`${controlId}-capability-${index}`}
+                                  value={name}
+                                  maxLength={128}
+                                  required
+                                  aria-invalid={namesState.invalid || undefined}
+                                  onChange={(event) =>
+                                    namesField.onChange(
+                                      names.map((item, position) =>
+                                        position === index
+                                          ? event.target.value
+                                          : item,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                aria-label={t(
+                                  'entityLibrary.form.removeCapability',
+                                  { index: index + 1 },
+                                )}
+                                onClick={() =>
+                                  namesField.onChange(
+                                    names.length === 1
+                                      ? ['']
+                                      : names.filter(
+                                          (_, position) => position !== index,
+                                        ),
+                                  )
+                                }
+                              >
+                                {t('entityLibrary.form.removeCapability', {
+                                  index: index + 1,
+                                })}
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="self-start"
+                            onClick={() => namesField.onChange([...names, ''])}
+                          >
+                            {t('entityLibrary.form.addCapability')}
+                          </Button>
+                        </fieldset>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+              ) : null}
+            </fieldset>
+          ) : materialFormulaInput ? (
             <FormulaInput
               id={controlId}
               value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}

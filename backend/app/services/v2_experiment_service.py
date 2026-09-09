@@ -65,6 +65,7 @@ from app.services.v2_entity_snapshot_service import (
 )
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
+    additional_capability_is_available,
     canonical_option_value,
     experiment_fields,
     load_field_source,
@@ -901,6 +902,7 @@ class V2ExperimentService:
             payload_json,
             attrs.get("field_devices"),
             setup_available=bool(run.setup_ref_snapshot_json),
+            setup_attrs=attrs,
         )
 
     @staticmethod
@@ -909,6 +911,7 @@ class V2ExperimentService:
         field_devices: Any,
         *,
         setup_available: bool,
+        setup_attrs: dict[str, Any] | None = None,
     ) -> None:
         configured = (
             {
@@ -924,7 +927,10 @@ class V2ExperimentService:
             for field in step.get("field_params") or []:
                 field_type = canonical_option_value(field.get("field_type"), field_key="field_type")
                 reason = "setup_required" if not setup_available else "setup_capability"
-                if field_type not in configured:
+                if field_type not in configured or (
+                    setup_attrs is not None
+                    and not additional_capability_is_available(field, setup_attrs)
+                ):
                     raise HTTPException(
                         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail={"invalid": [{"key": "field_params", "reason": reason}]},

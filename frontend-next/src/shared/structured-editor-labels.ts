@@ -111,6 +111,10 @@ export function buildTreatmentStepsEditorLabels(
       other: t('structuredEditors.treatmentSteps.atmosphereOptions.other'),
     },
     options: {
+      uv_ozone: t('structuredEditors.treatmentSteps.options.uv_ozone'),
+      uv_only: t('structuredEditors.treatmentSteps.options.uv_only'),
+      ozone_only: t('structuredEditors.treatmentSteps.options.ozone_only'),
+
       acetone: t('structuredEditors.treatmentSteps.options.acetone'),
       isopropanol: t('structuredEditors.treatmentSteps.options.isopropanol'),
       ethanol: t('structuredEditors.treatmentSteps.options.ethanol'),
@@ -149,6 +153,37 @@ export function buildTreatmentStepsEditorLabels(
       ),
     },
     fields: {
+      mode: t('structuredEditors.treatmentSteps.fields.mode'),
+      equipment_name: t(
+        'structuredEditors.treatmentSteps.fields.equipment_name',
+      ),
+      wiping_material: t(
+        'structuredEditors.treatmentSteps.fields.wiping_material',
+      ),
+      ultrasonic_frequency_kHz: t(
+        'structuredEditors.treatmentSteps.fields.ultrasonic_frequency_kHz',
+      ),
+      ultrasonic_power_W: t(
+        'structuredEditors.treatmentSteps.fields.ultrasonic_power_W',
+      ),
+      source_distance_mm: t(
+        'structuredEditors.treatmentSteps.fields.source_distance_mm',
+      ),
+      wavelength_nm: t('structuredEditors.treatmentSteps.fields.wavelength_nm'),
+      irradiance_mW_cm2: t(
+        'structuredEditors.treatmentSteps.fields.irradiance_mW_cm2',
+      ),
+      ozone_concentration_ppm: t(
+        'structuredEditors.treatmentSteps.fields.ozone_concentration_ppm',
+      ),
+      gas_flow_sccm: t('structuredEditors.treatmentSteps.fields.gas_flow_sccm'),
+      solution_volume_uL: t(
+        'structuredEditors.treatmentSteps.fields.solution_volume_uL',
+      ),
+      bath_volume_mL: t(
+        'structuredEditors.treatmentSteps.fields.bath_volume_mL',
+      ),
+
       temperature_C: t('structuredEditors.treatmentSteps.fields.temperature_C'),
       duration_min: t('structuredEditors.treatmentSteps.fields.duration_min'),
       duration_s: t('structuredEditors.treatmentSteps.fields.duration_s'),
