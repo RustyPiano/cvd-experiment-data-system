@@ -47,6 +47,7 @@ export function SubstrateAngleGuide() {
               <path d="M 144 132 H 192" strokeDasharray="4 3" />
               <path d="M 185 128 L 192 132 L 185 136" />
               <path d="M 206 132 A 62 62 0 0 1 197.7 163" />
+              <path d="M 178 73.2 A 28 28 0 0 0 192 77" />
             </g>
             <g stroke="var(--muted-foreground)">
               <path d="M 86 70 L 96 100" />
@@ -54,6 +55,12 @@ export function SubstrateAngleGuide() {
               <path d="M 215 113 L 192 132" />
             </g>
             <g fill="currentColor" fontSize="16">
+              <text x="190" y="150" fontSize="14" fill="var(--primary)">
+                α
+              </text>
+              <text x="177" y="100" fontSize="14" fill="var(--primary)">
+                α
+              </text>
               <text x="56" y="60" fill="var(--primary)">
                 {t('substrateAngleGuide.growthFace')}
               </text>
@@ -104,6 +111,9 @@ export function SubstrateAngleGuide() {
             </g>
             <circle cx="180" cy="130" r="4" fill="var(--primary)" />
             <g fill="currentColor" fontSize="16" textAnchor="middle">
+              <text x="195" y="113" fontSize="14" fill="var(--primary)">
+                φ
+              </text>
               <text x="180" y="30">
                 {t('substrateAngleGuide.downstream')}
               </text>
