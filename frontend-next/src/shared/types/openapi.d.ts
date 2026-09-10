@@ -1913,7 +1913,7 @@ export interface components {
             });
             properties?: unknown;
             assertions?: unknown;
-        } & (unknown & unknown)) | ({
+        } & (unknown & unknown & unknown)) | ({
             measurement?: {
                 /** @constant */
                 method_profile: "Raman";

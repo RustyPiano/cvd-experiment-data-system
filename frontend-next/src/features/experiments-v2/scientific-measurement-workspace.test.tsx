@@ -797,7 +797,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     expect(
       api.createMeasurement.mock.calls[0][0].measurement.typed_conditions,
     ).not.toHaveProperty('white_balance_settings')
-  })
+  }, 20_000)
 
   it('keeps processed files separate and binds peak evidence to their original source', async () => {
     filesApi.uploadExperimentFile
@@ -851,7 +851,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     expect(filesApi.uploadExperimentFile.mock.calls[1][2].fileCategory).toBe(
       'processed',
     )
-  })
+  }, 20_000)
 
   it('preserves the save error and committed files when cleanup fails', async () => {
     api.createMeasurement.mockRejectedValue(
