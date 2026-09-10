@@ -165,7 +165,7 @@ export interface GasSpecies {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v4.0-alpha.43',
+  version: 'v4.0-alpha.44',
   status: 'INTERNAL_VALIDATION',
   source: 'docs/standard/field-source.yaml',
 }
@@ -3512,8 +3512,8 @@ export const entities: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'fixed_config',
-      labelZh: '关键固定配置',
-      labelEn: 'Key fixed configuration',
+      labelZh: '其他固定配置说明',
+      labelEn: 'Additional fixed configuration notes',
       input: '自由',
       unit: null,
       options: '如探测器型号、光栅范围、可用激光与物镜范围',
@@ -3528,9 +3528,9 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: '记录固定硬件与能力；本次使用参数填在表征记录中。',
+      helpZh: '无法在下方配置预设中记录的硬件信息。',
       helpEn:
-        'Record fixed hardware and capabilities here; enter acquisition settings in each characterization record.',
+        'Hardware information not covered by the configuration presets below.',
     },
     {
       key: 'capabilities',
@@ -3539,7 +3539,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       input: 'JSON数组',
       unit: null,
       options:
-        '[{code,configuration}]；code=other 时 configuration.method_names 为方法名称列表',
+        '[{code,configuration}]；configuration.presets=[{name,conditions}]；code=other 时另有 method_names',
       validation: null,
       requirement: {
         raw: '必填',
@@ -3551,8 +3551,10 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh:
+        '勾选方法后添加配置预设，只填已知参数；表征时选择预设并核对本次实际设置。',
+      helpEn:
+        'Select a method and add presets using known settings. Apply a preset during characterization and verify the actual settings.',
     },
     {
       key: 'last_calibration',
@@ -5373,10 +5375,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           multiline: true,
-          placeholder_zh:
-            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_zh: '参数所在文件、报告页码或未记录的参数',
           placeholder_en:
-            'Source file/report location or unavailable settings; do not guess values',
+            'Parameter source file, report page, or unrecorded parameters',
         },
       ],
       allowed_property_codes: [
@@ -5887,10 +5888,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           multiline: true,
-          placeholder_zh:
-            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_zh: '参数所在文件、报告页码或未记录的参数',
           placeholder_en:
-            'Source file/report location or unavailable settings; do not guess values',
+            'Parameter source file, report page, or unrecorded parameters',
         },
       ],
       allowed_property_codes: ['spectral_peaks', 'observation_note'],
@@ -6525,10 +6525,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           multiline: true,
-          placeholder_zh:
-            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_zh: '参数所在文件、报告页码或未记录的参数',
           placeholder_en:
-            'Source file/report location or unavailable settings; do not guess values',
+            'Parameter source file, report page, or unrecorded parameters',
         },
       ],
       allowed_property_codes: ['spectral_peaks', 'observation_note'],
@@ -6836,10 +6835,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           multiline: true,
-          placeholder_zh:
-            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_zh: '参数所在文件、报告页码或未记录的参数',
           placeholder_en:
-            'Source file/report location or unavailable settings; do not guess values',
+            'Parameter source file, report page, or unrecorded parameters',
         },
       ],
       allowed_property_codes: [
@@ -7284,10 +7282,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           multiline: true,
-          placeholder_zh:
-            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_zh: '参数所在文件、报告页码或未记录的参数',
           placeholder_en:
-            'Source file/report location or unavailable settings; do not guess values',
+            'Parameter source file, report page, or unrecorded parameters',
         },
       ],
       allowed_property_codes: [
@@ -7685,10 +7682,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           multiline: true,
-          placeholder_zh:
-            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_zh: '参数所在文件、报告页码或未记录的参数',
           placeholder_en:
-            'Source file/report location or unavailable settings; do not guess values',
+            'Parameter source file, report page, or unrecorded parameters',
         },
       ],
       allowed_property_codes: ['spectral_peaks', 'observation_note'],
@@ -8332,10 +8328,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           multiline: true,
-          placeholder_zh:
-            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_zh: '参数所在文件、报告页码或未记录的参数',
           placeholder_en:
-            'Source file/report location or unavailable settings; do not guess values',
+            'Parameter source file, report page, or unrecorded parameters',
         },
       ],
       allowed_property_codes: [
@@ -8404,10 +8399,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           multiline: true,
-          placeholder_zh:
-            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_zh: '参数所在文件、报告页码或未记录的参数',
           placeholder_en:
-            'Source file/report location or unavailable settings; do not guess values',
+            'Parameter source file, report page, or unrecorded parameters',
         },
       ],
       allowed_property_codes: ['observation_note'],
@@ -9107,10 +9101,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           multiline: true,
-          placeholder_zh:
-            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_zh: '参数所在文件、报告页码或未记录的参数',
           placeholder_en:
-            'Source file/report location or unavailable settings; do not guess values',
+            'Parameter source file, report page, or unrecorded parameters',
         },
       ],
       allowed_property_codes: ['spectral_peaks', 'observation_note'],

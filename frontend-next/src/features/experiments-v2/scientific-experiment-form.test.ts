@@ -1,13 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  defaultMeasurementRegion,
-  WORKFLOW_STEPS,
-} from './scientific-experiment-form'
+import { WORKFLOW_STEPS } from './scientific-experiment-form'
 
 import {
   channelsForSetupZoneCount,
-  materialAssertionValue,
   peakTemperatureC,
   processChannelTitle,
   saveBeforeStepChange,
@@ -20,13 +16,6 @@ import {
 } from './scientific-form-workflow'
 
 describe('scientific experiment workflow helpers', () => {
-  it('defaults advanced measurements to an explicit whole-sample region', () => {
-    expect(defaultMeasurementRegion('Raman')).toEqual({
-      geometryType: 'whole_sample',
-      label: 'whole_sample',
-    })
-  })
-
   it('drops only temperature channels outside a replacement setup', () => {
     expect(
       channelsForSetupZoneCount(
@@ -397,15 +386,6 @@ describe('scientific experiment workflow helpers', () => {
     save.mockClear()
     await expect(saveBeforeStepChange(false, false, save)).resolves.toBe(true)
     expect(save).not.toHaveBeenCalled()
-  })
-
-  it('builds assertion values with the backend scientific keys', () => {
-    expect(materialAssertionValue('phase_identity', '2H-MoS2', [], '')).toEqual(
-      { phase: '2H-MoS2' },
-    )
-    expect(materialAssertionValue('layer_count', '1', [], '')).toEqual({
-      count: 1,
-    })
   })
 })
 

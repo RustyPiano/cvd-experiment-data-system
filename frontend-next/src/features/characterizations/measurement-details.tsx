@@ -1,3 +1,4 @@
+import { invalidateRunQueries } from '@/features/experiments-v2/status-logic'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { TFunction } from 'i18next'
@@ -252,14 +253,7 @@ export function MeasurementDetails({
     onSuccess: async () => {
       setInvalidateOpen(false)
       setReason('')
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ['measurement-detail', measurementId],
-        }),
-        queryClient.invalidateQueries({ queryKey: ['measurements'] }),
-        queryClient.invalidateQueries({ queryKey: ['characterizations'] }),
-        queryClient.invalidateQueries({ queryKey: ['samples'] }),
-      ])
+      await invalidateRunQueries(queryClient)
       onInvalidated?.()
       toast.success(t('characterizations.details.invalidateSuccess'))
     },

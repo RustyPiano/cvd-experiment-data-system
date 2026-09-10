@@ -15,7 +15,7 @@
     "lint": "eslint --max-warnings=0",
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check .",
-    "gen:fields": "bun run scripts/generate-field-metadata.ts && prettier --write src/shared/generated/field-metadata.ts src/shared/generated/material-phase-catalog.ts",
+    "gen:fields": "bun run scripts/generate-field-metadata.ts && bun run scripts/generate-measurement-validator.ts && prettier --write src/shared/generated/field-metadata.ts src/shared/generated/material-phase-catalog.ts src/shared/generated/measurement-validator.d.mts",
     "gen:api": "openapi-typescript ${OPENAPI_SOURCE:-http://127.0.0.1:8000/openapi.json} --default-non-nullable false -o src/shared/types/openapi.d.ts"
   },
   "dependencies": {
@@ -24,10 +24,8 @@
     "@fontsource/noto-sans-sc": "^5.2.9",
     "@hookform/resolvers": "^5.4.0",
     "@tailwindcss/vite": "^4.1.18",
-    "@tanstack/react-devtools": "latest",
     "@tanstack/react-query": "^5.101.0",
-    "@tanstack/react-router": "latest",
-    "@tanstack/react-router-devtools": "latest",
+    "@tanstack/react-router": "1.170.14",
     "@tanstack/router-plugin": "^1.132.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -48,8 +46,10 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@tanstack/devtools-vite": "latest",
-    "@tanstack/eslint-config": "latest",
+    "@tanstack/devtools-vite": "0.7.0",
+    "@tanstack/eslint-config": "0.4.0",
+    "@tanstack/react-devtools": "0.10.5",
+    "@tanstack/react-router-devtools": "1.167.0",
     "@tanstack/router-cli": "^1.132.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -59,6 +59,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "ajv": "8.20.0",
     "eslint": "^9.20.0",
     "jsdom": "^28.1.0",
     "openapi-typescript": "^7.13.0",
@@ -66,11 +67,5 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
     "vitest": "^4.1.5"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lightningcss"
-    ]
   }
 }

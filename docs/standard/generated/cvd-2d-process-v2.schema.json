@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "standard_id": "cvd-2d-process",
   "title": "CVD-2D 科学数据契约 / CVD-2D Scientific Data Contract",
-  "version": "v4.0-alpha.43",
+  "version": "v4.0-alpha.44",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "module_payload_schema_version": "cvd_v2",
@@ -1628,8 +1628,8 @@
             "max_length": 1000
           },
           "multiline": true,
-          "placeholder_zh": "填写原文件/仪器报告位置或无法获取的参数；不猜填默认值",
-          "placeholder_en": "Source file/report location or unavailable settings; do not guess values"
+          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
+          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
         }
       ],
       "allowed_property_codes": [
@@ -2157,8 +2157,8 @@
             "max_length": 1000
           },
           "multiline": true,
-          "placeholder_zh": "填写原文件/仪器报告位置或无法获取的参数；不猜填默认值",
-          "placeholder_en": "Source file/report location or unavailable settings; do not guess values"
+          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
+          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
         }
       ],
       "allowed_property_codes": [
@@ -2837,8 +2837,8 @@
             "max_length": 1000
           },
           "multiline": true,
-          "placeholder_zh": "填写原文件/仪器报告位置或无法获取的参数；不猜填默认值",
-          "placeholder_en": "Source file/report location or unavailable settings; do not guess values"
+          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
+          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
         }
       ],
       "allowed_property_codes": [
@@ -3166,8 +3166,8 @@
             "max_length": 1000
           },
           "multiline": true,
-          "placeholder_zh": "填写原文件/仪器报告位置或无法获取的参数；不猜填默认值",
-          "placeholder_en": "Source file/report location or unavailable settings; do not guess values"
+          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
+          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
         }
       ],
       "allowed_property_codes": [
@@ -3645,8 +3645,8 @@
             "max_length": 1000
           },
           "multiline": true,
-          "placeholder_zh": "填写原文件/仪器报告位置或无法获取的参数；不猜填默认值",
-          "placeholder_en": "Source file/report location or unavailable settings; do not guess values"
+          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
+          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
         }
       ],
       "allowed_property_codes": [
@@ -4074,8 +4074,8 @@
             "max_length": 1000
           },
           "multiline": true,
-          "placeholder_zh": "填写原文件/仪器报告位置或无法获取的参数；不猜填默认值",
-          "placeholder_en": "Source file/report location or unavailable settings; do not guess values"
+          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
+          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
         }
       ],
       "allowed_property_codes": [
@@ -4773,8 +4773,8 @@
             "max_length": 1000
           },
           "multiline": true,
-          "placeholder_zh": "填写原文件/仪器报告位置或无法获取的参数；不猜填默认值",
-          "placeholder_en": "Source file/report location or unavailable settings; do not guess values"
+          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
+          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
         }
       ],
       "allowed_property_codes": [
@@ -4863,8 +4863,8 @@
             "max_length": 1000
           },
           "multiline": true,
-          "placeholder_zh": "填写原文件/仪器报告位置或无法获取的参数；不猜填默认值",
-          "placeholder_en": "Source file/report location or unavailable settings; do not guess values"
+          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
+          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
         }
       ],
       "allowed_property_codes": [
@@ -5608,8 +5608,8 @@
             "max_length": 1000
           },
           "multiline": true,
-          "placeholder_zh": "填写原文件/仪器报告位置或无法获取的参数；不猜填默认值",
-          "placeholder_en": "Source file/report location or unavailable settings; do not guess values"
+          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
+          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
         }
       ],
       "allowed_property_codes": [
@@ -6108,7 +6108,7 @@
       ],
       "title": "EquipmentPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.43/equipment.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.44/equipment.schema.json"
     },
     "substrates": {
       "$defs": {
@@ -7062,7 +7062,7 @@
       },
       "title": "SubstratesPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.43/substrates.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.44/substrates.schema.json"
     },
     "basic_info": {
       "$defs": {
@@ -7236,7 +7236,7 @@
       ],
       "title": "ScientificBasicInfo",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.43/basic_info.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.44/basic_info.schema.json"
     },
     "target_product": {
       "$defs": {
@@ -7572,7 +7572,7 @@
       ],
       "title": "TargetSpecPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.43/target_product.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.44/target_product.schema.json"
     },
     "precursors": {
       "$defs": {
@@ -8555,7 +8555,7 @@
       ],
       "title": "SourceLoadsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.43/precursors.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.44/precursors.schema.json"
     },
     "process_steps": {
       "$defs": {
@@ -9487,7 +9487,7 @@
       ],
       "title": "ProcessTimelinePayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.43/process_steps.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.44/process_steps.schema.json"
     },
     "process_events": {
       "$defs": {
@@ -9694,7 +9694,7 @@
       },
       "title": "ScientificProcessEventsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.43/process_events.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.44/process_events.schema.json"
     }
   },
   "entities": {

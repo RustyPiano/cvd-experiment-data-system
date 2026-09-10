@@ -6,6 +6,9 @@
 
 | 类别 | 文档 | 作用 |
 |---|---|---|
+| OM专项审查 | [`reviews/2026-09-10-om-field-review.md`](reviews/2026-09-10-om-field-review.md) | 35项OM条件、设备与预设、文件及导出的逐项建议；包含NA、白平衡及切换行为的复核证据，未实施的规则不视为已确认标准 |
+| 前端修复计划 | [`engineering/2026-09-10-frontend-design-remediation-plan.md`](engineering/2026-09-10-frontend-design-remediation-plan.md) | A～D 本地实现、426 前端用例及 PostgreSQL/浏览器/容器联调记录；生产发布前验收待执行 |
+| 前端审查复核 | [`reviews/2026-09-10-frontend-design-audit-verification.md`](reviews/2026-09-10-frontend-design-audit-verification.md) | 原审计逐项核实、误报修正与同类问题证据 |
 | 现状 | [`standard/STATUS.md`](standard/STATUS.md) | 已发布 `57a25b7` 基线、本地 U 批次状态、已定决策和下一步 |
 | 当前整改计划 | [`product/2026-07-27-preparation-module-finalization-plan.md`](product/2026-07-27-preparation-module-finalization-plan.md) | 制备模块终版第一批的实施边界、当前结果、下一批交互收口与专业待确认项 |
 | 历史整改计划 | [`product/2026-07-24-meeting-remediation-plan.md`](product/2026-07-24-meeting-remediation-plan.md) | M-01—M-24、A-01—A-09、F-01—F-12 历史基线，以及发布后 U-01—U-32 整改与终验定义 |

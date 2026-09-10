@@ -33,7 +33,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const ScientificMeasurementWorkspace = lazy(() =>
+const SimpleCharacterizationWorkspace = lazy(() =>
   import('@/features/experiments-v2/simple-characterization-workspace').then(
     (module) => ({ default: module.SimpleCharacterizationWorkspace }),
   ),
@@ -140,7 +140,7 @@ export function CharacterizationListPage({
               />
             }
           >
-            <ScientificMeasurementWorkspace
+            <SimpleCharacterizationWorkspace
               key={`${runId}:${sampleId ?? ''}`}
               runId={runId}
               initialSampleId={sampleId}

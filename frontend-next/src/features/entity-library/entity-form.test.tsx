@@ -344,6 +344,46 @@ describe('EntityForm — multi-select values', () => {
     expect(screen.queryByRole('combobox', { name: /表征方法/ })).toBeNull()
   })
 
+  it('edits and saves structured instrument presets without changing the original version', async () => {
+    const onSubmit = vi.fn()
+    const defaultData = {
+      instrument_code: 'OM-1',
+      capabilities: [
+        {
+          code: 'optical_microscopy',
+          configuration: {
+            presets: [{ name: '50x', conditions: { objective: '50x' } }],
+          },
+        },
+      ],
+    }
+    renderForm({
+      kind: 'instrument',
+      mode: 'newVersion',
+      nextVersion: 2,
+      defaultData,
+      onSubmit,
+    })
+    fireEvent.change(screen.getByLabelText('物镜规格'), {
+      target: { value: '100x' },
+    })
+    fireEvent.change(screen.getByLabelText('预设名称'), {
+      target: { value: '100x' },
+    })
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('物镜数值孔径 NA'), '0.75')
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(
+      onSubmit.mock.calls[0][0].capabilities[0].configuration.presets,
+    ).toEqual([
+      { name: '100x', conditions: { objective: '100x', objective_na: 0.75 } },
+    ])
+    expect(
+      defaultData.capabilities[0].configuration.presets[0].conditions.objective,
+    ).toBe('50x')
+  })
+
   it('adds, validates, removes and saves multiple other instrument methods', async () => {
     const onSubmit = vi.fn()
     renderForm({

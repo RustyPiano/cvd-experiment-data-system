@@ -5,7 +5,11 @@ import {
 } from '@/shared/substrate-orientation'
 // 一等实体表单的「元数据驱动」纯逻辑：可选项解析、条件显隐、有效必填、默认值。
 // 全部只读消费 field-metadata（生成物），不含 React/网络，便于 vitest 单测。
-import { entities, optionLabelsZh } from '@/shared/generated/field-metadata'
+import {
+  entities,
+  optionLabelsZh,
+  characterizationProfiles,
+} from '@/shared/generated/field-metadata'
 import {
   formatCompositeValue,
   isCompositeInput,
@@ -142,9 +146,47 @@ export function instrumentCapabilitiesSummary(
         item.code === 'other'
           ? instrumentOtherMethodNames(item.configuration)
           : []
-      return names.length
+      const method = names.length
         ? names.join(' · ')
         : localizedOption(String(item.code ?? ''), language)
+      const presets = item.configuration?.presets
+      if (!Array.isArray(presets) || !presets.length) return method
+      const fields = characterizationProfiles[item.code]?.condition_fields ?? []
+      return (
+        method +
+        '\n' +
+        presets
+          .map((preset) => {
+            const settings = Object.entries(preset.conditions ?? {})
+              .map(([key, setting]) => {
+                const field = fields.find((candidate) => candidate.key === key)
+                const label = field
+                  ? language.startsWith('en')
+                    ? field.label_en
+                    : field.label_zh
+                  : key
+                const option = field?.options?.find(
+                  (candidate) => candidate.value === setting,
+                )
+                const rendered = option
+                  ? language.startsWith('en')
+                    ? option.label_en
+                    : option.label_zh
+                  : setting && typeof setting === 'object'
+                    ? Object.values(setting).join(' × ')
+                    : String(setting)
+                return (
+                  label +
+                  ': ' +
+                  rendered +
+                  (field?.unit ? ' ' + field.unit : '')
+                )
+              })
+              .join('；')
+            return preset.name + ' — ' + settings
+          })
+          .join('\n')
+      )
     })
     .filter(Boolean)
     .join(' · ')

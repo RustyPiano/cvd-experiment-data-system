@@ -1,6 +1,21 @@
 // en locale. Mirrors the key shape of zh/common.ts (the authoritative default).
 // English UI polish is a post-v2.0 task (D12); keep keys in sync as文案 lands.
 export const common = {
+  instrumentPresets: {
+    selectLabel: 'Instrument configuration preset',
+    selectPlaceholder: 'Select a preset to apply',
+    replaceConfirm:
+      'Replace current settings with this preset and clear entered results?',
+    applied: 'Preset applied. Check the actual acquisition settings.',
+    unnamed: 'Unnamed preset',
+    name: 'Preset name',
+    removeConfirm: 'Remove this preset?',
+    remove: 'Remove preset',
+    invalid:
+      'Use unique names and provide at least one valid setting per preset.',
+    add: 'Add configuration preset',
+    powerUnit: 'Power unit',
+  },
   substrateAngleGuide: {
     title: 'Angle guide',
     sideTitle: 'Tilt α · Side view',
@@ -1104,6 +1119,17 @@ export const common = {
         run: 'Failed to load preparation record',
         instrumentVersions: 'Failed to load instrument versions',
         measurements: 'Failed to load characterization records',
+      },
+      recovery: {
+        invalidPayload:
+          'The measurement data failed validation. Check the form and try again.',
+        message:
+          'Some uploads or the save result still need checking. Retry cleanup or inspect existing records before submitting again.',
+        retry: 'Recheck and clean up uploads',
+        view: 'View saved record',
+        acknowledge: 'Records checked; clear this draft',
+        confirm:
+          'Have you checked existing records? This clears the current draft without deleting saved records.',
       },
       toast: {
         saved: 'Characterization record saved',

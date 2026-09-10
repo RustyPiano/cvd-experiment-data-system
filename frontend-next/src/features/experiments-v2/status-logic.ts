@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query'
 import type { ExperimentStatus } from '@/shared/types/api'
 
 export type RunStatus = ExperimentStatus
@@ -52,11 +53,23 @@ export const statusBannerKey = (status: 'locked' | 'invalid') =>
     }) as const
   )[status]
 
-export const statusTransitionInvalidationKeys = (
-  runId: string,
-  token: string,
-) => [
+// Run writes also change sample summaries, result flags and characterization access.
+export const statusTransitionInvalidationKeys = (runId?: string) => [
   ['v2-experiment-list'],
-  ['v2-samples', runId, token],
-  ['v2-run-audit', runId],
+  ['v2-experiment', ...(runId ? [runId] : [])],
+  ['experiments', 'detail'],
+  ['v2-experiment-status', ...(runId ? [runId] : [])],
+  ['samples'],
+  ['measurements'],
+  ['measurement-detail'],
+  ['characterizations'],
+  ['v2-run-audit', ...(runId ? [runId] : [])],
+  ['v2-run-revisions', ...(runId ? [runId] : [])],
 ]
+
+export const invalidateRunQueries = (client: QueryClient, runId?: string) =>
+  Promise.all(
+    statusTransitionInvalidationKeys(runId).map((queryKey) =>
+      client.invalidateQueries({ queryKey }),
+    ),
+  )

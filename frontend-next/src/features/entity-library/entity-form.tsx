@@ -1,4 +1,6 @@
 import { capabilityNamesAreValid } from '@/shared/additional-capabilities'
+import { instrumentPresetsAreValid } from '@/shared/instrument-presets'
+import { InstrumentPresetsEditor } from './instrument-presets-editor'
 import {
   substrateOrientationPayload,
   substratePlaneLabel,
@@ -137,6 +139,7 @@ function instrumentCapabilitiesAreValid(value: string | string[]): boolean {
         capability &&
         typeof capability === 'object' &&
         INSTRUMENT_CAPABILITY_CODES.has(capability.code) &&
+        instrumentPresetsAreValid(capability.code, capability.configuration) &&
         (capability.configuration === undefined ||
           (capability.configuration !== null &&
             typeof capability.configuration === 'object' &&
@@ -970,7 +973,9 @@ function EntityFieldControl({
                         capability.code === 'low_frequency_raman'),
                   )
                   const capability = capabilities.find(
-                    (item) => item.code === code,
+                    (item) =>
+                      item.code === code ||
+                      (code === 'Raman' && item.code === 'low_frequency_raman'),
                   )
                   const methodNames = instrumentOtherMethodNames(
                     capability?.configuration,
@@ -994,11 +999,7 @@ function EntityFieldControl({
                   return (
                     <div
                       key={code}
-                      className={
-                        code === 'other'
-                          ? 'flex flex-col gap-3 sm:col-span-2'
-                          : 'flex flex-col gap-3'
-                      }
+                      className="flex min-w-0 flex-col gap-3 sm:col-span-2"
                     >
                       <label className="flex cursor-pointer items-center gap-2 text-sm">
                         <Checkbox
@@ -1045,6 +1046,24 @@ function EntityFieldControl({
                             : profile.label_zh}
                         </span>
                       </label>
+                      {selected ? (
+                        <InstrumentPresetsEditor
+                          method={code}
+                          configuration={capability?.configuration}
+                          disabled={disabled}
+                          onChange={(configuration) =>
+                            rhf.onChange(
+                              JSON.stringify(
+                                capabilities.map((item) =>
+                                  item === capability
+                                    ? { ...item, configuration }
+                                    : item,
+                                ),
+                              ),
+                            )
+                          }
+                        />
+                      ) : null}
                       {code === 'other' && selected ? (
                         <fieldset
                           className="flex flex-col gap-3"

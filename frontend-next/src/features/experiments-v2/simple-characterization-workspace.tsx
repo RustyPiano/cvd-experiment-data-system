@@ -1,4 +1,19 @@
+import { recoverUploads } from './upload-recovery'
+import type { PendingUpload } from './upload-recovery'
+import { invalidateRunQueries } from './status-logic'
 import { useRef, useState } from 'react'
+import {
+  conditionDraft,
+  instrumentPresets,
+  reconcileConditions,
+} from '@/shared/instrument-presets'
+import {
+  ConditionInput,
+  characterizationConditionIssue,
+  conditionMatches,
+  conditionHasValue,
+  typedConditions,
+} from '@/shared/characterization-conditions'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -29,17 +44,12 @@ import {
   characterizationProfiles,
   characterizationProperties,
 } from '@/shared/generated/field-metadata'
-import type { CharacterizationConditionField } from '@/shared/generated/field-metadata'
-import { resolveErrorMessage } from '@/shared/api/http-error'
+import { HttpError, resolveErrorMessage } from '@/shared/api/http-error'
 import { isEnglish, localizedUnit } from '@/shared/field-i18n'
 import i18nInstance from '@/shared/i18n'
 import { RequiredMark } from '@/shared/ui/required-mark'
 import { RouteLeaveGuard } from '@/shared/ui/route-leave-guard'
-import {
-  deleteExperimentFile,
-  getExperimentFile,
-  uploadExperimentFile,
-} from '@/features/samples/api'
+import { uploadExperimentFile } from '@/features/samples/api'
 import { listEntityVersions } from '@/features/entity-library/api'
 
 import { MeasurementDetails } from '@/features/characterizations/measurement-details'
@@ -49,7 +59,7 @@ import {
   listAllMeasurements,
   listSamples,
 } from './api'
-import type { MeasurementBundleCreate, MeasurementPropertyQuality } from './api'
+import type { MeasurementPropertyQuality } from './api'
 import { EntityReferenceSelect } from './components/entity-reference-select'
 import {
   emptyPeakSeries,
@@ -58,6 +68,11 @@ import {
   SpectralPeaksEditor,
 } from './spectral-peaks-editor'
 import type { PeakSeriesDraft } from './spectral-peaks-editor'
+
+export {
+  characterizationConditionIssue,
+  conditionMatches,
+} from '@/shared/characterization-conditions'
 
 export const METHOD_ORDER = [
   'optical_microscopy',
@@ -85,9 +100,6 @@ type ResultDefinition = {
   required?: boolean
 }
 
-type MeasurementPropertyWrite = NonNullable<
-  MeasurementBundleCreate['properties']
->[number]
 type ResultMetadataDraft = {
   quality: MeasurementPropertyQuality
   qualityNote: string
@@ -165,18 +177,6 @@ export function characterizationResultIssue(
   return null
 }
 
-export function conditionMatches(
-  when: Record<string, string[]> | undefined,
-  conditions: Record<string, string>,
-) {
-  return (
-    !when ||
-    Object.entries(when).every(([key, values]) =>
-      values.includes(conditions[key]),
-    )
-  )
-}
-
 export function instrumentSupportsMethod(
   data: Record<string, unknown>,
   method: string,
@@ -235,363 +235,6 @@ export const SIMPLE_RESULTS: Record<string, ResultDefinition[]> =
         })),
     ]),
   )
-
-function conditionHasValue(
-  field: CharacterizationConditionField,
-  conditions: Record<string, string>,
-) {
-  return field.components
-    ? field.components.every((component) =>
-        Boolean(conditions[`${field.key}.${component.key}`]?.trim()),
-      )
-    : Boolean(conditions[field.key]?.trim())
-}
-
-export function characterizationConditionIssue(
-  field: CharacterizationConditionField,
-  conditions: Record<string, string>,
-  required = false,
-  language = 'zh',
-): string | null {
-  const translate = i18nInstance.getFixedT(
-    language,
-    'common',
-    'characterizations.workspace.validation',
-  )
-  const values = field.components
-    ? field.components.map(
-        (component) =>
-          conditions[`${field.key}.${component.key}`]?.trim() ?? '',
-      )
-    : [conditions[field.key]?.trim() ?? '']
-  if (values.every((value) => !value)) {
-    return required ? translate('conditionRequired') : null
-  }
-  if (values.some((value) => !value)) return translate('completeValues')
-  if (field.value_type === 'text' || field.value_type === 'select') {
-    if (
-      field.value_type === 'select' &&
-      !field.options?.some(
-        (option) =>
-          option.value === values[0] &&
-          conditionMatches(option.when, conditions),
-      )
-    ) {
-      return translate('conditionOption')
-    }
-    const minLength = field.validation?.min_length
-    const maxLength = field.validation?.max_length
-    if (typeof minLength === 'number' && values[0].length < minLength) {
-      return translate('conditionTextMin', { min: minLength })
-    }
-    if (typeof maxLength === 'number' && values[0].length > maxLength) {
-      return translate('conditionTextMax', { max: maxLength })
-    }
-    return null
-  }
-
-  const numbers = values.map(Number)
-  if (numbers.some((value) => !Number.isFinite(value))) {
-    return translate('conditionNumber')
-  }
-  if (field.value_type === 'resolution') {
-    return numbers.every((value) => Number.isInteger(value) && value >= 1)
-      ? null
-      : translate('positiveInteger')
-  }
-  if (field.value_type === 'range') {
-    const min = Math.max(
-      field.validation?.ge ?? (field.signed ? -Infinity : 0),
-      field.key === 'scan_range_deg' && conditions.scan_axis === 'two_theta'
-        ? 0
-        : -Infinity,
-    )
-    const max = Math.min(
-      field.validation?.le ?? Infinity,
-      field.key === 'scan_range_deg' && conditions.scan_axis === 'two_theta'
-        ? 180
-        : Infinity,
-    )
-    const unit = field.unit ? ` ${localizedUnit(field.unit, language)}` : ''
-    if (numbers[1] <= numbers[0]) return translate('range')
-    if (
-      (numbers[0] < min || numbers[1] > max) &&
-      Number.isFinite(min) &&
-      Number.isFinite(max)
-    )
-      return translate('conditionRange', {
-        min: `${min}${unit}`,
-        max: `${max}${unit}`,
-      })
-    if (numbers[0] < min)
-      return translate('ge', { label: '', value: `${min}${unit}` }).trim()
-    if (numbers[1] > max)
-      return translate('le', { label: '', value: `${max}${unit}` }).trim()
-    return null
-  }
-  if (field.value_type === 'integer') {
-    if (!Number.isInteger(numbers[0]) || numbers[0] < 1)
-      return translate('positiveInteger')
-  }
-  const ge = field.validation?.ge
-  const gt = field.validation?.gt
-  const le = field.validation?.le
-  const lt = field.validation?.lt
-  const unit = field.unit ? ` ${localizedUnit(field.unit, language)}` : ''
-  if (
-    typeof ge === 'number' &&
-    typeof le === 'number' &&
-    numbers.some((value) => value < ge || value > le)
-  )
-    return translate('conditionRange', {
-      min: `${ge}${unit}`,
-      max: `${le}${unit}`,
-    })
-  for (const [constraint, bound, invalid] of [
-    ['ge', ge, typeof ge === 'number' && numbers.some((value) => value < ge)],
-    ['gt', gt, typeof gt === 'number' && numbers.some((value) => value <= gt)],
-    ['le', le, typeof le === 'number' && numbers.some((value) => value > le)],
-    ['lt', lt, typeof lt === 'number' && numbers.some((value) => value >= lt)],
-  ] as const) {
-    if (invalid)
-      return translate(constraint, {
-        label: '',
-        value: `${bound}${unit}`,
-      }).trim()
-  }
-  if (
-    field.key === 'excitation_power_value' &&
-    conditions.excitation_power_basis === 'instrument_percent' &&
-    numbers[0] > 100
-  )
-    return translate('le', { label: '', value: '100%' }).trim()
-  return numbers.every((value) =>
-    typeof ge === 'number' || typeof gt === 'number' ? true : value > 0,
-  )
-    ? null
-    : translate('positiveNumber')
-}
-
-function typedConditions(
-  fields: CharacterizationConditionField[],
-  conditions: Record<string, string>,
-) {
-  return Object.fromEntries(
-    fields
-      .filter((field) => conditionHasValue(field, conditions))
-      .map((field) => [
-        field.key,
-        field.components
-          ? Object.fromEntries(
-              field.components.map((component) => [
-                component.key,
-                Number(conditions[`${field.key}.${component.key}`]),
-              ]),
-            )
-          : ['text', 'select'].includes(field.value_type)
-            ? conditions[field.key].trim()
-            : Number(conditions[field.key]),
-      ]),
-  )
-}
-
-function ConditionInput({
-  field,
-  conditions,
-  required,
-  issue,
-  language,
-  onChange,
-  disabled,
-}: {
-  field: CharacterizationConditionField
-  conditions: Record<string, string>
-  required?: boolean
-  issue?: string | null
-  language: string
-  onChange: (key: string, value: string) => void
-  disabled?: boolean
-}) {
-  const { t } = useTranslation()
-  if (field.key === 'excitation_power_basis') return null
-  const issueId = `characterization-condition-${field.key}-error`
-  const fieldLabel = isEnglish(language) ? field.label_en : field.label_zh
-  const minLength =
-    typeof field.validation?.min_length === 'number'
-      ? field.validation.min_length
-      : undefined
-  const maxLength =
-    typeof field.validation?.max_length === 'number'
-      ? field.validation.max_length
-      : undefined
-  return (
-    <Field className="gap-2" data-invalid={Boolean(issue) || undefined}>
-      <FieldLabel
-        htmlFor={
-          field.components
-            ? undefined
-            : `characterization-condition-${field.key}`
-        }
-      >
-        {fieldLabel}
-        {field.unit
-          ? isEnglish(language)
-            ? ` (${localizedUnit(field.unit, language)})`
-            : `（${field.unit}）`
-          : ''}
-        {required ? <RequiredMark /> : null}
-      </FieldLabel>
-      {field.components ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {field.components.map((component) => {
-            const key = `${field.key}.${component.key}`
-            const componentLabel = isEnglish(language)
-              ? component.label_en
-              : component.label_zh
-            return (
-              <div key={key} className="flex flex-col gap-2">
-                <Label className="text-xs text-muted-foreground">
-                  {componentLabel}
-                </Label>
-                <Input
-                  id={`characterization-condition-${key}`}
-                  type="number"
-                  min={
-                    field.value_type === 'resolution'
-                      ? '1'
-                      : (field.validation?.ge ??
-                        (field.signed ? undefined : '0'))
-                  }
-                  max={field.validation?.le}
-                  step={field.value_type === 'resolution' ? '1' : 'any'}
-                  value={conditions[key] ?? ''}
-                  required={required}
-                  disabled={disabled}
-                  aria-invalid={Boolean(issue) || undefined}
-                  aria-describedby={issue ? issueId : undefined}
-                  aria-label={`${fieldLabel} ${componentLabel}`}
-                  onChange={(event) => onChange(key, event.target.value)}
-                />
-              </div>
-            )
-          })}
-        </div>
-      ) : field.value_type === 'select' ? (
-        <Select
-          value={conditions[field.key] ?? ''}
-          disabled={disabled}
-          onValueChange={(value) => onChange(field.key, value)}
-        >
-          <SelectTrigger
-            id={`characterization-condition-${field.key}`}
-            className="w-full"
-            aria-invalid={Boolean(issue) || undefined}
-            aria-describedby={issue ? issueId : undefined}
-          >
-            <SelectValue
-              placeholder={t('characterizations.workspace.placeholders.select')}
-            />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {field.options
-                ?.filter((option) => conditionMatches(option.when, conditions))
-                .map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {isEnglish(language) ? option.label_en : option.label_zh}
-                  </SelectItem>
-                ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      ) : field.multiline ? (
-        <Textarea
-          id={`characterization-condition-${field.key}`}
-          value={conditions[field.key] ?? ''}
-          maxLength={maxLength}
-          required={required}
-          disabled={disabled}
-          aria-invalid={Boolean(issue) || undefined}
-          aria-describedby={issue ? issueId : undefined}
-          placeholder={
-            isEnglish(language) ? field.placeholder_en : field.placeholder_zh
-          }
-          onChange={(event) => onChange(field.key, event.target.value)}
-        />
-      ) : (
-        <Input
-          id={`characterization-condition-${field.key}`}
-          type={field.value_type === 'text' ? 'text' : 'number'}
-          min={
-            field.value_type === 'text'
-              ? undefined
-              : (field.validation?.ge ?? field.validation?.gt ?? '0')
-          }
-          max={
-            field.value_type === 'text'
-              ? undefined
-              : (field.validation?.le ?? field.validation?.lt)
-          }
-          minLength={field.value_type === 'text' ? minLength : undefined}
-          maxLength={field.value_type === 'text' ? maxLength : undefined}
-          step={field.value_type === 'integer' ? '1' : 'any'}
-          value={conditions[field.key] ?? ''}
-          required={required}
-          disabled={disabled}
-          aria-invalid={Boolean(issue) || undefined}
-          aria-describedby={issue ? issueId : undefined}
-          placeholder={
-            field.value_type === 'text'
-              ? ((isEnglish(language)
-                  ? field.placeholder_en
-                  : field.placeholder_zh) ??
-                t('characterizations.workspace.placeholders.textCondition'))
-              : undefined
-          }
-          onChange={(event) => onChange(field.key, event.target.value)}
-        />
-      )}
-      {field.key === 'excitation_power_value' ? (
-        <Select
-          value={conditions.excitation_power_basis ?? ''}
-          disabled={disabled}
-          onValueChange={(value) => onChange('excitation_power_basis', value)}
-        >
-          <SelectTrigger
-            id="characterization-condition-excitation_power_basis"
-            className="w-full"
-            aria-label={isEnglish(language) ? 'Power unit' : '功率单位'}
-          >
-            <SelectValue
-              placeholder={isEnglish(language) ? 'Power unit' : '功率单位'}
-            />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {characterizationProfiles.Raman.condition_fields
-                .find((item) => item.key === 'excitation_power_basis')
-                ?.options?.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {isEnglish(language) ? option.label_en : option.label_zh}
-                  </SelectItem>
-                ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      ) : null}
-      {field.help_zh || field.help_en ? (
-        <p className="text-sm text-muted-foreground">
-          {isEnglish(language) ? field.help_en : field.help_zh}
-        </p>
-      ) : null}
-      {issue ? (
-        <p id={issueId} className="text-destructive text-sm">
-          {issue}
-        </p>
-      ) : null}
-    </Field>
-  )
-}
 
 function ResultInput({
   field,
@@ -801,6 +444,22 @@ export function SimpleCharacterizationWorkspace({
   const [operatorName, setOperatorName] = useState('')
   const [operatorInstitution, setOperatorInstitution] = useState('')
   const [detailId, setDetailId] = useState<string | null>(null)
+  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([])
+  const [committedRecords, setCommittedRecords] = useState<string[]>([])
+  const [saveUncertain, setSaveUncertain] = useState(false)
+  const recoveryBlocked =
+    pendingUploads.length > 0 || committedRecords.length > 0 || saveUncertain
+  const retryRecovery = useMutation({
+    mutationFn: () => recoverUploads(token, pendingUploads),
+    onSuccess: async (result) => {
+      setPendingUploads(result.pending)
+      setCommittedRecords((current) => [
+        ...new Set([...current, ...result.committed]),
+      ])
+      await invalidateRunQueries(queryClient, runId)
+    },
+  })
+
   const instrumentVersions = useQuery({
     queryKey: ['v2-entity', 'instrument', instrumentId, 'versions'],
     queryFn: () => listEntityVersions('instrument', instrumentId, token),
@@ -954,7 +613,7 @@ export function SimpleCharacterizationWorkspace({
     }))
   }
   const updateCondition = (key: string, value: string) => {
-    const next = { ...conditions, [key]: value }
+    let next = { ...conditions, [key]: value }
     if (
       key === 'excitation_power_basis' &&
       conditions.excitation_power_basis &&
@@ -971,29 +630,7 @@ export function SimpleCharacterizationWorkspace({
         return
       delete next.excitation_power_value
     }
-    let remainingKeys: number
-    do {
-      remainingKeys = Object.keys(next).length
-      for (const field of profile?.condition_fields ?? []) {
-        const invalidOption =
-          field.options &&
-          next[field.key] &&
-          !field.options.some(
-            (option) =>
-              option.value === next[field.key] &&
-              conditionMatches(option.when, next),
-          )
-        if (!conditionMatches(field.when, next) || invalidOption) {
-          for (const conditionKey of Object.keys(next)) {
-            if (
-              conditionKey === field.key ||
-              conditionKey.startsWith(field.key + '.')
-            )
-              delete next[conditionKey]
-          }
-        }
-      }
-    } while (Object.keys(next).length < remainingKeys)
+    next = reconcileConditions(method, next)
     if (
       [
         'data_type',
@@ -1084,6 +721,14 @@ export function SimpleCharacterizationWorkspace({
   const selectedInstrumentSupportsMethod = Boolean(
     instrumentSnapshot && instrumentSupportsMethod(instrumentSnapshot, method),
   )
+  const capability = (
+    Array.isArray(instrumentSnapshot?.capabilities)
+      ? instrumentSnapshot.capabilities
+      : []
+  ).find((item) => item && typeof item === 'object' && item.code === method)
+  const presets = selectedInstrumentSupportsMethod
+    ? instrumentPresets(capability?.configuration)
+    : []
   const requiredConditionKeys = [
     ...(profile?.required_condition_keys ?? []),
     ...(profile?.condition_fields ?? [])
@@ -1228,7 +873,7 @@ export function SimpleCharacterizationWorkspace({
     operatorName.trim() ||
     operatorInstitution.trim(),
   )
-  const hasUnsavedChanges = Boolean(method || hasMethodDraft)
+  const hasUnsavedChanges = Boolean(method || hasMethodDraft || recoveryBlocked)
   const resetDraft = (keepSample = true) => {
     if (!keepSample) setSampleId('')
     setMethod('')
@@ -1249,6 +894,7 @@ export function SimpleCharacterizationWorkspace({
   }
   const canSubmit = Boolean(
     !readOnly &&
+    !recoveryBlocked &&
     sampleId &&
     method &&
     measuredAt &&
@@ -1305,6 +951,7 @@ export function SimpleCharacterizationWorkspace({
   const mutation = useMutation({
     mutationFn: async () => {
       const uploadedFileIds: string[] = []
+      let creating = false
       try {
         for (const [index, file] of rawFiles.entries()) {
           const uploaded = await uploadExperimentFile(token, runId, {
@@ -1316,7 +963,7 @@ export function SimpleCharacterizationWorkspace({
           })
           uploadedFileIds.push(uploaded.id)
         }
-        const properties = allResultDefinitions
+        const properties: unknown[] = allResultDefinitions
           .filter(
             (field): field is ResultDefinition & { propertyCode: string } =>
               Boolean(field.propertyCode && results[field.key]?.trim()),
@@ -1351,7 +998,7 @@ export function SimpleCharacterizationWorkspace({
                 ? { quality_note: metadata.qualityNote.trim() }
                 : {}),
             }
-          }) as unknown as MeasurementPropertyWrite[]
+          })
         if (peakUnits.length && peakSeries.status) {
           properties.push({
             property_code: 'spectral_peaks',
@@ -1365,7 +1012,7 @@ export function SimpleCharacterizationWorkspace({
         const payload = {
           measurement: {
             sample_id: sampleId,
-            method_profile: method,
+            method_profile: METHOD_ORDER.find((item) => item === method)!,
             ...(instrumentId
               ? {
                   instrument_id: instrumentId,
@@ -1408,30 +1055,43 @@ export function SimpleCharacterizationWorkspace({
           properties,
           assertions: [],
         }
-        return await createMeasurement(
-          payload as unknown as MeasurementBundleCreate,
-          token,
-        )
-      } catch (error) {
-        for (const fileId of uploadedFileIds) {
-          const uploaded = await getExperimentFile(token, fileId).catch(
-            () => null,
+        const { default: validateMeasurement } =
+          await import('@/shared/generated/measurement-validator.mjs')
+        if (!validateMeasurement(payload))
+          throw new Error(
+            t('characterizations.workspace.recovery.invalidPayload'),
           )
-          if (uploaded?.characterization_record_id === null) {
-            await deleteExperimentFile(token, fileId).catch(() => undefined)
-          }
-        }
+        creating = true
+        return await createMeasurement(payload, token)
+      } catch (error) {
+        const recovered = await recoverUploads(
+          token,
+          uploadedFileIds.map((id, index) => ({
+            id,
+            name: rawFiles[index]?.name ?? id,
+          })),
+        )
+        setPendingUploads(recovered.pending)
+        setCommittedRecords(recovered.committed)
+        // Without file IDs a lost response cannot be reconciled automatically.
+        setSaveUncertain(
+          creating &&
+            uploadedFileIds.length === 0 &&
+            !(
+              error instanceof HttpError &&
+              error.status >= 400 &&
+              error.status < 500 &&
+              error.status !== 408
+            ),
+        )
+        await invalidateRunQueries(queryClient, runId)
         throw error
       }
     },
     onSuccess: async () => {
       resetDraft()
       setDetailId(null)
-      await queryClient.invalidateQueries({
-        queryKey: ['measurements', runId],
-      })
-      await queryClient.invalidateQueries({ queryKey: ['samples'] })
-      await queryClient.invalidateQueries({ queryKey: ['characterizations'] })
+      await invalidateRunQueries(queryClient, runId)
       toast.success(t('characterizations.workspace.toast.saved'))
     },
     onError: (error) =>
@@ -1442,7 +1102,7 @@ export function SimpleCharacterizationWorkspace({
         ),
       ),
   })
-  const controlsDisabled = readOnly || mutation.isPending
+  const controlsDisabled = readOnly || mutation.isPending || recoveryBlocked
 
   return (
     <Card id="module-results" tabIndex={-1} className="scroll-mt-20">
@@ -1451,6 +1111,57 @@ export function SimpleCharacterizationWorkspace({
           when={hasUnsavedChanges}
           message={t('characterizations.workspace.confirm.leave')}
         />
+        {recoveryBlocked ? (
+          <Alert variant="destructive">
+            <AlertDescription className="flex flex-col gap-2">
+              <p>{t('characterizations.workspace.recovery.message')}</p>
+              {pendingUploads.map((file) => (
+                <p key={file.id}>
+                  {file.name} ({file.id})
+                </p>
+              ))}
+              {pendingUploads.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={retryRecovery.isPending}
+                  onClick={() => retryRecovery.mutate()}
+                >
+                  {t('characterizations.workspace.recovery.retry')}
+                </Button>
+              ) : null}
+              {committedRecords.map((id) => (
+                <Button
+                  key={id}
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDetailId(id)}
+                >
+                  {t('characterizations.workspace.recovery.view')} ({id})
+                </Button>
+              ))}
+              {pendingUploads.length === 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        t('characterizations.workspace.recovery.confirm'),
+                      )
+                    )
+                      return
+                    setCommittedRecords([])
+                    setSaveUncertain(false)
+                    resetDraft()
+                  }}
+                >
+                  {t('characterizations.workspace.recovery.acknowledge')}
+                </Button>
+              ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <div className="flex flex-col gap-5">
           {!readOnly ? (
             <>
@@ -1770,6 +1481,53 @@ export function SimpleCharacterizationWorkspace({
                   ) : null}
                 </div>
 
+                {presets.length ? (
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="measurement-preset">
+                      {t('instrumentPresets.selectLabel')}
+                    </Label>
+                    <Select
+                      value=""
+                      disabled={controlsDisabled}
+                      onValueChange={(value) => {
+                        const preset = presets[Number(value)]
+                        if (!preset) return
+                        if (
+                          (Object.values(conditions).some(Boolean) ||
+                            peakSeries.status ||
+                            Object.values(results).some(Boolean)) &&
+                          !window.confirm(t('instrumentPresets.replaceConfirm'))
+                        )
+                          return
+                        setConditions(
+                          reconcileConditions(
+                            method,
+                            conditionDraft(preset.conditions),
+                          ),
+                        )
+                        setResults({})
+                        setResultMetadata({})
+                        setPeakSeries(emptyPeakSeries())
+                        toast.success(t('instrumentPresets.applied'))
+                      }}
+                    >
+                      <SelectTrigger id="measurement-preset" className="w-full">
+                        <SelectValue
+                          placeholder={t('instrumentPresets.selectPlaceholder')}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {presets.map((preset, index) => (
+                            <SelectItem key={index} value={String(index)}>
+                              {preset.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
                 <FieldGroup className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
                   <Field>
                     <FieldLabel htmlFor="measurement-operator">

@@ -1,3 +1,4 @@
+import { SimpleTargetEditor } from './simple-target-editor'
 import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -11,7 +12,6 @@ import {
   SimpleGrowthEditor,
   SimpleSourceLoadsEditor,
   SimpleSubstratesEditor,
-  SimpleTargetEditor,
   simpleSubstrateRelationsAreValid,
   simpleSubstrateIsValid,
   sourceLoadIngredientsAreValid,

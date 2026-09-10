@@ -273,6 +273,55 @@ describe('SimpleCharacterizationWorkspace', () => {
     })
   })
 
+  it('applies the selected instrument version preset and allows actual settings to differ', async () => {
+    const user = userEvent.setup()
+    entityApi.listEntityVersions.mockResolvedValue({
+      items: [
+        {
+          id: 'preset-version',
+          entity_id: 'instrument-1',
+          version: 2,
+          data: {
+            name_type: 'Raman',
+            capabilities: [
+              {
+                code: 'Raman',
+                configuration: {
+                  presets: [
+                    {
+                      name: '532 nm / 50x',
+                      conditions: {
+                        laser_wavelength_nm: 532,
+                        objective: '50x',
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+    renderWorkspace()
+    await chooseSampleAndMethod(user, 'Raman')
+    await user.click(screen.getByRole('button', { name: '选择表征仪器' }))
+    await user.click(screen.getByLabelText(/^仪器版本/))
+    await user.click(screen.getByRole('option', { name: /^v2/ }))
+    await user.click(screen.getByLabelText('仪器配置预设'))
+    await user.click(screen.getByRole('option', { name: '532 nm / 50x' }))
+    expect(screen.getByLabelText(/^激光波长/)).toHaveValue(532)
+    await user.clear(screen.getByLabelText(/^激光波长/))
+    await user.type(screen.getByLabelText(/^激光波长/), '633')
+    expect(screen.getByLabelText(/^激光波长/)).toHaveValue(633)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await user.click(screen.getByLabelText('仪器配置预设'))
+    await user.click(screen.getByRole('option', { name: '532 nm / 50x' }))
+    expect(confirm).toHaveBeenCalled()
+    expect(screen.getByLabelText(/^激光波长/)).toHaveValue(633)
+    confirm.mockRestore()
+  }, 20_000)
+
   describe('measurement settings constraints', () => {
     it('accepts zero and negative bounded values and caps percentage power', () => {
       const tilt = characterizationProfiles.SEM.condition_fields.find(
@@ -592,6 +641,57 @@ describe('SimpleCharacterizationWorkspace', () => {
     })
   })
 
+  it('cleans earlier uploads when a later upload fails without creating a record', async () => {
+    filesApi.uploadExperimentFile
+      .mockResolvedValueOnce({ id: 'first-upload' })
+      .mockRejectedValueOnce(new Error('upload interrupted'))
+    const user = userEvent.setup()
+    const { container } = renderWorkspace()
+    await waitFor(() => expect(api.listSamples).toHaveBeenCalled())
+    await chooseSampleAndMethod(user, 'OM')
+    await user.upload(
+      container.querySelector<HTMLInputElement>('#characterization-raw-files')!,
+      [new File(['first'], 'first.txt'), new File(['second'], 'second.txt')],
+    )
+    await user.click(screen.getByRole('button', { name: '保存表征记录' }))
+    await waitFor(() =>
+      expect(notifications.error).toHaveBeenCalledWith('upload interrupted'),
+    )
+    expect(api.createMeasurement).not.toHaveBeenCalled()
+    expect(filesApi.deleteExperimentFile).toHaveBeenCalledWith(
+      'token',
+      'first-upload',
+    )
+  })
+
+  it.each([true, false])(
+    'guards only uncertain fileless saves: uncertain=%s',
+    async (uncertain) => {
+      api.createMeasurement.mockRejectedValue(
+        uncertain
+          ? new Error('response lost')
+          : new HttpError(422, 'invalid metadata', {
+              detail: 'invalid metadata',
+            }),
+      )
+      const user = userEvent.setup()
+      renderWorkspace()
+      await waitFor(() => expect(api.listSamples).toHaveBeenCalled())
+      await chooseSampleAndMethod(user, 'OM')
+      await user.type(screen.getByLabelText('观察说明'), 'visible flakes')
+      await user.click(screen.getByRole('button', { name: '保存表征记录' }))
+      await waitFor(() => expect(notifications.error).toHaveBeenCalled())
+      const save = screen.getByRole('button', { name: '保存表征记录' })
+      if (uncertain) {
+        expect(save).toBeDisabled()
+        expect(
+          screen.getByRole('button', { name: '已核对记录，清空本次草稿' }),
+        ).toBeInTheDocument()
+      } else expect(save).toBeEnabled()
+      expect(screen.getByLabelText('观察说明')).toHaveValue('visible flakes')
+    },
+  )
+
   it('rejects zero, incomplete sizes, and reversed ranges before saving', () => {
     expect(
       characterizationConditionIssue(
@@ -894,6 +994,20 @@ describe('SimpleCharacterizationWorkspace', () => {
       ),
     )
     expect(filesApi.deleteExperimentFile).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: '保存表征记录' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /查看已保存记录/ }),
+    ).toBeInTheDocument()
+    filesApi.deleteExperimentFile.mockResolvedValue(undefined)
+    await user.click(screen.getByRole('button', { name: '重试核对并清理附件' }))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: '重试核对并清理附件' }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('button', { name: '保存表征记录' })).toBeDisabled()
+    expect(api.createMeasurement).toHaveBeenCalledTimes(1)
+
     expect(notifications.error).toHaveBeenCalledWith(
       'response lost after commit',
     )

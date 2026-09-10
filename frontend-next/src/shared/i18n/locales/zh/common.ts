@@ -2,6 +2,19 @@
 // 字段标签（labelZh/labelEn）不放这里——它们由生成器⑤从 field-source.yaml 产出，
 // 见 src/shared/generated/field-metadata.ts。
 export const common = {
+  instrumentPresets: {
+    selectLabel: '仪器配置预设',
+    selectPlaceholder: '选择并填入配置',
+    replaceConfirm: '用这套预设替换当前测试条件，并清空已填结果？',
+    applied: '已填入预设，请核对本次实际参数。',
+    unnamed: '未命名预设',
+    name: '预设名称',
+    removeConfirm: '删除这套预设？',
+    remove: '删除预设',
+    invalid: '每套预设需有不重复的名称及至少一项有效配置。',
+    add: '添加配置预设',
+    powerUnit: '功率单位',
+  },
   substrateAngleGuide: {
     title: '角度示意',
     sideTitle: '倾角 α · 侧视',
@@ -1056,6 +1069,16 @@ export const common = {
         run: '制备记录加载失败',
         instrumentVersions: '仪器版本加载失败',
         measurements: '表征记录加载失败',
+      },
+      recovery: {
+        invalidPayload: '表征数据未通过格式校验，请核对填写内容后重试。',
+        message:
+          '保存失败后仍有附件或保存结果需要核对。请先重试清理，或查看已有记录，避免重复提交。',
+        retry: '重试核对并清理附件',
+        view: '查看已保存记录',
+        acknowledge: '已核对记录，清空本次草稿',
+        confirm:
+          '确认已核对已有表征记录？此操作会清空本次填写的草稿，不会删除已保存记录。',
       },
       toast: {
         saved: '表征记录已保存',

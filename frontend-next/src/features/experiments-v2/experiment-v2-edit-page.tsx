@@ -67,7 +67,7 @@ import {
   statusBadgeVariant,
   statusBannerKey,
   statusLabelKey,
-  statusTransitionInvalidationKeys,
+  invalidateRunQueries,
 } from './status-logic'
 import type { StatusAction } from './status-logic'
 
@@ -165,12 +165,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
         ['v2-experiment', runId, token],
         (cached: typeof data) => (cached ? { ...cached, run } : cached),
       )
-      for (const queryKey of statusTransitionInvalidationKeys(runId, token)) {
-        void queryClient.invalidateQueries({ queryKey })
-      }
-      void queryClient.invalidateQueries({
-        queryKey: ['v2-run-revisions', runId, token],
-      })
+      void invalidateRunQueries(queryClient, runId)
       toast.success(
         variables.action === 'lock'
           ? '实验记录已提交，已根据衬底生成样品。'
@@ -197,15 +192,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
         ['v2-experiment', runId, token],
         (cached: typeof data) => (cached ? { ...cached, run } : cached),
       )
-      void queryClient.invalidateQueries({
-        queryKey: ['v2-experiment-list'],
-      })
-      void queryClient.invalidateQueries({
-        queryKey: ['v2-run-audit', runId],
-      })
-      void queryClient.invalidateQueries({
-        queryKey: ['v2-run-revisions', runId, token],
-      })
+      void invalidateRunQueries(queryClient, runId)
       toast.success(t('experimentsV2.actions.success'))
     },
     onError: (mutationError) =>
@@ -216,15 +203,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const reviewMutation = useMutation({
     mutationFn: () => reviewRun(runId, '', token),
     onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ['v2-experiment', runId, token],
-      })
-      void queryClient.invalidateQueries({
-        queryKey: ['v2-run-audit', runId],
-      })
-      void queryClient.invalidateQueries({
-        queryKey: ['v2-run-revisions', runId, token],
-      })
+      void invalidateRunQueries(queryClient, runId)
       toast.success('当前实验记录已审核')
     },
     onError: (reviewError) =>

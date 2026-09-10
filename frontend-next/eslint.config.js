@@ -28,6 +28,13 @@ export default [
     },
   },
   {
+    files: [
+      'src/features/experiments-v2/simple-preparation-editors.tsx',
+      'src/features/experiments-v2/simple-target-editor.tsx',
+    ],
+    rules: { 'import/no-cycle': 'error' },
+  },
+  {
     ignores: [
       'eslint.config.js',
       'prettier.config.js',
@@ -38,6 +45,7 @@ export default [
       // typechecked (kept in tsconfig include); the bun script uses Bun globals
       // and runs outside the app's browser tsconfig.
       'src/shared/generated/field-metadata.ts',
+      'src/shared/generated/measurement-validator.mjs',
       'scripts/**',
     ],
   },

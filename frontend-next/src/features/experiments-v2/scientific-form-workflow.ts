@@ -530,23 +530,3 @@ function singleTargetValidationIssue(
   }
   return null
 }
-
-export function materialAssertionValue(
-  assertionType: string,
-  value: string,
-  components: Array<{ species: string; fraction: string }>,
-  basis: string,
-): Record<string, unknown> {
-  if (assertionType === 'phase_identity') return { phase: value.trim() }
-  if (assertionType === 'layer_count') return { count: Number(value) }
-  if (assertionType === 'composition') {
-    return {
-      components: components.map((component) => ({
-        species: component.species.trim(),
-        fraction: Number(component.fraction),
-      })),
-      basis,
-    }
-  }
-  return { [assertionType]: value.trim() }
-}

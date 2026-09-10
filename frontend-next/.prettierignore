@@ -2,3 +2,6 @@ package-lock.json
 pnpm-lock.yaml
 yarn.lock
 src/shared/types/openapi.d.ts
+
+# Compiled JSON Schema validator
+src/shared/generated/measurement-validator.mjs

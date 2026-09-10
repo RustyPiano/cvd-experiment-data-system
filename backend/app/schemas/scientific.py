@@ -1923,8 +1923,6 @@ class MeasurementRunCreate(BaseModel):
         ):
             if self.instrument_id is None or not self.raw_file_ids:
                 raise ValueError("digital OM requires an instrument and an original image")
-        required = set(profile["required_condition_keys"])
-        allowed = {item["key"] for item in profile["condition_fields"]}
         conditions = self.typed_conditions.model_dump(exclude_none=True)
         # Legacy 2θ and TEM mode inputs have explicit, unambiguous axes/data types.
         if self.method_profile == "XRD" and "scan_range_2theta_deg" in conditions:
@@ -1943,54 +1941,7 @@ class MeasurementRunCreate(BaseModel):
             if legacy_mode in {"EDS", "EELS"}:
                 conditions.setdefault("spectrum_mode", legacy_mode)
         self.typed_conditions = MeasurementConditions.model_validate(conditions)
-        missing = sorted(required - conditions.keys())
-        if missing:
-            raise ValueError(f"missing typed measurement conditions: {', '.join(missing)}")
-        unexpected = sorted(conditions.keys() - allowed)
-        if unexpected:
-            raise ValueError(
-                f"conditions do not apply to {self.method_profile}: {', '.join(unexpected)}"
-            )
-        for field in profile["condition_fields"]:
-            if (
-                field.get("required_when")
-                and all(
-                    conditions.get(key) in values for key, values in field["required_when"].items()
-                )
-                and field["key"] not in conditions
-            ):
-                raise ValueError(f"condition {field['key']} is required for these settings")
-            if field["key"] in conditions:
-                if any(
-                    conditions.get(key) not in values
-                    for key, values in field.get("when", {}).items()
-                ):
-                    raise ValueError(f"condition {field['key']} does not apply to these settings")
-                value = conditions[field["key"]]
-                values = list(value.values()) if isinstance(value, dict) else [value]
-                validation = field.get("validation", {})
-                for value in values:
-                    if isinstance(value, (int, float)) and (
-                        ("ge" in validation and value < validation["ge"])
-                        or ("gt" in validation and value <= validation["gt"])
-                        or ("le" in validation and value > validation["le"])
-                        or ("lt" in validation and value >= validation["lt"])
-                    ):
-                        raise ValueError(f"condition {field['key']} is out of range")
-            if field.get("value_type") != "select" or field["key"] not in conditions:
-                continue
-            options = {option["value"] for option in field.get("options", [])}
-            if conditions[field["key"]] not in options:
-                raise ValueError(f"unsupported value for measurement condition {field['key']}")
-            option = next(o for o in field["options"] if o["value"] == conditions[field["key"]])
-            if any(
-                conditions.get(key) not in values for key, values in option.get("when", {}).items()
-            ):
-                raise ValueError(f"condition {field['key']} does not apply to these settings")
-        if self.method_profile == "XRD" and self.typed_conditions.scan_axis == "two_theta":
-            scan = self.typed_conditions.scan_range_deg
-            if scan and not 0 <= scan.start < scan.end <= 180:
-                raise ValueError("2theta scan range must be within 0 to 180 degrees")
+        validate_profile_conditions(self.method_profile, conditions)
         if (
             self.sample_region
             and self.sample_region.geometry_type not in profile["allowed_region_types"]
@@ -2003,6 +1954,57 @@ class MeasurementRunCreate(BaseModel):
         if self.quality_flag == "valid" and self.quality_note is not None:
             raise ValueError("valid measurement cannot include a quality note")
         return self
+
+
+def validate_profile_conditions(
+    method_profile: str, conditions: dict, *, require_complete: bool = True
+) -> None:
+    """Validate method-specific settings; instrument presets may be incomplete."""
+    profile = characterization_profiles()[method_profile]
+    required = set(profile["required_condition_keys"]) if require_complete else set()
+    allowed = {item["key"] for item in profile["condition_fields"]}
+    missing = sorted(required - conditions.keys())
+    if missing:
+        raise ValueError(f"missing typed measurement conditions: {', '.join(missing)}")
+    unexpected = sorted(conditions.keys() - allowed)
+    if unexpected:
+        raise ValueError(f"conditions do not apply to {method_profile}: {', '.join(unexpected)}")
+    for field in profile["condition_fields"]:
+        if (
+            require_complete
+            and field.get("required_when")
+            and all(conditions.get(key) in values for key, values in field["required_when"].items())
+            and field["key"] not in conditions
+        ):
+            raise ValueError(f"condition {field['key']} is required for these settings")
+        if field["key"] in conditions:
+            if any(
+                conditions.get(key) not in values for key, values in field.get("when", {}).items()
+            ):
+                raise ValueError(f"condition {field['key']} does not apply to these settings")
+            value = conditions[field["key"]]
+            values = list(value.values()) if isinstance(value, dict) else [value]
+            validation = field.get("validation", {})
+            for value in values:
+                if isinstance(value, (int, float)) and (
+                    ("ge" in validation and value < validation["ge"])
+                    or ("gt" in validation and value <= validation["gt"])
+                    or ("le" in validation and value > validation["le"])
+                    or ("lt" in validation and value >= validation["lt"])
+                ):
+                    raise ValueError(f"condition {field['key']} is out of range")
+        if field.get("value_type") != "select" or field["key"] not in conditions:
+            continue
+        options = {option["value"] for option in field.get("options", [])}
+        if conditions[field["key"]] not in options:
+            raise ValueError(f"unsupported value for measurement condition {field['key']}")
+        option = next(o for o in field["options"] if o["value"] == conditions[field["key"]])
+        if any(conditions.get(key) not in values for key, values in option.get("when", {}).items()):
+            raise ValueError(f"condition {field['key']} does not apply to these settings")
+    if method_profile == "XRD" and conditions.get("scan_axis") == "two_theta":
+        scan = conditions.get("scan_range_deg")
+        if scan and not 0 <= scan["start"] < scan["end"] <= 180:
+            raise ValueError("2theta scan range must be within 0 to 180 degrees")
 
 
 class AnalysisRunCreate(BaseModel):

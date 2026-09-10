@@ -34,6 +34,7 @@ from app.schemas.generated.v2_module_payload import (
     TemperatureSensorPayload,
     TubeMaterialShapePayload,
 )
+from app.schemas.scientific import MeasurementConditions, validate_profile_conditions
 from app.schemas.v2 import (
     V2EntityListResponse,
     V2EntityRead,
@@ -470,6 +471,38 @@ class V2EntityService:
             if code not in allowed or code in seen:
                 self._raise_invalid("capabilities", "value_or_duplicate")
             seen.add(code)
+            if "presets" in configuration:
+                presets = configuration["presets"]
+                if not isinstance(presets, list) or len(presets) > 50:
+                    self._raise_invalid("capabilities", "presets")
+                preset_names: set[str] = set()
+                for preset in presets:
+                    if (
+                        not isinstance(preset, dict)
+                        or set(preset) != {"name", "conditions"}
+                        or not isinstance(preset["name"], str)
+                        or not 1 <= len(preset["name"].strip()) <= 128
+                        or preset["name"].strip().lower() in preset_names
+                        or not isinstance(preset["conditions"], dict)
+                        or not preset["conditions"]
+                        or any(value is None for value in preset["conditions"].values())
+                    ):
+                        self._raise_invalid("capabilities", "presets")
+                    preset["name"] = preset["name"].strip()
+                    preset_names.add(preset["name"].lower())
+                    try:
+                        conditions = MeasurementConditions.model_validate(
+                            preset["conditions"]
+                        ).model_dump(exclude_none=True)
+                        validate_profile_conditions(code, conditions, require_complete=False)
+                    except (ValueError, KeyError) as exc:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail={
+                                "invalid": [{"key": "capabilities", "reason": "preset_conditions"}]
+                            },
+                        ) from exc
+                    preset["conditions"] = conditions
             if code == "other":
                 names = configuration.get("method_names")
                 if (

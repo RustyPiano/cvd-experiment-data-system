@@ -1,10 +1,11 @@
+import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import {
   availableStatusActions,
   isProcessReadOnly,
   isResultsReadOnly,
   statusBadgeVariant,
-  statusTransitionInvalidationKeys,
+  invalidateRunQueries,
 } from './status-logic'
 
 describe('v2 status logic', () => {
@@ -49,11 +50,37 @@ describe('v2 status logic', () => {
     )
   })
 
-  it('refreshes generated samples after a status transition', () => {
-    expect(statusTransitionInvalidationKeys('run-1', 'token')).toContainEqual([
-      'v2-samples',
-      'run-1',
-      'token',
-    ])
+  it('invalidates fresh caches consumed by every affected page', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { staleTime: 30_000 } },
+    })
+    const keys = [
+      ['samples', 'list', 'user'],
+      ['samples', 'detail', 'user', 's1'],
+      ['samples', 'run-1'],
+      ['measurements', 'run-1'],
+      ['measurements', 'sample', 'user', 's1'],
+      ['measurement-detail', 'm1'],
+      ['characterizations', 'list', 'user'],
+      ['v2-experiment-list', 'token', 1, {}],
+      ['v2-experiment', 'run-1', 'token'],
+      ['experiments', 'detail', 'user', 'run-1'],
+      ['v2-experiment-status', 'run-1'],
+      ['v2-experiment-status', 'run-1', 'token'],
+      ['v2-run-audit', 'run-1', 'token'],
+      ['v2-run-revisions', 'run-1', 'token'],
+    ]
+    for (const key of keys) client.setQueryData(key, { old: true })
+    client.setQueryData(['v2-entity', 'instrument'], { unchanged: true })
+    await invalidateRunQueries(client, 'run-1')
+    for (const key of keys)
+      expect(
+        client.getQueryState(key)?.isInvalidated,
+        JSON.stringify(key),
+      ).toBe(true)
+    expect(
+      client.getQueryState(['v2-entity', 'instrument'])?.isInvalidated,
+    ).toBe(false)
+    client.clear()
   })
 })

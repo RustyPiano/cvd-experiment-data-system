@@ -5,9 +5,9 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v4.0-alpha.43
+  version: v4.0-alpha.44
   status: INTERNAL_VALIDATION
-  updated: '2026-09-09'
+  updated: '2026-09-10'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
@@ -1104,8 +1104,8 @@ characterization_profiles:
       validation:
         max_length: 1000
       multiline: true
-      placeholder_zh: 填写原文件/仪器报告位置或无法获取的参数；不猜填默认值
-      placeholder_en: Source file/report location or unavailable settings; do not guess values
+      placeholder_zh: 参数所在文件、报告页码或未记录的参数
+      placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
     - coverage_percent
     - image_object_size_um
@@ -1475,8 +1475,8 @@ characterization_profiles:
       validation:
         max_length: 1000
       multiline: true
-      placeholder_zh: 填写原文件/仪器报告位置或无法获取的参数；不猜填默认值
-      placeholder_en: Source file/report location or unavailable settings; do not guess values
+      placeholder_zh: 参数所在文件、报告页码或未记录的参数
+      placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
     - spectral_peaks
     - observation_note
@@ -1948,8 +1948,8 @@ characterization_profiles:
       validation:
         max_length: 1000
       multiline: true
-      placeholder_zh: 填写原文件/仪器报告位置或无法获取的参数；不猜填默认值
-      placeholder_en: Source file/report location or unavailable settings; do not guess values
+      placeholder_zh: 参数所在文件、报告页码或未记录的参数
+      placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
     - spectral_peaks
     - observation_note
@@ -2180,8 +2180,8 @@ characterization_profiles:
       validation:
         max_length: 1000
       multiline: true
-      placeholder_zh: 填写原文件/仪器报告位置或无法获取的参数；不猜填默认值
-      placeholder_en: Source file/report location or unavailable settings; do not guess values
+      placeholder_zh: 参数所在文件、报告页码或未记录的参数
+      placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
     - afm_ra_roughness
     - afm_rms_roughness
@@ -2504,8 +2504,8 @@ characterization_profiles:
       validation:
         max_length: 1000
       multiline: true
-      placeholder_zh: 填写原文件/仪器报告位置或无法获取的参数；不猜填默认值
-      placeholder_en: Source file/report location or unavailable settings; do not guess values
+      placeholder_zh: 参数所在文件、报告页码或未记录的参数
+      placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
     - coverage_percent
     - image_object_size_um
@@ -2804,8 +2804,8 @@ characterization_profiles:
       validation:
         max_length: 1000
       multiline: true
-      placeholder_zh: 填写原文件/仪器报告位置或无法获取的参数；不猜填默认值
-      placeholder_en: Source file/report location or unavailable settings; do not guess values
+      placeholder_zh: 参数所在文件、报告页码或未记录的参数
+      placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
     - spectral_peaks
     - observation_note
@@ -3274,8 +3274,8 @@ characterization_profiles:
       validation:
         max_length: 1000
       multiline: true
-      placeholder_zh: 填写原文件/仪器报告位置或无法获取的参数；不猜填默认值
-      placeholder_en: Source file/report location or unavailable settings; do not guess values
+      placeholder_zh: 参数所在文件、报告页码或未记录的参数
+      placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
     - tem_lattice_spacing
     - elemental_composition
@@ -3341,8 +3341,8 @@ characterization_profiles:
       validation:
         max_length: 1000
       multiline: true
-      placeholder_zh: 填写原文件/仪器报告位置或无法获取的参数；不猜填默认值
-      placeholder_en: Source file/report location or unavailable settings; do not guess values
+      placeholder_zh: 参数所在文件、报告页码或未记录的参数
+      placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
     - observation_note
     default_property_codes:
@@ -3849,8 +3849,8 @@ characterization_profiles:
       validation:
         max_length: 1000
       multiline: true
-      placeholder_zh: 填写原文件/仪器报告位置或无法获取的参数；不猜填默认值
-      placeholder_en: Source file/report location or unavailable settings; do not guess values
+      placeholder_zh: 参数所在文件、报告页码或未记录的参数
+      placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
     - spectral_peaks
     - observation_note
@@ -7692,8 +7692,8 @@ entities:
       source: 建议
       note: ''
     - module: 表征仪器
-      label: 关键固定配置
-      label_en: Key fixed configuration
+      label: 其他固定配置说明
+      label_en: Additional fixed configuration notes
       key: fixed_config
       meaning: 随仪器长期固定的硬件或能力；本次实际使用参数在表征结果的测试条件中填写
       input: 自由
@@ -7705,22 +7705,24 @@ entities:
       example: CCD探测器；300、600、1800 lines·mm⁻¹光栅
       source: 会议
       note: 不在此重复本次实际使用的波长、物镜、功率或积分时间
-      help: 记录固定硬件与能力；本次使用参数填在表征记录中。
-      help_en: Record fixed hardware and capabilities here; enter acquisition settings in each characterization record.
+      help: 无法在下方配置预设中记录的硬件信息。
+      help_en: Hardware information not covered by the configuration presets below.
     - module: 表征仪器
       label: 支持的表征方法
       label_en: Supported characterization methods
       key: capabilities
       meaning: 选择该仪器支持的表征方法，供结果录入时筛选
       input: JSON数组
-      options: '[{code,configuration}]；code=other 时 configuration.method_names 为方法名称列表'
+      options: '[{code,configuration}]；configuration.presets=[{name,conditions}]；code=other 时另有 method_names'
       unit: —
       requirement:
         raw: 必填
         level: required
       example: '[{"code":"Raman","configuration":{}}]'
       source: 2026-07-28深度审查
-      note: UI 使用多选；其他展开方法名称列表，可逐项添加/删除，名称非空且去首尾空白后长度 1–128、忽略大小写不重复；仍以一个 other 能力行保存多个名称，不改变仪器版本和能力代码唯一约束。
+      note: 每种方法可维护最多50套命名预设；名称去空白后1–128字符，同方法内忽略大小写唯一。conditions复用该方法结构化采集字段、单位及校验，至少一项，不要求整套测试必填参数齐全。表征主动选用后复制为本次实际条件，可调整；预设修改产生新仪器版本，不改历史记录。其他方法继续通过method_names具名；保留历史configuration内容。
+      help: 勾选方法后添加配置预设，只填已知参数；表征时选择预设并核对本次实际设置。
+      help_en: Select a method and add presets using known settings. Apply a preset during characterization and verify the actual settings.
     - module: 表征仪器
       label: 最近校准或维护日期
       label_en: Last calibration or maintenance date

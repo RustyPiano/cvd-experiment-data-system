@@ -402,8 +402,6 @@ export function switchTargetDraft(
   return [next, { ...saved, [nextKind]: next }]
 }
 
-export { SimpleTargetEditor } from './simple-target-editor'
-
 function newIngredient(): SimpleIngredient {
   return {
     material_lot_id: '',

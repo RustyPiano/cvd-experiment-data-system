@@ -12,6 +12,68 @@ from app.services.v2_reporting_service import V2ReportingService
 from tests.api.test_scientific_integrity import _headers, _locked_sample, client
 
 
+def test_instrument_presets_round_trip_and_preserve_old_versions(admin_user, db_session):
+    headers = _headers(admin_user.email)
+    preset = {"name": " 50x ", "conditions": {"objective": "50x"}}
+    payload = {
+        "instrument_code": "OM-PRESET",
+        "name_type": "optical_microscopy",
+        "capabilities": [{"code": "optical_microscopy", "configuration": {"presets": [preset]}}],
+    }
+    response = client.post("/api/v1/instruments", json=payload, headers=headers)
+    assert response.status_code == 201, response.text
+    entity = response.json()
+    stored = entity["latest_version"]["data"]["capabilities"][0]["configuration"]["presets"][0]
+    assert stored == {"name": "50x", "conditions": {"objective": "50x"}}
+    preset["conditions"]["objective"] = "100x"
+    response = client.post(
+        f"/api/v1/instruments/{entity['id']}/versions", json=payload, headers=headers
+    )
+    assert response.status_code == 201, response.text
+    versions = client.get(f"/api/v1/instruments/{entity['id']}/versions", headers=headers).json()
+    old = next(version for version in versions["items"] if version["version"] == 1)
+    assert old["data"]["capabilities"][0]["configuration"]["presets"][0] == stored
+
+
+@pytest.mark.parametrize(
+    "presets",
+    [
+        None,
+        {},
+        [{"name": "", "conditions": {"objective": "50x"}}],
+        [{"name": "empty", "conditions": {}}],
+        [{"name": "bad", "conditions": {"accelerating_voltage_kV": 80}}],
+        [{"name": "bad", "conditions": {"observation_mode": "digital", "exposure_time_ms": -1}}],
+        [
+            {
+                "name": "bad",
+                "conditions": {
+                    "observation_mode": "digital",
+                    "image_color_mode": "monochrome",
+                    "white_balance_mode": "manual",
+                },
+            }
+        ],
+        [{"name": "bad", "conditions": {"objective": None}}],
+        [
+            {"name": "A", "conditions": {"objective": "50x"}},
+            {"name": " a ", "conditions": {"objective": "100x"}},
+        ],
+    ],
+)
+def test_instrument_presets_reject_invalid_settings(admin_user, presets):
+    response = client.post(
+        "/api/v1/instruments",
+        headers=_headers(admin_user.email),
+        json={
+            "instrument_code": "BAD-PRESET",
+            "name_type": "optical_microscopy",
+            "capabilities": [{"code": "optical_microscopy", "configuration": {"presets": presets}}],
+        },
+    )
+    assert response.status_code == 422, response.text
+
+
 def test_export_restores_query_only_on_the_same_pooled_connection(tmp_path):
     engine = create_engine(
         f"sqlite:///{tmp_path / 'snapshot.sqlite3'}", pool_size=2, max_overflow=0
