@@ -443,6 +443,15 @@ class FileAssetService:
             if str((record.sample_region or {}).get("image_file_id")) == str(file_asset.id)
         }
         relationship_record_ids = edge_record_ids | region_record_ids
+        for record in records:
+            contexts = (record.attrs or {}).get("file_contexts", [])
+            evidence = (record.attrs or {}).get("property_evidence", {}).values()
+            if any(
+                str(file_asset.id) == item.get("file_id")
+                or str(file_asset.id) in item.get("source_file_ids", [])
+                for item in contexts
+            ) or any(str(file_asset.id) == item.get("source_file_id") for item in evidence):
+                relationship_record_ids.add(record.id)
         if relationship_record_ids:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -781,7 +790,7 @@ class FileAssetService:
 
     def _normalize_file_category(self, file_category: str | None) -> str:
         normalized = (file_category or "raw").strip().lower()
-        if normalized not in {"raw", "processed"}:
+        if normalized not in {"raw", "processed", "supporting"}:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid file category",

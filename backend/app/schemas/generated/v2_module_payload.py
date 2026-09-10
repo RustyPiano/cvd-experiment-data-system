@@ -10,6 +10,7 @@ from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from app.services.substrate_orientation import normalize_substrate_orientation
 
 from app.services.v2_field_source import (
     condition_matches as _matches,
@@ -20,9 +21,9 @@ from app.services.v2_field_source import (
 )
 
 V2_MODULE_PAYLOAD_SCHEMA_VERSION = "cvd_v2"
-_OPTION_ALIASES = {'盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '横向拼接': 'lateral_junction', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '设定值': 'setpoint', '实测值': 'measured', '光': 'light', '电': 'electric_field', '光照': 'light', '电场': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '正常': 'normal', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主要前驱体': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '舟': 'boat', '坩埚': 'crucible', '衬底表面': 'substrate_surface', '涂覆在衬底表面': 'substrate_surface', '其他容器': 'other_container', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', '白云母': 'muscovite', '金云母': 'phlogopite', '氟金云母': 'fluorophlogopite', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '两片生长面相对': 'face_to_face', '倾角': 'tilted', '竖放': 'upright', '朝下游': 'downstream', '朝上游': 'upstream', '朝炉管左侧': 'tube_left', '朝炉管右侧': 'tube_right', '清洗': 'clean', '溶剂清洗': 'solvent_cleaning', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '紫外臭氧联合处理': 'uv_ozone_treatment', '紫外/臭氧处理': 'uv_ozone_treatment', '有批号': 'batch_number_reported', '未提供批号': 'batch_number_not_provided', '超声': 'ultrasonic', '浸泡': 'soak', '冲洗': 'rinse', '擦拭': 'wipe', '丙酮': 'acetone', '异丙醇': 'isopropanol', '乙醇': 'ethanol', '甲醇': 'methanol', '去离子水': 'deionized_water', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气氛置换': 'gas_exchange', '气路置换': 'gas_exchange', '连续通气': 'continuous_flow', '抽空—回填': 'evacuation_backfill', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉冷却': 'rapid_furnace_move_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '程序降温': 'controlled_cooling', '受控降温': 'controlled_cooling', '分段降温': 'staged_cooling', '减压（含真空）': 'low_pressure', '加压': 'high_pressure', '预混气': 'premixed', '浮子流量计（转子流量计）': 'rotameter', '浮子流量计': 'rotameter', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', 'OM': 'optical_microscopy', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '液体': 'liquid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '有规格数值': 'reported', '供应商未提供': 'not_provided', '不适用': 'not_applicable', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '材料层': 'material_layer', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4', 'CO₂': 'CO2', '热电偶': 'thermocouple', '热电阻（RTD）': 'rtd', '红外测温仪': 'infrared_thermometer', '光纤温度传感器': 'fiber_optic_temperature_sensor', '热敏电阻': 'thermistor', '商业设备': 'commercial', '实验室自制': 'lab_built', '改造设备': 'modified', '促进反应或成核': 'reaction_or_nucleation_promoter', '助熔或盐辅助': 'flux_or_salt_assistant', '输运': 'transport_agent', '溶剂或分散介质': 'solvent_or_dispersion_medium', '还原': 'reducing_agent', '氧化': 'oxidizing_agent', '刻蚀': 'etchant', 'mol/L': 'mol_per_L', 'mmol/L (mM)': 'mmol_per_L', 'g/L': 'g_per_L', 'mg/mL': 'mg_per_mL', 'wt%': 'wt_percent', 'vol%': 'vol_percent'}
+_OPTION_ALIASES = {'石英单晶': 'single_crystal_quartz', '熔融石英／石英玻璃': 'fused_silica', '未知／供应商未提供': 'not_provided', '非晶，不适用': 'amorphous', '多晶，无单一取向': 'polycrystalline', '供应商切型': 'supplier_cut', '未抛光': 'unpolished', '盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '横向拼接': 'lateral_junction', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '设定值': 'setpoint', '实测值': 'measured', '光': 'light', '电': 'electric_field', '光照': 'light', '电场': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '正常': 'normal', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主要前驱体': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '舟': 'boat', '坩埚': 'crucible', '衬底表面': 'substrate_surface', '涂覆在衬底表面': 'substrate_surface', '其他容器': 'other_container', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', '白云母': 'muscovite', '金云母': 'phlogopite', '氟金云母': 'fluorophlogopite', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '两片生长面相对': 'face_to_face', '倾角': 'tilted', '竖放': 'upright', '朝下游': 'downstream', '朝上游': 'upstream', '朝炉管左侧': 'tube_left', '朝炉管右侧': 'tube_right', '清洗': 'clean', '溶剂清洗': 'solvent_cleaning', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '紫外臭氧联合处理': 'uv_ozone_treatment', '紫外/臭氧处理': 'uv_ozone_treatment', '有批号': 'batch_number_reported', '未提供批号': 'batch_number_not_provided', '超声': 'ultrasonic', '浸泡': 'soak', '冲洗': 'rinse', '擦拭': 'wipe', '丙酮': 'acetone', '异丙醇': 'isopropanol', '乙醇': 'ethanol', '甲醇': 'methanol', '去离子水': 'deionized_water', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气氛置换': 'gas_exchange', '气路置换': 'gas_exchange', '连续通气': 'continuous_flow', '抽空—回填': 'evacuation_backfill', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉冷却': 'rapid_furnace_move_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '程序降温': 'controlled_cooling', '受控降温': 'controlled_cooling', '分段降温': 'staged_cooling', '减压（含真空）': 'low_pressure', '加压': 'high_pressure', '预混气': 'premixed', '浮子流量计（转子流量计）': 'rotameter', '浮子流量计': 'rotameter', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', 'OM': 'optical_microscopy', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '液体': 'liquid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '有规格数值': 'reported', '供应商未提供': 'not_provided', '不适用': 'not_applicable', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '材料层': 'material_layer', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4', 'CO₂': 'CO2', '热电偶': 'thermocouple', '热电阻（RTD）': 'rtd', '红外测温仪': 'infrared_thermometer', '光纤温度传感器': 'fiber_optic_temperature_sensor', '热敏电阻': 'thermistor', '商业设备': 'commercial', '实验室自制': 'lab_built', '改造设备': 'modified', '促进反应或成核': 'reaction_or_nucleation_promoter', '助熔或盐辅助': 'flux_or_salt_assistant', '输运': 'transport_agent', '溶剂或分散介质': 'solvent_or_dispersion_medium', '还原': 'reducing_agent', '氧化': 'oxidizing_agent', '刻蚀': 'etchant', 'mol/L': 'mol_per_L', 'mmol/L (mM)': 'mmol_per_L', 'g/L': 'g_per_L', 'mg/mL': 'mg_per_mL', 'wt%': 'wt_percent', 'vol%': 'vol_percent'}
 _FIELD_OPTION_ALIASES = {'film_form': {'分立片状': 'discrete', '连续膜': 'continuous'}, 'dimensional_form': {'片/膜状': 'planar', '颗粒状': 'particle', '块状': 'bulk_crystal', '连续膜': 'continuous_film', '分立片状晶体/晶畴': 'discrete_planar_crystal', '带状': 'ribbon', '线状': 'wire', '管状': 'tube', '棒状': 'rod', '颗粒': 'particle', '块状晶体': 'bulk_crystal', '其他': 'other'}, 'in_plane_outline': {'其他多边形': 'other_regular_polygon', '枝晶状': 'dendritic_fractal', '三角形': 'triangle', '截角三角形': 'truncated_triangle', '六边形': 'hexagon', '四边形（矩形/平行四边形/菱形）': 'quadrilateral', '其他规则多边形': 'other_regular_polygon', '圆形/椭圆形': 'circular_elliptical', '星形/多裂片状': 'lobed_star', '枝晶状/分形': 'dendritic_fractal', '不规则': 'irregular', '其他': 'other'}, 'loading_method': {'衬底': 'substrate_surface', '气路供给': 'gas_line', '鼓泡器': 'bubbler', '其他容器': 'other'}, 'field_devices': {'等离子': 'plasma', '等离子体': 'plasma'}, 'field_type': {'等离子': 'plasma', '等离子体': 'plasma'}, 'type': {'等离子': 'plasma_treatment', '等离子体': 'plasma_treatment'}}
-_CONTROLLED_KEYS = frozenset(('affected_objects', 'architecture_type', 'batch_number_availability', 'concentration_unit', 'cooling_method', 'data_validity_impact', 'dimensional_form', 'exposure_environment', 'field_devices', 'film_form', 'form_appearance', 'gas_purity_grade', 'in_plane_outline', 'intervention_actions', 'loading_method', 'lot_category', 'material', 'mica_type', 'name_type', 'observed_deviations', 'orientation', 'outcome', 'performed_by_user_ids', 'pressure_regime', 'role', 'setup_origin', 'storage_method', 'substrate_material', 'substrate_miscut_availability', 'substrate_orientation_polish', 'substrate_orientation_polish_availability', 'supplier', 'suspected_causes', 'wall_type'))
+_CONTROLLED_KEYS = frozenset(('affected_objects', 'architecture_type', 'batch_number_availability', 'concentration_unit', 'cooling_method', 'data_validity_impact', 'dimensional_form', 'exposure_environment', 'field_devices', 'film_form', 'form_appearance', 'gas_purity_grade', 'in_plane_outline', 'intervention_actions', 'loading_method', 'lot_category', 'material', 'mica_type', 'name_type', 'observed_deviations', 'orientation', 'outcome', 'performed_by_user_ids', 'pressure_regime', 'quartz_type', 'role', 'setup_origin', 'storage_method', 'substrate_crystal_plane', 'substrate_material', 'substrate_miscut_availability', 'substrate_orientation_polish', 'substrate_orientation_polish_availability', 'substrate_polish', 'supplier', 'suspected_causes', 'wall_type'))
 _STRUCTURED_CONTROLLED_KEYS = frozenset(('field_type', 'material', 'measurement_source', 'method', 'operation_type', 'placement', 'shape', 'species', 'type'))
 _COMPOSITE_KEYS = frozenset(('substrate_orientation_polish',))
 _MULTI_KEYS = frozenset(('affected_objects', 'field_devices', 'intervention_actions', 'observed_deviations', 'performed_by_user_ids', 'suspected_causes'))
@@ -882,6 +883,7 @@ class SubstrateItemPayload(V2PayloadBase):
     piece_label: NonBlankStr
     chemical_formula: NonBlankStr
     crystal_orientation: str | None = None
+    polish: str | None = None
     oxide_thickness_nm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     size_placement: SubstrateSizePlacementPayload
     pretreatment_steps: list[SubstratePretreatmentPayload] | None = None
@@ -956,6 +958,10 @@ class MaterialLotVersionPayload(V2PayloadBase):
     mica_type: Literal['fluorophlogopite', 'muscovite', 'phlogopite'] | None = None
     substrate_oxide_thickness_nm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     substrate_orientation_polish_availability: Literal['not_applicable', 'not_provided', 'reported'] | None = None
+    quartz_type: Literal['fused_silica', 'not_provided', 'single_crystal_quartz'] | None = None
+    substrate_crystal_plane: str | None = None
+    substrate_cut_spec: str | None = None
+    substrate_polish: Literal['double_side_polished', 'not_provided', 'single_side_polished', 'unpolished'] | None = None
     substrate_orientation_polish: SubstrateOrientationPolishValue | None = None
     substrate_miscut_availability: Literal['not_applicable', 'not_provided', 'reported'] | None = None
     substrate_miscut_angle_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, lt=90)] | None = None
@@ -967,6 +973,13 @@ class MaterialLotVersionPayload(V2PayloadBase):
     gas_components: Annotated[list[GasCompositionComponentPayload], Field(min_length=1)] | None = None
     gas_purity_grade: Literal['4N', '5N', '6N', 'industrial_grade'] | None = None
     gas_cylinder_number: str | None = None
+
+    @model_validator(mode="after")
+    def _substrate_orientation(self) -> Self:
+        normalized = normalize_substrate_orientation(self.model_dump())
+        self.substrate_crystal_plane = normalized['substrate_crystal_plane']
+        self.substrate_cut_spec = normalized['substrate_cut_spec']
+        return self
 
     @field_validator("chemical_formula")
     @classmethod
@@ -1130,6 +1143,31 @@ class MaterialLotVersionPayload(V2PayloadBase):
             and not _missing(self.substrate_orientation_polish_availability)
         ):
             raise ValueError("substrate_orientation_polish_availability is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'quartz'}, self.substrate_material)
+            and not _missing(self.quartz_type)
+        ):
+            raise ValueError("quartz_type is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and not _missing(self.substrate_crystal_plane)
+        ):
+            raise ValueError("substrate_crystal_plane is not applicable")
+        if (
+            _matches({'op': 'eq', 'value': 'supplier_cut'}, self.substrate_crystal_plane)
+            and _missing(self.substrate_cut_spec)
+        ):
+            raise ValueError("substrate_cut_spec is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'supplier_cut'}, self.substrate_crystal_plane)
+            and not _missing(self.substrate_cut_spec)
+        ):
+            raise ValueError("substrate_cut_spec is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and not _missing(self.substrate_polish)
+        ):
+            raise ValueError("substrate_polish is not applicable")
         if (
             not _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
             and not _missing(self.substrate_orientation_polish)

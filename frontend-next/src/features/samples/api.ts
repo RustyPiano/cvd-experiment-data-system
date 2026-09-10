@@ -84,7 +84,7 @@ export function uploadExperimentFile(
     sampleId?: string
     characterizationRecordId?: string
     assetRole?: string
-    fileCategory?: 'raw' | 'processed'
+    fileCategory?: 'raw' | 'processed' | 'supporting'
     bindingType?: string
     bindingId?: string
   },

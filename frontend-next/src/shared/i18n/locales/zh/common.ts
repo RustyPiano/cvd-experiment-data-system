@@ -70,6 +70,9 @@ export const common = {
       '请选择支持的方法；其他方法须填写名称，且不能重复。',
     productionDate: '请输入有效的 YYYY-MM 或 YYYY-MM-DD',
     substrateFormulaMismatch: '化学式与所选衬底材料不一致，请核对物料标签',
+    substrateCrystalPlane:
+      '请核对衬底类型，填写圆括号内的三个或四个整数；指数不得全零，四指数须满足 h+k+i=0。特殊切型请选择“供应商切型”。',
+    substrateCutSpec: '请填写供应商切型原文（1–128 字符）',
     usageHistory:
       '请填写清洗或更换累计次数（可为 0）和清洗或更换后第几炉（从 1 开始）。',
   },
@@ -565,6 +568,15 @@ export const common = {
     },
   },
   entityLibrary: {
+    orientation: {
+      namedPlane: '{{letter}} 面 {{indices}}',
+      siliconCrystalPlane: '底层 Si 晶面取向',
+      siliconCrystalPlaneHelp:
+        '这里记录底层硅片的晶面；表面的常规热氧化 SiO₂ 为非晶，不能用硅片取向代替。',
+      quartzCrystalPlaneHelp:
+        '石英单晶可填写晶面或供应商切型；熔融石英（石英玻璃）为非晶。类型未明确时，请先核对规格。',
+      legacy: '原晶向与抛光记录',
+    },
     materialLot: {
       name: '物料批次',
       listTitle: '物料批次',
@@ -762,6 +774,27 @@ export const common = {
     },
   },
   characterizations: {
+    metadata: {
+      selectedFiles: '已选择的数据文件',
+      fileCategory: '文件类别',
+      rawFile: '原始采集文件',
+      processedFile: '处理后文件',
+      supportingFile: '说明性附件',
+      rawSourcesRequired: '原始来源文件 *',
+      descriptionRequired: '处理步骤或附件说明 *',
+      software: '处理软件',
+      softwareVersion: '软件版本',
+      removeFile: '移除文件',
+      operatorLabel: '实际测试人：',
+      notRecorded: '未记录',
+      missingMetadata: '尚未记录的建议采集参数：',
+      sourceLabel: '来源：',
+      supplementaryTitle: '处理后文件与说明性附件',
+      rawSourcesLabel: '原始来源：',
+      sourceLocator: '文件内光谱或通道编号',
+      peakExtraction: '峰提取或拟合依据',
+      baseline: '基线处理',
+    },
     nav: '表征实验记录',
     run: {
       title: '添加表征记录',
@@ -819,7 +852,7 @@ export const common = {
       belowDetectionValue: '记录阈值：{{value}}',
       method: '表征方法',
       instrument: '表征仪器',
-      measurementPerformedBy: '测量执行人',
+      measurementPerformedBy: '录入者',
       conditions: '测量条件',
       region: '测量区域',
       results: '测量结果',

@@ -174,7 +174,7 @@ describe('MeasurementDetails', () => {
 
     expect(await screen.findByText('384.2 cm⁻¹')).toBeInTheDocument()
     expect(screen.getByText('Raman · RAMAN-01 · v3')).toBeInTheDocument()
-    expect(screen.getByText('测量执行人').parentElement).toHaveTextContent(
+    expect(screen.getByText('录入者').parentElement).toHaveTextContent(
       'measurement-user-id',
     )
     expect(screen.getByText('分析执行人').parentElement).toHaveTextContent(
@@ -337,7 +337,7 @@ describe('MeasurementDetails', () => {
     })
     renderDetails()
 
-    expect(await screen.findByText('Measurement performed by')).toBeVisible()
+    expect(await screen.findByText('Recorded by')).toBeVisible()
     expect(screen.getByText('Invalidated by').parentElement).toHaveTextContent(
       'invalidator-user-id',
     )

@@ -20,8 +20,8 @@ describe('generated field metadata', () => {
       'process_steps',
       'process_events',
     ])
-    expect(Object.values(experimentModules).flat()).toHaveLength(90)
-    expect(Object.values(entities).flat()).toHaveLength(52)
+    expect(Object.values(experimentModules).flat()).toHaveLength(91)
+    expect(Object.values(entities).flat()).toHaveLength(55)
     expect(optionLabelsZh.gas_exchange).toBe('气氛置换')
     expect(optionLabelsEn.gas_exchange).toBe('Atmosphere exchange')
     expect(optionCodes['气路置换']).toBe('gas_exchange')
@@ -71,7 +71,7 @@ describe('generated field metadata', () => {
     expect(unitLabelsEn['按指标']).toBe('per metric')
   })
 
-  it('publishes only the remaining scalar-plus-option entity field', () => {
+  it('publishes orientation and polish independently', () => {
     const compositeInputs = new Set([
       '数值+下拉',
       '下拉+数值',
@@ -84,6 +84,9 @@ describe('generated field metadata', () => {
         .flat()
         .filter((field) => compositeInputs.has(field.input))
         .map((field) => field.key),
-    ).toEqual(['substrate_orientation_polish'])
+    ).toEqual([])
+    expect(entities.material_lot.map((field) => field.key)).toEqual(
+      expect.arrayContaining(['substrate_crystal_plane', 'substrate_polish']),
+    )
   })
 })

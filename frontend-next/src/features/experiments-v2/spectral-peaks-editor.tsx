@@ -34,6 +34,9 @@ export type PeakSeriesDraft = {
   positionUnit: string
   intensityUnit: string
   sourceFileIndex: number | null
+  sourceLocator?: string
+  extractionMethod?: string
+  baselineMethod?: string
   peaks: PeakDraft[]
 }
 
@@ -105,6 +108,15 @@ export function peakSeriesValue(
     status: value.status as SpectralValue['status'],
     position_unit: value.positionUnit as SpectralValue['position_unit'],
     intensity_unit: value.intensityUnit as SpectralValue['intensity_unit'],
+    ...(value.sourceLocator?.trim()
+      ? { source_locator: value.sourceLocator.trim() }
+      : {}),
+    ...(value.extractionMethod?.trim()
+      ? { extraction_method: value.extractionMethod.trim() }
+      : {}),
+    ...(value.baselineMethod?.trim()
+      ? { baseline_method: value.baselineMethod.trim() }
+      : {}),
     ...(sourceIndex !== null && rawIndexes.includes(sourceIndex)
       ? { source_file_id: uploadedFileIds[sourceIndex] }
       : {}),
@@ -214,6 +226,49 @@ export function SpectralPeaksEditor({
               </SelectContent>
             </Select>
           </div>
+        ) : null}
+        {value.status ? (
+          <>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="peak-source-locator">
+                {t('characterizations.metadata.sourceLocator')}
+              </Label>
+              <Input
+                id="peak-source-locator"
+                maxLength={256}
+                value={value.sourceLocator ?? ''}
+                onChange={(event) =>
+                  onChange({ ...value, sourceLocator: event.target.value })
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="peak-extraction-method">
+                {t('characterizations.metadata.peakExtraction')}
+              </Label>
+              <Input
+                id="peak-extraction-method"
+                maxLength={256}
+                value={value.extractionMethod ?? ''}
+                onChange={(event) =>
+                  onChange({ ...value, extractionMethod: event.target.value })
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="peak-baseline-method">
+                {t('characterizations.metadata.baseline')}
+              </Label>
+              <Input
+                id="peak-baseline-method"
+                maxLength={256}
+                value={value.baselineMethod ?? ''}
+                onChange={(event) =>
+                  onChange({ ...value, baselineMethod: event.target.value })
+                }
+              />
+            </div>
+          </>
         ) : null}
         {rawIndexes.length > 1 && value.status ? (
           <div className="flex flex-col gap-2 sm:col-span-2">

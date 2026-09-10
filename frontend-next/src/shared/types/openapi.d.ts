@@ -1687,6 +1687,14 @@ export interface components {
             substrate_oxide_thickness_nm?: number | null;
             /** Substrate Orientation Polish Availability */
             substrate_orientation_polish_availability?: ("not_applicable" | "not_provided" | "reported") | null;
+            /** Quartz Type */
+            quartz_type?: ("fused_silica" | "not_provided" | "single_crystal_quartz") | null;
+            /** Substrate Crystal Plane */
+            substrate_crystal_plane?: string | null;
+            /** Substrate Cut Spec */
+            substrate_cut_spec?: string | null;
+            /** Substrate Polish */
+            substrate_polish?: ("double_side_polished" | "not_provided" | "single_side_polished" | "unpolished") | null;
             substrate_orientation_polish?: components["schemas"]["SubstrateOrientationPolishValue"] | null;
             /** Substrate Miscut Availability */
             substrate_miscut_availability?: ("not_applicable" | "not_provided" | "reported") | null;
@@ -1846,7 +1854,51 @@ export interface components {
                     objective?: string;
                     illumination_mode?: string;
                     image_scale_um_per_px?: number;
-                };
+                    /** @enum {string} */
+                    observation_mode?: "visual" | "digital";
+                    /** @enum {string} */
+                    optical_path?: "reflection" | "transmission";
+                    /** @enum {string} */
+                    contrast_method?: "bright_field" | "dark_field" | "dic" | "phase_contrast" | "fluorescence" | "other";
+                    contrast_method_other?: string;
+                    objective_na?: number;
+                    objective_immersion?: string;
+                    detector?: string;
+                    exposure_time_ms?: number;
+                    /** @enum {string} */
+                    exposure_mode?: "manual" | "one_shot" | "continuous_auto";
+                    detector_gain?: string;
+                    /** @enum {string} */
+                    image_color_mode?: "color" | "monochrome";
+                    /** @enum {string} */
+                    white_balance_mode?: "off" | "manual" | "one_shot" | "continuous_auto";
+                    white_balance_settings?: string;
+                    white_balance_temperature_K?: number;
+                    white_balance_reference?: string;
+                    illumination_source?: string;
+                    illumination_setting?: string;
+                    filter_configuration?: string;
+                    aperture_setting?: string;
+                    image_scale_y_um_per_px?: number;
+                    resolution_px?: {
+                        width: number;
+                        height: number;
+                    };
+                    scale_calibration?: string;
+                    image_bit_depth?: number;
+                    binning?: string;
+                    camera_offset?: string;
+                    image_processing?: string;
+                    /** @enum {string} */
+                    incident_polarization_state?: "linear" | "circular" | "elliptical" | "unpolarized";
+                    /** @enum {string} */
+                    analyzer_mode?: "none" | "fixed" | "parallel" | "crossed";
+                    incident_polarization_angle_deg?: number;
+                    analyzer_angle_deg?: number;
+                    polarization_reference?: string;
+                    sample_preparation?: string;
+                    acquisition_note?: string;
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "whole_sample" | "selected_area";
@@ -1879,7 +1931,36 @@ export interface components {
                     };
                     filter_configuration?: string;
                     temperature_K?: number;
-                };
+                    objective_na?: number;
+                    grating_lines_per_mm?: number;
+                    slit_width_um?: number;
+                    detector?: string;
+                    detector_gain?: string;
+                    /** @enum {string} */
+                    collection_geometry?: "reflection" | "transmission" | "other";
+                    /** @enum {string} */
+                    incident_polarization_state?: "linear" | "circular" | "elliptical" | "unpolarized";
+                    /** @enum {string} */
+                    analyzer_mode?: "none" | "fixed" | "parallel" | "crossed";
+                    incident_polarization_angle_deg?: number;
+                    analyzer_angle_deg?: number;
+                    polarization_reference?: string;
+                    collection_geometry_other?: string;
+                    /** @enum {string} */
+                    acquisition_kind?: "single" | "mapping" | "series";
+                    scan_coordinates?: string;
+                    measurement_environment?: string;
+                    /** @enum {string} */
+                    temperature_basis?: "ambient" | "stage_setpoint" | "sample_measured";
+                    /** @enum {string} */
+                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
+                    /** @enum {string} */
+                    accumulation_method?: "sum" | "mean" | "separate";
+                    confocal_aperture_um?: number;
+                    filter_cutoff?: string;
+                    sample_preparation?: string;
+                    acquisition_note?: string;
+                } & (unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "line" | "whole_sample" | "selected_area";
@@ -1936,7 +2017,42 @@ export interface components {
                     temperature_K?: number;
                     objective?: string;
                     accumulations?: number;
-                };
+                    objective_na?: number;
+                    grating_lines_per_mm?: number;
+                    slit_width_um?: number;
+                    filter_configuration?: string;
+                    detector?: string;
+                    detector_gain?: string;
+                    /** @enum {string} */
+                    collection_geometry?: "reflection" | "transmission" | "other";
+                    /** @enum {string} */
+                    incident_polarization_state?: "linear" | "circular" | "elliptical" | "unpolarized";
+                    /** @enum {string} */
+                    analyzer_mode?: "none" | "fixed" | "parallel" | "crossed";
+                    incident_polarization_angle_deg?: number;
+                    analyzer_angle_deg?: number;
+                    polarization_reference?: string;
+                    collection_geometry_other?: string;
+                    /** @enum {string} */
+                    acquisition_kind?: "single" | "mapping" | "series";
+                    scan_coordinates?: string;
+                    measurement_environment?: string;
+                    /** @enum {string} */
+                    temperature_basis?: "ambient" | "stage_setpoint" | "sample_measured";
+                    /** @enum {string} */
+                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
+                    /** @enum {string} */
+                    accumulation_method?: "sum" | "mean" | "separate";
+                    /** @enum {string} */
+                    response_correction?: "applied" | "not_applied";
+                    response_correction_source?: string;
+                    /** @enum {string} */
+                    excitation_mode?: "continuous" | "pulsed";
+                    pulse_width_fs?: number;
+                    repetition_rate_MHz?: number;
+                    sample_preparation?: string;
+                    acquisition_note?: string;
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "line" | "whole_sample" | "selected_area";
@@ -1969,7 +2085,21 @@ export interface components {
                     scan_rate_hz?: number;
                     height_processing?: string;
                     mode_other?: string;
-                } & unknown;
+                    scan_rate_definition?: string;
+                    data_channel?: string;
+                    measurement_environment?: string;
+                    /** @enum {string} */
+                    scan_direction?: "trace" | "retrace" | "both";
+                    scan_rotation_deg?: number;
+                    feedback_setpoint?: string;
+                    free_amplitude?: string;
+                    feedback_gains?: string;
+                    drive_frequency_kHz?: number;
+                    height_calibration?: string;
+                    scale_calibration?: string;
+                    sample_preparation?: string;
+                    acquisition_note?: string;
+                } & (unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "whole_sample" | "selected_area";
@@ -2001,7 +2131,35 @@ export interface components {
                         width: number;
                         height: number;
                     };
-                };
+                    pixel_dwell_time_us?: number;
+                    frame_count?: number;
+                    /** @enum {string} */
+                    frame_combination?: "sum" | "mean" | "separate";
+                    resolution_px?: {
+                        width: number;
+                        height: number;
+                    };
+                    image_scale_um_per_px?: number;
+                    image_scale_y_um_per_px?: number;
+                    scale_calibration?: string;
+                    data_channel?: string;
+                    coating_material?: string;
+                    coating_thickness_nm?: number;
+                    measurement_environment?: string;
+                    /** @enum {string} */
+                    spectrum_acquisition?: "single" | "line" | "mapping";
+                    eds_live_time_s?: number;
+                    eds_real_time_s?: number;
+                    eds_dead_time_percent?: number;
+                    eds_process_time?: string;
+                    eds_energy_range?: string;
+                    energy_dispersion_eV_channel?: number;
+                    /** @enum {string} */
+                    vacuum_mode?: "high_vacuum" | "low_vacuum" | "environmental";
+                    chamber_pressure_Pa?: number;
+                    beam_current_setting?: string;
+                    acquisition_note?: string;
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "whole_sample" | "selected_area";
@@ -2039,7 +2197,19 @@ export interface components {
                     /** @enum {string} */
                     scan_mode?: "step" | "continuous";
                     geometry_other?: string;
-                } & (unknown & unknown & unknown & unknown & unknown);
+                    /** @enum {string} */
+                    axis_coupling?: "theta_two_theta" | "omega_two_theta" | "uncoupled" | "other";
+                    fixed_two_theta_deg?: number;
+                    fixed_chi_deg?: number;
+                    scan_reference?: string;
+                    xray_optics?: string;
+                    detector?: string;
+                    tube_voltage_kV?: number;
+                    tube_current_mA?: number;
+                    xrd_processing?: string;
+                    sample_preparation?: string;
+                    acquisition_note?: string;
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "whole_sample" | "area" | "selected_area";
@@ -2072,7 +2242,45 @@ export interface components {
                     diffraction_mode?: "SAED" | "NBED" | "CBED" | "other";
                     /** @enum {string} */
                     spectrum_mode?: "EDS" | "EELS";
-                } & (unknown & unknown & unknown);
+                    detector?: string;
+                    pixel_dwell_time_us?: number;
+                    frame_count?: number;
+                    /** @enum {string} */
+                    frame_combination?: "sum" | "mean" | "separate";
+                    resolution_px?: {
+                        width: number;
+                        height: number;
+                    };
+                    image_scale_um_per_px?: number;
+                    image_scale_y_um_per_px?: number;
+                    scale_calibration?: string;
+                    data_channel?: string;
+                    coating_material?: string;
+                    coating_thickness_nm?: number;
+                    measurement_environment?: string;
+                    /** @enum {string} */
+                    spectrum_acquisition?: "single" | "line" | "mapping";
+                    eds_live_time_s?: number;
+                    eds_real_time_s?: number;
+                    eds_dead_time_percent?: number;
+                    eds_process_time?: string;
+                    eds_energy_range?: string;
+                    energy_dispersion_eV_channel?: number;
+                    exposure_time_ms?: number;
+                    beam_current_nA?: number;
+                    stage_tilt_deg?: number;
+                    defocus_nm?: number;
+                    aberration_correction?: string;
+                    convergence_semiangle_mrad?: number;
+                    collection_inner_mrad?: number;
+                    collection_outer_mrad?: number;
+                    camera_length?: string;
+                    diffraction_aperture?: string;
+                    eels_energy_range?: string;
+                    eels_collection_semiangle_mrad?: number;
+                    zero_loss_calibration?: string;
+                    acquisition_note?: string;
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "lamella" | "particle" | "whole_sample" | "selected_area";
@@ -2090,6 +2298,8 @@ export interface components {
                 method_profile: "other";
                 typed_conditions: {
                     method_description: string;
+                    sample_preparation?: string;
+                    acquisition_note?: string;
                 };
                 sample_region?: {
                     /** @enum {unknown} */
@@ -2132,7 +2342,46 @@ export interface components {
                         start: number;
                         end: number;
                     };
-                } & (unknown & unknown & unknown & unknown & unknown);
+                    objective_na?: number;
+                    grating_lines_per_mm?: number;
+                    slit_width_um?: number;
+                    filter_configuration?: string;
+                    detector?: string;
+                    detector_gain?: string;
+                    /** @enum {string} */
+                    collection_geometry?: "reflection" | "transmission" | "other";
+                    /** @enum {string} */
+                    incident_polarization_state?: "linear" | "circular" | "elliptical" | "unpolarized";
+                    /** @enum {string} */
+                    analyzer_mode?: "none" | "fixed" | "parallel" | "crossed";
+                    incident_polarization_angle_deg?: number;
+                    analyzer_angle_deg?: number;
+                    polarization_reference?: string;
+                    collection_geometry_other?: string;
+                    /** @enum {string} */
+                    acquisition_kind?: "single" | "mapping" | "series";
+                    scan_coordinates?: string;
+                    /** @enum {string} */
+                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
+                    /** @enum {string} */
+                    accumulation_method?: "sum" | "mean" | "separate";
+                    /** @enum {string} */
+                    scan_angle_quantity?: "waveplate" | "polarization" | "analyzer" | "sample";
+                    angle_step_deg?: number;
+                    power_scan_coordinates?: string;
+                    spot_size_um?: number;
+                    spot_size_definition?: string;
+                    exposure_time_ms?: number;
+                    pixel_dwell_time_us?: number;
+                    resolution_px?: {
+                        width: number;
+                        height: number;
+                    };
+                    image_scale_um_per_px?: number;
+                    image_scale_y_um_per_px?: number;
+                    sample_preparation?: string;
+                    acquisition_note?: string;
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "selected_area" | "whole_sample";
@@ -2157,6 +2406,186 @@ export interface components {
         }));
         /** MeasurementConditions */
         MeasurementConditions: {
+            /** Observation Mode */
+            observation_mode?: string | null;
+            /** Optical Path */
+            optical_path?: string | null;
+            /** Contrast Method */
+            contrast_method?: string | null;
+            /** Contrast Method Other */
+            contrast_method_other?: string | null;
+            /** Objective Na */
+            objective_na?: number | null;
+            /** Objective Immersion */
+            objective_immersion?: string | null;
+            /** Exposure Time Ms */
+            exposure_time_ms?: number | null;
+            /** Exposure Mode */
+            exposure_mode?: string | null;
+            /** Detector Gain */
+            detector_gain?: string | null;
+            /** Image Color Mode */
+            image_color_mode?: string | null;
+            /** White Balance Mode */
+            white_balance_mode?: string | null;
+            /** White Balance Settings */
+            white_balance_settings?: string | null;
+            /** White Balance Temperature K */
+            white_balance_temperature_K?: number | null;
+            /** White Balance Reference */
+            white_balance_reference?: string | null;
+            /** Illumination Source */
+            illumination_source?: string | null;
+            /** Illumination Setting */
+            illumination_setting?: string | null;
+            /** Aperture Setting */
+            aperture_setting?: string | null;
+            /** Image Scale Y Um Per Px */
+            image_scale_y_um_per_px?: number | null;
+            /** Scale Calibration */
+            scale_calibration?: string | null;
+            /** Image Bit Depth */
+            image_bit_depth?: number | null;
+            /** Binning */
+            binning?: string | null;
+            /** Camera Offset */
+            camera_offset?: string | null;
+            /** Image Processing */
+            image_processing?: string | null;
+            /** Incident Polarization State */
+            incident_polarization_state?: string | null;
+            /** Analyzer Mode */
+            analyzer_mode?: string | null;
+            /** Incident Polarization Angle Deg */
+            incident_polarization_angle_deg?: number | null;
+            /** Analyzer Angle Deg */
+            analyzer_angle_deg?: number | null;
+            /** Polarization Reference */
+            polarization_reference?: string | null;
+            /** Acquisition Note */
+            acquisition_note?: string | null;
+            /** Grating Lines Per Mm */
+            grating_lines_per_mm?: number | null;
+            /** Slit Width Um */
+            slit_width_um?: number | null;
+            /** Collection Geometry */
+            collection_geometry?: string | null;
+            /** Collection Geometry Other */
+            collection_geometry_other?: string | null;
+            /** Acquisition Kind */
+            acquisition_kind?: string | null;
+            /** Scan Coordinates */
+            scan_coordinates?: string | null;
+            /** Measurement Environment */
+            measurement_environment?: string | null;
+            /** Temperature Basis */
+            temperature_basis?: string | null;
+            /** Intensity Processing */
+            intensity_processing?: string | null;
+            /** Accumulation Method */
+            accumulation_method?: string | null;
+            /** Confocal Aperture Um */
+            confocal_aperture_um?: number | null;
+            /** Filter Cutoff */
+            filter_cutoff?: string | null;
+            /** Response Correction */
+            response_correction?: string | null;
+            /** Response Correction Source */
+            response_correction_source?: string | null;
+            /** Scan Rate Definition */
+            scan_rate_definition?: string | null;
+            /** Data Channel */
+            data_channel?: string | null;
+            /** Scan Direction */
+            scan_direction?: string | null;
+            /** Scan Rotation Deg */
+            scan_rotation_deg?: number | null;
+            /** Feedback Setpoint */
+            feedback_setpoint?: string | null;
+            /** Free Amplitude */
+            free_amplitude?: string | null;
+            /** Feedback Gains */
+            feedback_gains?: string | null;
+            /** Drive Frequency Khz */
+            drive_frequency_kHz?: number | null;
+            /** Height Calibration */
+            height_calibration?: string | null;
+            /** Pixel Dwell Time Us */
+            pixel_dwell_time_us?: number | null;
+            /** Frame Count */
+            frame_count?: number | null;
+            /** Frame Combination */
+            frame_combination?: string | null;
+            /** Coating Material */
+            coating_material?: string | null;
+            /** Coating Thickness Nm */
+            coating_thickness_nm?: number | null;
+            /** Spectrum Acquisition */
+            spectrum_acquisition?: string | null;
+            /** Eds Live Time S */
+            eds_live_time_s?: number | null;
+            /** Eds Real Time S */
+            eds_real_time_s?: number | null;
+            /** Eds Dead Time Percent */
+            eds_dead_time_percent?: number | null;
+            /** Eds Process Time */
+            eds_process_time?: string | null;
+            /** Eds Energy Range */
+            eds_energy_range?: string | null;
+            /** Energy Dispersion Ev Channel */
+            energy_dispersion_eV_channel?: number | null;
+            /** Vacuum Mode */
+            vacuum_mode?: string | null;
+            /** Chamber Pressure Pa */
+            chamber_pressure_Pa?: number | null;
+            /** Beam Current Setting */
+            beam_current_setting?: string | null;
+            /** Axis Coupling */
+            axis_coupling?: string | null;
+            /** Fixed Two Theta Deg */
+            fixed_two_theta_deg?: number | null;
+            /** Fixed Chi Deg */
+            fixed_chi_deg?: number | null;
+            /** Scan Reference */
+            scan_reference?: string | null;
+            /** Xray Optics */
+            xray_optics?: string | null;
+            /** Tube Voltage Kv */
+            tube_voltage_kV?: number | null;
+            /** Tube Current Ma */
+            tube_current_mA?: number | null;
+            /** Xrd Processing */
+            xrd_processing?: string | null;
+            /** Defocus Nm */
+            defocus_nm?: number | null;
+            /** Aberration Correction */
+            aberration_correction?: string | null;
+            /** Convergence Semiangle Mrad */
+            convergence_semiangle_mrad?: number | null;
+            /** Collection Inner Mrad */
+            collection_inner_mrad?: number | null;
+            /** Collection Outer Mrad */
+            collection_outer_mrad?: number | null;
+            /** Camera Length */
+            camera_length?: string | null;
+            /** Diffraction Aperture */
+            diffraction_aperture?: string | null;
+            /** Eels Energy Range */
+            eels_energy_range?: string | null;
+            /** Eels Collection Semiangle Mrad */
+            eels_collection_semiangle_mrad?: number | null;
+            /** Zero Loss Calibration */
+            zero_loss_calibration?: string | null;
+            /** Scan Angle Quantity */
+            scan_angle_quantity?: string | null;
+            /** Angle Step Deg */
+            angle_step_deg?: number | null;
+            /** Power Scan Coordinates */
+            power_scan_coordinates?: string | null;
+            /** Spot Size Um */
+            spot_size_um?: number | null;
+            /** Spot Size Definition */
+            spot_size_definition?: string | null;
             /** Laser Wavelength Nm */
             laser_wavelength_nm?: number | null;
             /** Excitation Wavelength Nm */
@@ -2327,6 +2756,14 @@ export interface components {
             property_count: number;
             /** Assertion Count */
             assertion_count: number;
+            /** Supplementary Files */
+            supplementary_files?: components["schemas"]["MeasurementRawFileRead"][];
+            /** File Contexts */
+            file_contexts?: components["schemas"]["MeasurementSupplementaryFile"][];
+            /** Operator Name */
+            operator_name?: string | null;
+            /** Operator Institution */
+            operator_institution?: string | null;
             /** Revision Number */
             revision_number: number;
             /** Performed By Name */
@@ -2360,6 +2797,12 @@ export interface components {
         };
         /** MeasurementPropertyRead */
         MeasurementPropertyRead: {
+            /** Source File Id */
+            source_file_id?: string | null;
+            /** Source Locator */
+            source_locator?: string | null;
+            /** Processing Note */
+            processing_note?: string | null;
             /**
              * Id
              * Format: uuid
@@ -2436,6 +2879,12 @@ export interface components {
             typed_conditions: components["schemas"]["MeasurementConditions"];
             /** Raw File Ids */
             raw_file_ids?: string[];
+            /** Supplementary Files */
+            supplementary_files?: components["schemas"]["MeasurementSupplementaryFile"][];
+            /** Operator Name */
+            operator_name?: string | null;
+            /** Operator Institution */
+            operator_institution?: string | null;
             /**
              * Quality Flag
              * @default valid
@@ -2505,6 +2954,27 @@ export interface components {
             /** Assertion Count */
             assertion_count: number;
         };
+        /** MeasurementSupplementaryFile */
+        MeasurementSupplementaryFile: {
+            /**
+             * File Id
+             * Format: uuid
+             */
+            file_id: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "processed" | "supporting";
+            /** Source File Ids */
+            source_file_ids?: string[];
+            /** Description */
+            description: string;
+            /** Software Name */
+            software_name?: string | null;
+            /** Software Version */
+            software_version?: string | null;
+        };
         /** NumericRange */
         NumericRange: {
             /** Min */
@@ -2525,6 +2995,12 @@ export interface components {
         };
         /** PropertyValueWrite */
         PropertyValueWrite: {
+            /** Source File Id */
+            source_file_id?: string | null;
+            /** Source Locator */
+            source_locator?: string | null;
+            /** Processing Note */
+            processing_note?: string | null;
             /** Property Code */
             property_code: string;
             /** Numeric Value */
@@ -2579,6 +3055,7 @@ export interface components {
                     area?: number;
                     d_spacing_nm?: number;
                 }[];
+                source_locator?: string;
             } & (unknown & unknown & unknown & unknown);
             unit?: null;
             uncertainty_value?: null;

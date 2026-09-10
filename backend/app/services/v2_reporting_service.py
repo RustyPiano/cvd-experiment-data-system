@@ -512,11 +512,12 @@ class V2ReportingService:
                 snapshot_db.begin()
             yield type(self)(snapshot_db)
         finally:
-            snapshot_db.rollback()
-            if sqlite_query_only:
-                snapshot_db.execute(text("PRAGMA query_only = OFF"))
-                snapshot_db.commit()
-            snapshot_db.close()
+            try:
+                # Restore connection state before close returns it to the pool.
+                if sqlite_query_only:
+                    snapshot_db.execute(text("PRAGMA query_only = OFF"))
+            finally:
+                snapshot_db.close()
 
     def _visible_runs_for_export(
         self,
@@ -990,6 +991,9 @@ class V2ReportingService:
                     "invalidated_by_id": (record.attrs or {}).get("invalidated_by_id"),
                     "invalidated_at": (record.attrs or {}).get("invalidated_at"),
                     "raw_file_ids": [str(file.id) for file in files_by_record.get(record.id, [])],
+                    "supplementary_files": (record.attrs or {}).get("file_contexts", []),
+                    "operator_name": (record.attrs or {}).get("operator_name"),
+                    "operator_institution": (record.attrs or {}).get("operator_institution"),
                     "analyses": [
                         {
                             "id": str(analysis.id),
@@ -1015,6 +1019,9 @@ class V2ReportingService:
                     ],
                     "properties": [
                         {
+                            **(record.attrs or {})
+                            .get("property_evidence", {})
+                            .get(str(item.id), {}),
                             "id": str(item.id),
                             "measurement_run_id": str(item.measurement_run_id),
                             "sample_id": str(item.sample_id),

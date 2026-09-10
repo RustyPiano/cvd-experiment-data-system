@@ -2,13 +2,18 @@ import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { X } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import {
+  MeasurementFileEditor,
+  emptyFileMetadata,
+} from './measurement-file-editor'
+import type { MeasurementFileDraft } from './measurement-file-editor'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -86,6 +91,9 @@ type MeasurementPropertyWrite = NonNullable<
 type ResultMetadataDraft = {
   quality: MeasurementPropertyQuality
   qualityNote: string
+  sourceFileIndex?: number | null
+  sourceLocator?: string
+  processingNote?: string
 }
 
 const DEFAULT_RESULT_METADATA: ResultMetadataDraft = {
@@ -263,7 +271,11 @@ export function characterizationConditionIssue(
   if (field.value_type === 'text' || field.value_type === 'select') {
     if (
       field.value_type === 'select' &&
-      !field.options?.some((option) => option.value === values[0])
+      !field.options?.some(
+        (option) =>
+          option.value === values[0] &&
+          conditionMatches(option.when, conditions),
+      )
     ) {
       return translate('conditionOption')
     }
@@ -318,9 +330,8 @@ export function characterizationConditionIssue(
     return null
   }
   if (field.value_type === 'integer') {
-    return Number.isInteger(numbers[0]) && numbers[0] >= 1
-      ? null
-      : translate('positiveInteger')
+    if (!Number.isInteger(numbers[0]) || numbers[0] < 1)
+      return translate('positiveInteger')
   }
   const ge = field.validation?.ge
   const gt = field.validation?.gt
@@ -414,11 +425,8 @@ function ConditionInput({
       ? field.validation.max_length
       : undefined
   return (
-    <div
-      className="flex flex-col gap-2"
-      data-invalid={Boolean(issue) || undefined}
-    >
-      <Label
+    <Field className="gap-2" data-invalid={Boolean(issue) || undefined}>
+      <FieldLabel
         htmlFor={
           field.components
             ? undefined
@@ -432,7 +440,7 @@ function ConditionInput({
             : `（${field.unit}）`
           : ''}
         {required ? <RequiredMark /> : null}
-      </Label>
+      </FieldLabel>
       {field.components ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {field.components.map((component) => {
@@ -486,14 +494,30 @@ function ConditionInput({
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              {field.options?.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {isEnglish(language) ? option.label_en : option.label_zh}
-                </SelectItem>
-              ))}
+              {field.options
+                ?.filter((option) => conditionMatches(option.when, conditions))
+                .map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {isEnglish(language) ? option.label_en : option.label_zh}
+                  </SelectItem>
+                ))}
             </SelectGroup>
           </SelectContent>
         </Select>
+      ) : field.multiline ? (
+        <Textarea
+          id={`characterization-condition-${field.key}`}
+          value={conditions[field.key] ?? ''}
+          maxLength={maxLength}
+          required={required}
+          disabled={disabled}
+          aria-invalid={Boolean(issue) || undefined}
+          aria-describedby={issue ? issueId : undefined}
+          placeholder={
+            isEnglish(language) ? field.placeholder_en : field.placeholder_zh
+          }
+          onChange={(event) => onChange(field.key, event.target.value)}
+        />
       ) : (
         <Input
           id={`characterization-condition-${field.key}`}
@@ -565,7 +589,7 @@ function ConditionInput({
           {issue}
         </p>
       ) : null}
-    </div>
+    </Field>
   )
 }
 
@@ -773,6 +797,9 @@ export function SimpleCharacterizationWorkspace({
     Record<string, ResultMetadataDraft>
   >({})
   const [rawFiles, setRawFiles] = useState<File[]>([])
+  const [fileMetadata, setFileMetadata] = useState<MeasurementFileDraft[]>([])
+  const [operatorName, setOperatorName] = useState('')
+  const [operatorInstitution, setOperatorInstitution] = useState('')
   const [detailId, setDetailId] = useState<string | null>(null)
   const instrumentVersions = useQuery({
     queryKey: ['v2-entity', 'instrument', instrumentId, 'versions'],
@@ -792,8 +819,90 @@ export function SimpleCharacterizationWorkspace({
     }))
   const updateResult = (field: ResultDefinition, value: string) =>
     setResults((current) => ({ ...current, [field.key]: value }))
+  const changeFileMetadata = (
+    index: number,
+    update: Partial<MeasurementFileDraft>,
+  ) => {
+    if (
+      update.role &&
+      update.role !== 'raw' &&
+      fileMetadata.some((item) => item.sourceIndices.includes(index))
+    ) {
+      toast.error(
+        isEnglish(i18n.language)
+          ? 'Remove or reassign dependent processed files first.'
+          : '请先移除或重新指定依赖此原始文件的处理结果。',
+      )
+      return
+    }
+    if (
+      update.role === 'supporting' &&
+      peakSeries.status &&
+      (peakSeries.sourceFileIndex ??
+        (rawIndexes.length === 1 ? rawIndexes[0] : null)) === index
+    ) {
+      toast.error(
+        isEnglish(i18n.language)
+          ? 'Clear the peak results before changing their source to a supporting document.'
+          : '请先清空峰结果，再将其来源改为说明性附件。',
+      )
+      return
+    }
+    if (
+      update.role === 'supporting' &&
+      Object.entries(resultMetadata).some(
+        ([key, item]) =>
+          results[key]?.trim() &&
+          (item.sourceFileIndex ??
+            (rawIndexes.length === 1 ? rawIndexes[0] : null)) === index,
+      )
+    ) {
+      toast.error(
+        isEnglish(i18n.language)
+          ? 'Reassign the numeric result source first.'
+          : '请先重新指定数值结果的来源文件。',
+      )
+      return
+    }
+    setFileMetadata((current) =>
+      current.map((item, i) =>
+        i === index
+          ? {
+              ...item,
+              ...update,
+              ...(update.role && update.role !== 'processed'
+                ? { sourceIndices: [] }
+                : {}),
+            }
+          : item,
+      ),
+    )
+  }
   const removeRawFile = (removedIndex: number) => {
-    const sourceIndex = rawFiles.length === 1 ? 0 : peakSeries.sourceFileIndex
+    if (
+      fileMetadata.some((item) => item.sourceIndices.includes(removedIndex))
+    ) {
+      toast.error(
+        isEnglish(i18n.language)
+          ? 'Remove dependent processed files first.'
+          : '请先移除依赖此文件的处理后文件。',
+      )
+      return
+    }
+    if (
+      Object.values(resultMetadata).some(
+        (item) => item.sourceFileIndex === removedIndex,
+      )
+    ) {
+      toast.error(
+        isEnglish(i18n.language)
+          ? 'Clear or reassign the result source first.'
+          : '请先清空或重新指定结果的来源文件。',
+      )
+      return
+    }
+    const sourceIndex =
+      rawIndexes.length === 1 ? rawIndexes[0] : peakSeries.sourceFileIndex
     if (removedIndex === sourceIndex && peakSeries.status) {
       if (
         !window.confirm(
@@ -807,6 +916,31 @@ export function SimpleCharacterizationWorkspace({
     }
     setRawFiles((current) =>
       current.filter((_, index) => index !== removedIndex),
+    )
+    setFileMetadata((current) =>
+      current
+        .filter((_, index) => index !== removedIndex)
+        .map((item) => ({
+          ...item,
+          sourceIndices: item.sourceIndices.map((index) =>
+            index > removedIndex ? index - 1 : index,
+          ),
+        })),
+    )
+    setResultMetadata((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([key, item]) => [
+          key,
+          {
+            ...item,
+            sourceFileIndex:
+              item.sourceFileIndex != null &&
+              item.sourceFileIndex > removedIndex
+                ? item.sourceFileIndex - 1
+                : item.sourceFileIndex,
+          },
+        ]),
+      ),
     )
     setPeakSeries((current) => ({
       ...current,
@@ -837,20 +971,37 @@ export function SimpleCharacterizationWorkspace({
         return
       delete next.excitation_power_value
     }
-    const affected =
-      profile?.condition_fields.filter(
-        (field) => field.when && !conditionMatches(field.when, next),
-      ) ?? []
-    for (const field of affected) {
-      for (const conditionKey of Object.keys(next))
-        if (
-          conditionKey === field.key ||
-          conditionKey.startsWith(field.key + '.')
-        )
-          delete next[conditionKey]
-    }
+    let remainingKeys: number
+    do {
+      remainingKeys = Object.keys(next).length
+      for (const field of profile?.condition_fields ?? []) {
+        const invalidOption =
+          field.options &&
+          next[field.key] &&
+          !field.options.some(
+            (option) =>
+              option.value === next[field.key] &&
+              conditionMatches(option.when, next),
+          )
+        if (!conditionMatches(field.when, next) || invalidOption) {
+          for (const conditionKey of Object.keys(next)) {
+            if (
+              conditionKey === field.key ||
+              conditionKey.startsWith(field.key + '.')
+            )
+              delete next[conditionKey]
+          }
+        }
+      }
+    } while (Object.keys(next).length < remainingKeys)
     if (
-      ['data_type', 'scan_axis', 'mode', 'spectrum_mode'].includes(key) &&
+      [
+        'data_type',
+        'scan_axis',
+        'mode',
+        'spectrum_mode',
+        'acquisition_mode',
+      ].includes(key) &&
       (peakSeries.status || Object.values(results).some(Boolean))
     ) {
       if (
@@ -933,7 +1084,20 @@ export function SimpleCharacterizationWorkspace({
   const selectedInstrumentSupportsMethod = Boolean(
     instrumentSnapshot && instrumentSupportsMethod(instrumentSnapshot, method),
   )
-  const requiredConditionKeys = profile?.required_condition_keys ?? []
+  const requiredConditionKeys = [
+    ...(profile?.required_condition_keys ?? []),
+    ...(profile?.condition_fields ?? [])
+      .filter(
+        (field) =>
+          field.required_when &&
+          conditionMatches(field.required_when, conditions),
+      )
+      .map((field) => field.key),
+  ]
+  const digitalOM =
+    method === 'optical_microscopy' && conditions.observation_mode === 'digital'
+  const instrumentRequired = Boolean(profile?.instrument_required || digitalOM)
+  const rawRequired = Boolean(profile?.raw_files_required || digitalOM)
   const visibleConditions = (profile?.condition_fields ?? []).filter(
     (field) => !field.legacy_only && conditionMatches(field.when, conditions),
   )
@@ -955,8 +1119,40 @@ export function SimpleCharacterizationWorkspace({
   const resultConditions = visibleConditions.filter(
     (field) => field.section === 'results',
   )
-  const rawIndexes = rawFiles.map((_, index) => index)
-  const rawFileCount = rawIndexes.length
+  const rawIndexes = rawFiles
+    .map((_, index) => index)
+    .filter((index) => fileMetadata[index]?.role !== 'supporting')
+  const originalIndexes = rawFiles
+    .map((_, index) => index)
+    .filter((index) => (fileMetadata[index]?.role ?? 'raw') === 'raw')
+  const rawFileCount = originalIndexes.length
+  const missingRecommended = visibleConditions.filter(
+    (field) => field.recommended && !conditionHasValue(field, conditions),
+  )
+  const fileIssues = fileMetadata.flatMap((item, index) =>
+    item.role !== 'raw' &&
+    (!item.description.trim() ||
+      (item.role === 'processed' && !item.sourceIndices.length) ||
+      (item.softwareVersion.trim() && !item.softwareName.trim()))
+      ? [
+          isEnglish(i18n.language)
+            ? `Complete the sources / description for ${rawFiles[index]?.name}`
+            : `补齐 ${rawFiles[index]?.name} 的来源/处理说明`,
+        ]
+      : [],
+  )
+  for (const field of allResultDefinitions) {
+    if (
+      field.kind === 'number' &&
+      results[field.key]?.trim() &&
+      rawIndexes.length !== 1 &&
+      !rawIndexes.includes(metadataFor(field.key).sourceFileIndex ?? -1)
+    ) {
+      fileIssues.push(
+        `${resultFieldLabel(field, i18n.language)}：${isEnglish(i18n.language) ? 'Select a source file' : '选择来源文件'}`,
+      )
+    }
+  }
   const spectralIssue = peakUnits.length
     ? peakSeriesIssue(peakSeries, rawIndexes, method)
     : null
@@ -1028,7 +1224,9 @@ export function SimpleCharacterizationWorkspace({
     Object.values(resultMetadata).some(
       (metadata) => metadata.quality !== 'valid' || metadata.qualityNote.trim(),
     ) ||
-    rawFiles.length,
+    rawFiles.length ||
+    operatorName.trim() ||
+    operatorInstitution.trim(),
   )
   const hasUnsavedChanges = Boolean(method || hasMethodDraft)
   const resetDraft = (keepSample = true) => {
@@ -1044,6 +1242,9 @@ export function SimpleCharacterizationWorkspace({
     setPeakSeries(emptyPeakSeries())
     setResultMetadata({})
     setRawFiles([])
+    setFileMetadata([])
+    setOperatorName('')
+    setOperatorInstitution('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
   const canSubmit = Boolean(
@@ -1054,17 +1255,18 @@ export function SimpleCharacterizationWorkspace({
     conditionsValid &&
     resultsValid &&
     resultMetadataIssues.length === 0 &&
+    fileIssues.length === 0 &&
     evidencePresent &&
-    (!profile?.instrument_required || instrumentId) &&
+    (!instrumentRequired || instrumentId) &&
     (!instrumentId ||
       (instrumentVersion !== null && selectedInstrumentSupportsMethod)) &&
-    (!profile?.raw_files_required || rawFileCount > 0),
+    (!rawRequired || rawFileCount > 0),
   )
   const missingRequirements = [
     !sampleId ? t('characterizations.workspace.missing.sample') : null,
     !method ? t('characterizations.workspace.missing.method') : null,
     !measuredAt ? t('characterizations.workspace.missing.measuredAt') : null,
-    profile?.instrument_required && !instrumentId
+    instrumentRequired && !instrumentId
       ? t('characterizations.workspace.missing.instrument')
       : null,
     instrumentId && instrumentVersion === null
@@ -1091,7 +1293,8 @@ export function SimpleCharacterizationWorkspace({
         ]
       : []),
     ...resultMetadataIssues,
-    profile?.raw_files_required && rawFileCount === 0
+    ...fileIssues,
+    rawRequired && rawFileCount === 0
       ? t('characterizations.workspace.missing.rawFile')
       : null,
     method && !profile?.raw_files_required && !evidencePresent
@@ -1103,13 +1306,13 @@ export function SimpleCharacterizationWorkspace({
     mutationFn: async () => {
       const uploadedFileIds: string[] = []
       try {
-        for (const file of rawFiles) {
+        for (const [index, file] of rawFiles.entries()) {
           const uploaded = await uploadExperimentFile(token, runId, {
             file,
             sampleId,
             method,
             assetRole: 'characterization_file',
-            fileCategory: 'raw',
+            fileCategory: fileMetadata[index]?.role ?? 'raw',
           })
           uploadedFileIds.push(uploaded.id)
         }
@@ -1128,6 +1331,21 @@ export function SimpleCharacterizationWorkspace({
                     numeric_value: Number(results[field.key]),
                     unit: characterizationProperties[field.propertyCode]?.unit,
                   }),
+              ...(field.kind === 'number' && rawIndexes.length
+                ? {
+                    source_file_id:
+                      uploadedFileIds[
+                        metadata.sourceFileIndex ??
+                          (rawIndexes.length === 1 ? rawIndexes[0] : -1)
+                      ],
+                    ...(metadata.sourceLocator?.trim()
+                      ? { source_locator: metadata.sourceLocator.trim() }
+                      : {}),
+                    ...(metadata.processingNote?.trim()
+                      ? { processing_note: metadata.processingNote.trim() }
+                      : {}),
+                  }
+                : {}),
               quality_flag: metadata.quality,
               ...(metadata.qualityNote.trim()
                 ? { quality_note: metadata.qualityNote.trim() }
@@ -1156,7 +1374,35 @@ export function SimpleCharacterizationWorkspace({
               : {}),
             measured_at: new Date(measuredAt).toISOString(),
             typed_conditions: typedConditions(visibleConditions, conditions),
-            raw_file_ids: uploadedFileIds,
+            raw_file_ids: originalIndexes.map(
+              (index) => uploadedFileIds[index],
+            ),
+            supplementary_files: fileMetadata.flatMap((item, index) =>
+              item.role === 'raw'
+                ? []
+                : [
+                    {
+                      file_id: uploadedFileIds[index],
+                      role: item.role,
+                      source_file_ids: item.sourceIndices.map(
+                        (source) => uploadedFileIds[source],
+                      ),
+                      description: item.description.trim(),
+                      ...(item.softwareName.trim()
+                        ? { software_name: item.softwareName.trim() }
+                        : {}),
+                      ...(item.softwareVersion.trim()
+                        ? { software_version: item.softwareVersion.trim() }
+                        : {}),
+                    },
+                  ],
+            ),
+            ...(operatorName.trim()
+              ? { operator_name: operatorName.trim() }
+              : {}),
+            ...(operatorInstitution.trim()
+              ? { operator_institution: operatorInstitution.trim() }
+              : {}),
           },
           analyses: [],
           properties,
@@ -1254,7 +1500,7 @@ export function SimpleCharacterizationWorkspace({
                 <h2 className="font-medium">
                   {t('characterizations.workspace.sections.selection')}
                 </h2>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="characterization-sample">
                       {t('characterizations.workspace.fields.sample')}{' '}
@@ -1379,7 +1625,7 @@ export function SimpleCharacterizationWorkspace({
                 <h2 className="font-medium">
                   {t('characterizations.workspace.sections.measurement')}
                 </h2>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="characterization-measured-at">
                       {t('characterizations.workspace.fields.measuredAt')}{' '}
@@ -1400,7 +1646,7 @@ export function SimpleCharacterizationWorkspace({
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="characterization-instrument">
                         {t('characterizations.workspace.fields.instrument')}
-                        {profile.instrument_required ? <RequiredMark /> : null}
+                        {instrumentRequired ? <RequiredMark /> : null}
                       </Label>
                       <EntityReferenceSelect
                         kind="instrument"
@@ -1524,8 +1770,40 @@ export function SimpleCharacterizationWorkspace({
                   ) : null}
                 </div>
 
+                <FieldGroup className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
+                  <Field>
+                    <FieldLabel htmlFor="measurement-operator">
+                      {isEnglish(i18n.language)
+                        ? 'Actual measurement operator'
+                        : '实际测试人'}
+                    </FieldLabel>
+                    <Input
+                      id="measurement-operator"
+                      value={operatorName}
+                      maxLength={128}
+                      disabled={controlsDisabled}
+                      onChange={(event) => setOperatorName(event.target.value)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="measurement-institution">
+                      {isEnglish(i18n.language)
+                        ? 'Testing institution'
+                        : '测试机构/实验室'}
+                    </FieldLabel>
+                    <Input
+                      id="measurement-institution"
+                      value={operatorInstitution}
+                      maxLength={256}
+                      disabled={controlsDisabled}
+                      onChange={(event) =>
+                        setOperatorInstitution(event.target.value)
+                      }
+                    />
+                  </Field>
+                </FieldGroup>
                 {commonConditions.length ? (
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
                     {commonConditions.map((field) => (
                       <ConditionInput
                         key={field.key}
@@ -1578,7 +1856,7 @@ export function SimpleCharacterizationWorkspace({
                 </h2>
                 <Label htmlFor="characterization-raw-files">
                   {t('characterizations.workspace.fields.rawFiles')}
-                  {profile?.raw_files_required ? <RequiredMark /> : null}
+                  {rawRequired ? <RequiredMark /> : null}
                 </Label>
                 <Input
                   ref={fileInputRef}
@@ -1586,46 +1864,49 @@ export function SimpleCharacterizationWorkspace({
                   type="file"
                   multiple
                   disabled={controlsDisabled}
-                  required={profile?.raw_files_required}
+                  required={rawRequired}
                   onChange={(event) => {
                     const files = Array.from(event.target.files ?? [])
+                    if (
+                      rawIndexes.length === 1 &&
+                      peakSeries.status &&
+                      peakSeries.sourceFileIndex === null
+                    )
+                      setPeakSeries((current) => ({
+                        ...current,
+                        sourceFileIndex: rawIndexes[0],
+                      }))
+                    for (const field of allResultDefinitions) {
+                      if (
+                        rawIndexes.length === 1 &&
+                        field.kind === 'number' &&
+                        results[field.key]?.trim() &&
+                        metadataFor(field.key).sourceFileIndex == null
+                      )
+                        updateResultMetadata(field.key, {
+                          sourceFileIndex: rawIndexes[0],
+                        })
+                    }
                     setRawFiles((current) => [...current, ...files])
+                    setFileMetadata((current) => [
+                      ...current,
+                      ...files.map(emptyFileMetadata),
+                    ])
                     event.target.value = ''
                   }}
                 />
-                {rawFiles.length ? (
-                  <ul
-                    className="flex flex-col gap-2 text-sm"
-                    aria-label={t('characterizations.workspace.selectedFiles')}
-                  >
-                    {rawFiles.map((file, index) => (
-                      <li
-                        key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-                        className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-                      >
-                        <span className="min-w-0 flex-1 truncate">
-                          {file.name}
-                        </span>
-                        <Badge variant="outline">
-                          {t('characterizations.workspace.fields.rawFile')}
-                        </Badge>
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="ghost"
-                          disabled={controlsDisabled}
-                          aria-label={t(
-                            'characterizations.workspace.actions.removeFile',
-                            { filename: file.name },
-                          )}
-                          onClick={() => removeRawFile(index)}
-                        >
-                          <X aria-hidden="true" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
+                <p className="text-sm text-muted-foreground">
+                  {isEnglish(i18n.language)
+                    ? 'Original files in one record share acquisition settings. Keep per-point values in scan files; use separate records for different settings.'
+                    : '同一记录的原始文件共用采集条件；扫描文件保留逐点参数，不同曝光/功率/倍率请分别记录。'}
+                </p>
+                <MeasurementFileEditor
+                  files={rawFiles}
+                  metadata={fileMetadata}
+                  onChange={changeFileMetadata}
+                  onRemove={removeRawFile}
+                  disabled={controlsDisabled}
+                />
               </section>
 
               <section className="flex flex-col gap-4 rounded-lg border p-4">
@@ -1658,7 +1939,7 @@ export function SimpleCharacterizationWorkspace({
                     disabled={controlsDisabled}
                   />
                 ) : null}
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
                   {resultDefinitions.map((field) => (
                     <ResultInput
                       key={field.key}
@@ -1674,8 +1955,94 @@ export function SimpleCharacterizationWorkspace({
                     />
                   ))}
                 </div>
+                {allResultDefinitions
+                  .filter(
+                    (field) =>
+                      field.kind === 'number' && results[field.key]?.trim(),
+                  )
+                  .map((field) => {
+                    const metadata = metadataFor(field.key)
+                    return (
+                      <FieldGroup
+                        key={`source-${field.key}`}
+                        className="rounded-md border p-3"
+                      >
+                        <Field>
+                          <FieldLabel htmlFor={`result-source-${field.key}`}>
+                            {resultFieldLabel(field, i18n.language)} ·{' '}
+                            {isEnglish(i18n.language)
+                              ? 'Source file'
+                              : '来源文件'}
+                          </FieldLabel>
+                          <Select
+                            value={String(
+                              metadata.sourceFileIndex ??
+                                (rawIndexes.length === 1 ? rawIndexes[0] : ''),
+                            )}
+                            disabled={controlsDisabled}
+                            onValueChange={(value) =>
+                              updateResultMetadata(field.key, {
+                                sourceFileIndex: Number(value),
+                              })
+                            }
+                          >
+                            <SelectTrigger id={`result-source-${field.key}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                {rawIndexes.map((index) => (
+                                  <SelectItem key={index} value={String(index)}>
+                                    {rawFiles[index].name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor={`result-locator-${field.key}`}>
+                            {isEnglish(i18n.language)
+                              ? 'Channel / profile / result identifier'
+                              : '通道/剖面/结果编号'}
+                          </FieldLabel>
+                          <Input
+                            id={`result-locator-${field.key}`}
+                            value={metadata.sourceLocator ?? ''}
+                            maxLength={256}
+                            disabled={controlsDisabled}
+                            onChange={(event) =>
+                              updateResultMetadata(field.key, {
+                                sourceLocator: event.target.value,
+                              })
+                            }
+                          />
+                        </Field>
+                        <Field>
+                          <FieldLabel
+                            htmlFor={`result-processing-${field.key}`}
+                          >
+                            {isEnglish(i18n.language)
+                              ? 'Extraction / processing description'
+                              : '取值/处理依据'}
+                          </FieldLabel>
+                          <Textarea
+                            id={`result-processing-${field.key}`}
+                            value={metadata.processingNote ?? ''}
+                            maxLength={2000}
+                            disabled={controlsDisabled}
+                            onChange={(event) =>
+                              updateResultMetadata(field.key, {
+                                processingNote: event.target.value,
+                              })
+                            }
+                          />
+                        </Field>
+                      </FieldGroup>
+                    )
+                  })}
                 {resultConditions.length ? (
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
                     {resultConditions.map((field) => (
                       <ConditionInput
                         key={field.key}
@@ -1724,6 +2091,22 @@ export function SimpleCharacterizationWorkspace({
                 <h2 className="w-full font-medium">
                   {t('characterizations.workspace.sections.save')}
                 </h2>
+                {missingRecommended.length ? (
+                  <Alert>
+                    <AlertDescription>
+                      {isEnglish(i18n.language)
+                        ? 'Not recorded (retain missing values if unavailable): '
+                        : '尚未记录（无法获取时可保留缺项）：'}
+                      {missingRecommended
+                        .map((field) =>
+                          isEnglish(i18n.language)
+                            ? field.label_en
+                            : field.label_zh,
+                        )
+                        .join(isEnglish(i18n.language) ? ', ' : '、')}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
                 {!canSubmit && missingRequirements.length ? (
                   <div
                     className="w-full text-sm text-muted-foreground"

@@ -11,6 +11,7 @@ MATERIAL_LOT_PROJECTED_FIELDS = {
         "material",
         "chemical_formula",
         "crystal_orientation",
+        "polish",
         "oxide_thickness_nm",
     ),
 }
@@ -40,10 +41,19 @@ def material_lot_item_projection(module_key: str, snapshot: dict) -> dict:
             for key in ("value", "option")
             if _present_snapshot_value(value := orientation.get(key))
         )
+    plane = _material_lot_snapshot_value(snapshot, "substrate_crystal_plane")
+    polish = _material_lot_snapshot_value(snapshot, "substrate_polish")
+    if _present_snapshot_value(plane) or _present_snapshot_value(polish):
+        orientation = (
+            _material_lot_snapshot_value(snapshot, "substrate_cut_spec")
+            if plane == "supplier_cut"
+            else plane
+        )
     candidates = {
         "material": _material_lot_snapshot_value(snapshot, "substrate_material"),
         "chemical_formula": _material_lot_snapshot_value(snapshot, "chemical_formula"),
         "crystal_orientation": orientation,
+        "polish": polish,
         "oxide_thickness_nm": _material_lot_snapshot_value(
             snapshot, "substrate_oxide_thickness_nm"
         ),

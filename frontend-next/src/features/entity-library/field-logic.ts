@@ -1,4 +1,8 @@
 import { additionalCapabilityNames } from '@/shared/additional-capabilities'
+import {
+  legacySubstrateOrientation,
+  substrateOrientationPayload,
+} from '@/shared/substrate-orientation'
 // 一等实体表单的「元数据驱动」纯逻辑：可选项解析、条件显隐、有效必填、默认值。
 // 全部只读消费 field-metadata（生成物），不含 React/网络，便于 vitest 单测。
 import { entities, optionLabelsZh } from '@/shared/generated/field-metadata'
@@ -438,6 +442,8 @@ export function buildDefaultValues(
   kind: EntityKind,
   source?: Record<string, unknown> | null,
 ): EntityFormValues {
+  if (kind === 'material_lot' && source)
+    source = legacySubstrateOrientation(source)
   const values: EntityFormValues = {}
   for (const field of getEntityFields(kind)) {
     const raw = source?.[field.key]
@@ -589,6 +595,16 @@ export function buildSubmitPayload(
     if (material) payload.substance_name = optionLabelsZh[material] ?? material
     const formula = substrateSurfaceFormula(values)
     if (formula) payload.chemical_formula = formula
+    Object.assign(
+      payload,
+      substrateOrientationPayload({
+        ...values,
+        substrate_cut_spec:
+          values['substrate_crystal_plane'] === 'supplier_cut'
+            ? values['substrate_cut_spec']
+            : '',
+      }),
+    )
   }
   if (kind === 'instrument') {
     const capabilities = parseEntityJsonArray<{ code?: unknown }>(

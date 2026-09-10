@@ -545,6 +545,67 @@ describe('EntityForm — generated numeric validation', () => {
     expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('batch_number')
   })
 
+  it('saves orientation and polish independently, and rejects invalid plane indices', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    renderForm({
+      onSubmit,
+      defaultData: {
+        lot_category: 'substrate',
+        batch_number: 'PLANE-1',
+        substrate_material: 'sapphire_al2o3',
+      },
+    })
+    await user.click(screen.getByRole('combobox', { name: /标称晶面取向/ }))
+    await user.click(screen.getByRole('option', { name: 'c 面 (0 0 0 1)' }))
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      substrate_crystal_plane: '(0 0 0 1)',
+    })
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('substrate_polish')
+    await user.click(screen.getByRole('combobox', { name: /标称晶面取向/ }))
+    await user.click(screen.getByRole('option', { name: '其他' }))
+    await user.type(
+      screen.getByRole('textbox', { name: /标称晶面取向/ }),
+      '(1111)',
+    )
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(await screen.findByText(/四指数须满足/)).toBeInTheDocument()
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the previous plane on material changes and permits polished fused silica', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    renderForm({
+      onSubmit,
+      defaultData: {
+        lot_category: 'substrate',
+        batch_number: 'PLANE-2',
+        substrate_material: 'sapphire_al2o3',
+        substrate_crystal_plane: '(0 0 0 1)',
+      },
+    })
+    await user.click(screen.getByRole('combobox', { name: /^材料/ }))
+    await user.click(screen.getByRole('option', { name: '石英' }))
+    await user.click(screen.getByRole('combobox', { name: /石英类型/ }))
+    await user.click(screen.getByRole('option', { name: '熔融石英／石英玻璃' }))
+    await user.click(screen.getByRole('combobox', { name: /抛光状态/ }))
+    await user.click(screen.getByRole('option', { name: '双面抛' }))
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      substrate_material: 'quartz',
+      quartz_type: 'fused_silica',
+      substrate_crystal_plane: 'amorphous',
+      substrate_polish: 'double_side_polished',
+    })
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty(
+      'substrate_orientation_polish',
+    )
+  })
+
   it('asks for a mica type in place and derives its formula', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()

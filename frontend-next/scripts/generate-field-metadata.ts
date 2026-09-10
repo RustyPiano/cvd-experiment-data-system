@@ -88,6 +88,7 @@ interface RawStageType {
 }
 interface RawDoc {
   meta: { version: string; status: string }
+  substrate_orientation: Record<string, unknown>
   scientific_contract: { property_units: Record<string, string> }
   gas_species: Record<
     string,
@@ -415,6 +416,9 @@ export interface StageType {
 
 export interface CharacterizationConditionField {
   when?: Record<string, string[]>
+  required_when?: Record<string, string[]>
+  recommended?: boolean
+  multiline?: boolean
   signed?: boolean
   section?: "results"
   legacy_only?: boolean
@@ -434,7 +438,7 @@ export interface CharacterizationConditionField {
   unit?: string
   help_zh?: string
   help_en?: string
-  options?: Array<{ value: string; label_zh: string; label_en: string }>
+  options?: Array<{ value: string; label_zh: string; label_en: string; when?: Record<string, string[]> }>
   validation?: FieldValidation
   components?: Array<{ key: string; label_zh: string; label_en: string }>
 }
@@ -490,6 +494,7 @@ const content =
     BANNER,
     TYPES,
     `export const fieldMetadataMeta: FieldMetadataMeta = ${JSON.stringify(meta, null, 2)}`,
+    `export const substrateOrientation: { format: string; sources: string[]; max_length: number; statuses: string[]; presets: Record<string, string[]>; index_counts: Record<string, number[]>; sapphire_plane_names: Record<string, string>; sapphire_name_suffixes: string[] } = ${JSON.stringify(doc.substrate_orientation, null, 2)}`,
     `/** 已发布实验记录字段，按模块键分组。 */\nexport const experimentModules: Record<string, FieldMetadata[]> = ${JSON.stringify(experimentModules, null, 2)}`,
     `/** 三个一等实体的登记字段（material_lot / setup / instrument） */\nexport const entities: Record<string, FieldMetadata[]> = ${JSON.stringify(entities, null, 2)}`,
     `/** 稳定机器码 → 首选中文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsZh: Record<string, string> = ${JSON.stringify(preferredOptionLabels('zh'), null, 2)}`,

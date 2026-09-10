@@ -74,6 +74,10 @@ export const common = {
     productionDate: 'Enter a valid YYYY-MM or YYYY-MM-DD value.',
     substrateFormulaMismatch:
       'The formula does not match the selected substrate material. Check the lot label.',
+    substrateCrystalPlane:
+      'Check the substrate type. Use three or four integer plane indices in parentheses, not all zero; four indices require h+k+i=0. Select Supplier cut specification for other cuts.',
+    substrateCutSpec:
+      'Enter the original supplier cut specification (1–128 characters)',
     usageHistory:
       'Enter the cumulative cleaning or replacement count (0 is allowed) and this run’s number since the latest cleaning or replacement.',
   },
@@ -594,6 +598,15 @@ export const common = {
     },
   },
   entityLibrary: {
+    orientation: {
+      namedPlane: '{{letter}}-plane {{indices}}',
+      siliconCrystalPlane: 'Underlying Si crystal plane',
+      siliconCrystalPlaneHelp:
+        'This is the plane of the underlying silicon wafer. The usual thermal SiO₂ surface is amorphous and does not inherit that orientation.',
+      quartzCrystalPlaneHelp:
+        'Single-crystal quartz supports plane indices or supplier cuts; fused silica is amorphous. Check the specification when the type is unknown.',
+      legacy: 'Original orientation and polish record',
+    },
     materialLot: {
       name: 'Material lot',
       listTitle: 'Material lots',
@@ -801,6 +814,27 @@ export const common = {
     },
   },
   characterizations: {
+    metadata: {
+      selectedFiles: 'Selected data files',
+      fileCategory: 'File category',
+      rawFile: 'Original acquisition',
+      processedFile: 'Processed data',
+      supportingFile: 'Supporting document',
+      rawSourcesRequired: 'Original source files *',
+      descriptionRequired: 'Processing or document description *',
+      software: 'Processing software',
+      softwareVersion: 'Software version',
+      removeFile: 'Remove file',
+      operatorLabel: 'Actual measurement operator: ',
+      notRecorded: 'Not recorded',
+      missingMetadata: 'Recommended acquisition metadata not recorded: ',
+      sourceLabel: 'Source: ',
+      supplementaryTitle: 'Processed data and supporting documents',
+      rawSourcesLabel: 'Original sources: ',
+      sourceLocator: 'Spectrum or channel in source file',
+      peakExtraction: 'Peak extraction or fitting source',
+      baseline: 'Baseline treatment',
+    },
     nav: 'Characterization records',
     run: {
       title: 'Add characterization record',
@@ -863,7 +897,7 @@ export const common = {
       belowDetectionValue: 'Recorded threshold: {{value}}',
       method: 'Characterization method',
       instrument: 'Instrument',
-      measurementPerformedBy: 'Measurement performed by',
+      measurementPerformedBy: 'Recorded by',
       conditions: 'Measurement conditions',
       region: 'Measurement region',
       results: 'Measurement results',

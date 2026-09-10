@@ -154,7 +154,7 @@ describe('material_lot conditional visibility (▸衬底 / ▸气瓶 by lot_cate
     expect(
       isFieldVisible(
         'material_lot',
-        field('material_lot', 'substrate_orientation_polish'),
+        field('material_lot', 'substrate_crystal_plane'),
         base,
       ),
     ).toBe(false)
@@ -193,7 +193,7 @@ describe('material_lot conditional visibility (▸衬底 / ▸气瓶 by lot_cate
     expect(
       isFieldVisible(
         'material_lot',
-        field('material_lot', 'substrate_orientation_polish'),
+        field('material_lot', 'substrate_crystal_plane'),
         values,
       ),
     ).toBe(true)

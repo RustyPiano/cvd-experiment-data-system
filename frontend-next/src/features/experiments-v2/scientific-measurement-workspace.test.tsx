@@ -168,6 +168,8 @@ async function fillRequiredCondition(
   if (method === 'TEM') {
     await user.click(screen.getByLabelText(/^数据类型/))
     await user.click(screen.getByRole('option', { name: '图像' }))
+    await user.click(screen.getByLabelText(/^采集模式/))
+    await user.click(screen.getByRole('option', { name: /^TEM$/ }))
   }
   await user.click(
     screen.getByLabelText(method === 'TEM' ? /^成像模式/ : /^成像或分析模式/),
@@ -753,6 +755,104 @@ describe('SimpleCharacterizationWorkspace', () => {
     )
   })
 
+  it('records OM exposure and white balance and clears incompatible color settings', async () => {
+    const user = userEvent.setup()
+    const { container } = renderWorkspace()
+    await chooseSampleAndMethod(user, 'OM')
+    await chooseInstrument(user)
+    await user.click(screen.getByLabelText('记录方式'))
+    await user.click(screen.getByRole('option', { name: '数字图像' }))
+    await user.type(screen.getByLabelText(/^实际曝光时间/), '12.5')
+    await user.type(screen.getByLabelText(/^探测器增益/), '6 dB')
+    await user.click(screen.getByLabelText('图像颜色类型'))
+    await user.click(screen.getByRole('option', { name: '彩色' }))
+    await user.click(screen.getByLabelText('白平衡模式'))
+    await user.click(screen.getByRole('option', { name: /^手动$/ }))
+    await user.type(
+      screen.getByLabelText('实际白平衡配置/RGB 增益'),
+      'R=1.2 G=1 B=1.4',
+    )
+    await user.click(screen.getByLabelText('图像颜色类型'))
+    await user.click(screen.getByRole('option', { name: '黑白' }))
+    expect(screen.queryByLabelText('白平衡模式')).toBeNull()
+    await user.click(screen.getByLabelText('图像颜色类型'))
+    await user.click(screen.getByRole('option', { name: '彩色' }))
+    expect(screen.getByLabelText('白平衡模式')).not.toHaveTextContent('手动')
+    await user.upload(
+      container.querySelector<HTMLInputElement>('#characterization-raw-files')!,
+      new File(['image'], 'image.tif'),
+    )
+    await user.type(screen.getByLabelText('实际测试人'), '测试中心操作员')
+    await user.click(screen.getByRole('button', { name: '保存表征记录' }))
+    await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
+    expect(api.createMeasurement.mock.calls[0][0].measurement).toMatchObject({
+      operator_name: '测试中心操作员',
+      typed_conditions: {
+        observation_mode: 'digital',
+        exposure_time_ms: 12.5,
+        detector_gain: '6 dB',
+        image_color_mode: 'color',
+      },
+    })
+    expect(
+      api.createMeasurement.mock.calls[0][0].measurement.typed_conditions,
+    ).not.toHaveProperty('white_balance_settings')
+  })
+
+  it('keeps processed files separate and binds peak evidence to their original source', async () => {
+    filesApi.uploadExperimentFile
+      .mockResolvedValueOnce({ id: 'original-file' })
+      .mockResolvedValueOnce({ id: 'processed-file' })
+    const user = userEvent.setup()
+    const { container } = renderWorkspace()
+    await chooseSampleAndMethod(user, 'Raman')
+    await chooseInstrument(user)
+    await fillRequiredCondition(user, 'Raman')
+    await user.upload(
+      container.querySelector<HTMLInputElement>('#characterization-raw-files')!,
+      [new File(['raw'], 'original.txt'), new File(['fit'], 'fitted.txt')],
+    )
+    await user.click(screen.getAllByLabelText('文件类别')[1])
+    await user.click(screen.getByRole('option', { name: '处理后文件' }))
+    await user.click(screen.getByRole('checkbox', { name: 'original.txt' }))
+    await user.type(
+      screen.getByLabelText('处理步骤或附件说明 *'),
+      '线性基线，Lorentzian 拟合',
+    )
+    await user.click(
+      screen.getByRole('button', { name: '移除文件 original.txt' }),
+    )
+    expect(notifications.error).toHaveBeenCalledWith(
+      '请先移除依赖此文件的处理后文件。',
+    )
+    await user.click(screen.getByRole('button', { name: '添加峰' }))
+    await user.type(screen.getByLabelText('峰 1 峰位 (cm⁻¹)'), '385')
+    await user.click(
+      container.querySelector<HTMLButtonElement>('#peak-source')!,
+    )
+    await user.click(screen.getByRole('option', { name: 'fitted.txt' }))
+    await user.type(screen.getByLabelText('文件内光谱或通道编号'), 'spectrum 2')
+    await user.click(screen.getByRole('button', { name: '保存表征记录' }))
+    await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
+    const payload = api.createMeasurement.mock.calls[0][0]
+    expect(payload.measurement.raw_file_ids).toEqual(['original-file'])
+    expect(payload.measurement.supplementary_files).toEqual([
+      {
+        file_id: 'processed-file',
+        role: 'processed',
+        source_file_ids: ['original-file'],
+        description: '线性基线，Lorentzian 拟合',
+      },
+    ])
+    expect(payload.properties[0].structured_value).toMatchObject({
+      source_file_id: 'processed-file',
+      source_locator: 'spectrum 2',
+    })
+    expect(filesApi.uploadExperimentFile.mock.calls[1][2].fileCategory).toBe(
+      'processed',
+    )
+  })
+
   it('preserves the save error and committed files when cleanup fails', async () => {
     api.createMeasurement.mockRejectedValue(
       new Error('response lost after commit'),
@@ -813,7 +913,7 @@ describe('SimpleCharacterizationWorkspace', () => {
       await chooseSampleAndMethod(user, method)
       expect(
         screen.queryByLabelText(
-          /统计对象|尺寸定义|照明模式|滤光配置|高度数据处理|导电处理或镀膜|表征前制样|检偏设置|角度零点|覆盖率|粗糙度|对象尺寸|对象密度/,
+          /统计对象|^尺寸定义$|覆盖率|粗糙度|对象尺寸|对象密度/,
         ),
       ).toBeNull()
       expect(screen.queryByText('补充数据与处理记录')).toBeNull()

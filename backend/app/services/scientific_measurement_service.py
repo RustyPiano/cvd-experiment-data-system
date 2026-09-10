@@ -141,6 +141,7 @@ class ScientificMeasurementService:
         referenced_ids = set(
             [
                 *measurement.raw_file_ids,
+                *(item.file_id for item in measurement.supplementary_files),
                 *analysis_input_ids,
                 *analysis_output_ids,
                 *([region_image_id] if region_image_id else []),
@@ -149,6 +150,36 @@ class ScientificMeasurementService:
         referenced_files = self._active_files(list(referenced_ids), run.id, sample.id)
         files_by_id = {file.id: file for file in referenced_files}
         raw_files = [files_by_id[file_id] for file_id in measurement.raw_file_ids]
+        supplementary_files = [
+            files_by_id[item.file_id] for item in measurement.supplementary_files
+        ]
+        if any(
+            file.asset_role != "characterization_file"
+            or file.file_category != context.role
+            or file.method != measurement.method_profile
+            or file.characterization_record_id is not None
+            for file, context in zip(
+                supplementary_files, measurement.supplementary_files, strict=True
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Supplementary files must be unused and match their method and category",
+            )
+        if (
+            supplementary_files
+            and self.db.scalar(
+                select(DataDerivationEdge.id)
+                .where(
+                    DataDerivationEdge.file_asset_id.in_([file.id for file in supplementary_files])
+                )
+                .limit(1)
+            )
+            is not None
+        ):
+            raise HTTPException(
+                status_code=422, detail="Supplementary files already have an analysis binding"
+            )
         analysis_input_files = [files_by_id[file_id] for file_id in set(analysis_input_ids)]
         analysis_output_files = [files_by_id[file_id] for file_id in analysis_output_ids]
         if measurement.sample_region:
@@ -235,15 +266,31 @@ class ScientificMeasurementService:
             quality_flag=measurement.quality_flag,
             test_conditions=None,
             raw_data=None,
-            attrs=(
-                {"quality_note": measurement.quality_note}
-                if measurement.quality_note is not None
-                else {}
-            ),
+            attrs={
+                **(
+                    {"quality_note": measurement.quality_note}
+                    if measurement.quality_note is not None
+                    else {}
+                ),
+                **(
+                    {"operator_name": measurement.operator_name}
+                    if measurement.operator_name
+                    else {}
+                ),
+                **(
+                    {"operator_institution": measurement.operator_institution}
+                    if measurement.operator_institution
+                    else {}
+                ),
+                "file_contexts": [
+                    item.model_dump(mode="json", exclude_none=True)
+                    for item in measurement.supplementary_files
+                ],
+            },
         )
         self.db.add(record)
         self.db.flush()
-        for file in raw_files:
+        for file in [*raw_files, *supplementary_files]:
             file.characterization_record_id = record.id
 
         analyses: list[AnalysisRun] = []
@@ -311,6 +358,17 @@ class ScientificMeasurementService:
             assertions.append(assertion)
 
         self.db.flush()
+        property_evidence = {
+            str(row.id): item.model_dump(
+                mode="json",
+                include={"source_file_id", "source_locator", "processing_note"},
+                exclude_none=True,
+            )
+            for (row, _note), item in zip(property_rows, payload.properties, strict=True)
+            if item.source_file_id is not None
+        }
+        if property_evidence:
+            record.attrs = {**record.attrs, "property_evidence": property_evidence}
         property_quality_notes = {
             str(row.id): note for row, note in property_rows if note is not None
         }
@@ -332,6 +390,7 @@ class ScientificMeasurementService:
                 "run_revision_id": str(run_revision_id),
                 "method_profile": measurement.method_profile,
                 "raw_file_ids": [str(file.id) for file in raw_files],
+                "supplementary_file_ids": [str(file.id) for file in supplementary_files],
                 "analysis_count": len(analyses),
                 "property_count": len(payload.properties),
                 "assertion_count": len(assertions),
@@ -623,6 +682,21 @@ class ScientificMeasurementService:
                 .order_by(FileAsset.created_at, FileAsset.id)
             )
         )
+        supplementary_files = list(
+            self.db.scalars(
+                select(FileAsset)
+                .where(
+                    FileAsset.characterization_record_id == record.id,
+                    FileAsset.id.in_(
+                        [
+                            UUID(item["file_id"])
+                            for item in (record.attrs or {}).get("file_contexts", [])
+                        ]
+                    ),
+                )
+                .order_by(FileAsset.created_at, FileAsset.id)
+            )
+        )
         analyses = list(
             self.db.scalars(
                 select(AnalysisRun)
@@ -720,6 +794,10 @@ class ScientificMeasurementService:
                 )
             ),
             raw_files=[file_read(file) for file in raw_files],
+            supplementary_files=[file_read(file) for file in supplementary_files],
+            file_contexts=attrs.get("file_contexts", []),
+            operator_name=attrs.get("operator_name"),
+            operator_institution=attrs.get("operator_institution"),
             region_image_file=(
                 file_read(related_file_by_id[UUID(str(region_image_id))])
                 if region_image_id and UUID(str(region_image_id)) in related_file_by_id
@@ -765,6 +843,7 @@ class ScientificMeasurementService:
             ],
             properties=[
                 MeasurementPropertyRead(
+                    **attrs.get("property_evidence", {}).get(str(item.id), {}),
                     id=item.id,
                     analysis_run_id=item.analysis_run_id,
                     property_code=item.property_code,

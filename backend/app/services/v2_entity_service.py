@@ -42,6 +42,7 @@ from app.schemas.v2 import (
 )
 from app.services.audit_service import AuditService
 from app.services.entity_file_service import ENTITY_ASSET_ROLE
+from app.services.substrate_orientation import normalize_substrate_orientation
 from app.services.v2_entity_snapshot_service import FIXED_COORDINATE_SYSTEM
 from app.services.v2_field_source import (
     canonical_option_value,
@@ -371,6 +372,10 @@ class V2EntityService:
                         detail={"invalid": [{"key": key, "reason": "length"}]},
                     )
         if kind == "material_lot" and data.get("lot_category") == "substrate":
+            try:
+                data.update(normalize_substrate_orientation(data))
+            except ValueError as exc:
+                self._raise_invalid(str(exc).split(":", 1)[0], "value")
             expected = SUBSTRATE_FORMULAS.get(data.get("substrate_material"))
             if expected is not None and data.get("chemical_formula") not in expected:
                 self._raise_invalid("chemical_formula", "identity")

@@ -1,4 +1,9 @@
 import { capabilityNamesAreValid } from '@/shared/additional-capabilities'
+import {
+  substrateOrientationPayload,
+  substratePlaneLabel,
+  substratePlaneOptions,
+} from '@/shared/substrate-orientation'
 // 一等实体的动态表单（纯展示；数据获取/提交由页面注入 onSubmit）。
 // 字段清单、显隐、必填、选项均由 field-metadata 驱动；UI 文案全部走 i18n（D12）。
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
@@ -11,6 +16,7 @@ import { Loader2 } from 'lucide-react'
 import { characterizationProfiles } from '@/shared/generated/field-metadata'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import {
+  canonicalOption,
   localizedFieldHelp,
   localizedFieldLabel,
   localizedFieldPlaceholder,
@@ -456,6 +462,31 @@ export function EntityForm({
         message: t('validation.substrateFormulaMismatch'),
       }
     }
+    if (
+      kind === 'material_lot' &&
+      canonicalOption(String(resolvedValues['lot_category'])) === 'substrate'
+    ) {
+      try {
+        substrateOrientationPayload({
+          ...resolvedValues,
+          substrate_cut_spec:
+            resolvedValues['substrate_crystal_plane'] === 'supplier_cut'
+              ? resolvedValues['substrate_cut_spec']
+              : '',
+        })
+      } catch (error) {
+        const key =
+          error instanceof Error ? error.message : 'substrate_crystal_plane'
+        errors[key] = {
+          type: 'validate',
+          message: t(
+            key === 'substrate_cut_spec'
+              ? 'validation.substrateCutSpec'
+              : 'validation.substrateCrystalPlane',
+          ),
+        }
+      }
+    }
     return Object.keys(errors).length > 0
       ? { values: {}, errors }
       : { values: resolvedValues, errors: {} }
@@ -557,6 +588,18 @@ export function EntityForm({
                 disabled={formBusy}
                 token={token}
                 historicalOptions={historicalSelectOptions[field.key] ?? []}
+                onSubstrateTypeChange={() => {
+                  form.setValue('substrate_crystal_plane', '', {
+                    shouldDirty: true,
+                  })
+                  form.setValue('substrate_cut_spec', '', { shouldDirty: true })
+                  if (field.key === 'substrate_material')
+                    form.setValue('quartz_type', '', { shouldDirty: true })
+                  form.clearErrors([
+                    'substrate_crystal_plane',
+                    'substrate_cut_spec',
+                  ])
+                }}
                 allowedOptions={
                   field.key === 'lot_category'
                     ? allowedLotCategories
@@ -604,6 +647,7 @@ function EntityFieldControl({
   disabled,
   token,
   historicalOptions,
+  onSubstrateTypeChange,
   allowedOptions,
   initialValue,
   onPendingFileChange,
@@ -617,6 +661,7 @@ function EntityFieldControl({
   disabled: boolean
   token: string
   historicalOptions: readonly string[]
+  onSubstrateTypeChange: () => void
   allowedOptions?: readonly string[]
   initialValue: string
   onPendingFileChange: (
@@ -627,6 +672,11 @@ function EntityFieldControl({
   onAttachmentUploadPendingChange: (fieldKey: string, pending: boolean) => void
 }) {
   const { i18n, t } = useTranslation()
+  const substrateMaterial = canonicalOption(
+    String(values['substrate_material'] ?? ''),
+  )
+  const quartzType = canonicalOption(String(values['quartz_type'] ?? ''))
+  const planeField = field.key === 'substrate_crystal_plane'
   const tubeShapeValue = values['tube_material_shape']
   const tubeShape =
     typeof tubeShapeValue === 'string'
@@ -638,14 +688,26 @@ function EntityFieldControl({
           manufacturerBrand: t('entityLibrary.form.originalManufacturerBrand'),
           model: t('entityLibrary.form.originalEquipmentModel'),
         })
-      : localizedFieldLabel(field, i18n.language)
+      : planeField && substrateMaterial === 'sio2_si'
+        ? t('entityLibrary.orientation.siliconCrystalPlane')
+        : localizedFieldLabel(field, i18n.language)
   const required = isEffectivelyRequired(kind, field, values)
-  const allowsOther = isSelectWithOtherInput(field.input)
+  const allowsOther =
+    isSelectWithOtherInput(field.input) &&
+    !(
+      planeField &&
+      substrateMaterial === 'quartz' &&
+      quartzType !== 'single_crystal_quartz'
+    )
   const multiSelect = isMultiSelectInput(field.input)
-  const enumOptions = parseEnumOptions(field.input, field.options, field.key)
+  const enumOptions = (
+    planeField
+      ? substratePlaneOptions(substrateMaterial, quartzType)
+      : parseEnumOptions(field.input, field.options, field.key)
+  )
     ?.filter((option) => !allowsOther || !isOtherOptionMarker(option))
     .filter((option) => !allowedOptions || allowedOptions.includes(option))
-    .concat(allowsOther ? historicalOptions : [])
+    .concat(allowsOther && !planeField ? historicalOptions : [])
     .filter((option, index, options) => options.indexOf(option) === index)
   const compositeInput = isCompositeInput(field.input) ? field.input : null
   const structuredInput = isStructuredInput(field.input)
@@ -657,7 +719,14 @@ function EntityFieldControl({
   const controlId = useId()
   const useTextarea = TEXTAREA_KEYS.has(field.key)
   const placeholder = localizedFieldPlaceholder(field, i18n.language)
-  const fieldHelp = localizedFieldHelp(field, i18n.language)
+  const fieldHelp =
+    planeField && substrateMaterial === 'sio2_si'
+      ? t('entityLibrary.orientation.siliconCrystalPlaneHelp')
+      : planeField &&
+          substrateMaterial === 'quartz' &&
+          quartzType !== 'single_crystal_quartz'
+        ? t('entityLibrary.orientation.quartzCrystalPlaneHelp')
+        : localizedFieldHelp(field, i18n.language)
   const materialFormulaInput = field.input === MATERIAL_FORMULA_INPUT
   const customControl = Boolean(
     materialFormulaInput ||
@@ -1168,9 +1237,15 @@ function EntityFieldControl({
             />
           ) : enumOptions && allowsOther ? (
             <SelectWithOtherControl
+              key={
+                planeField ? `${substrateMaterial}:${quartzType}` : field.key
+              }
               value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
               options={enumOptions}
-              onChange={rhf.onChange}
+              onChange={(value) => {
+                rhf.onChange(value)
+                if (field.key === 'substrate_material') onSubstrateTypeChange()
+              }}
               disabled={disabled}
               selectId={controlId}
               invalid={fieldState.invalid}
@@ -1193,17 +1268,40 @@ function EntityFieldControl({
                   ? t('entityLibrary.form.supplierName')
                   : t('entityLibrary.form.otherInputLabel', { label })
               }
-              otherPlaceholder={t(
-                field.key === 'supplier'
-                  ? 'entityLibrary.form.supplierNamePlaceholder'
-                  : 'entityLibrary.form.otherPlaceholder',
-              )}
-              optionLabel={(option) => localizedOption(option, i18n.language)}
+              otherPlaceholder={
+                planeField
+                  ? '(1 0 0) / (1 1 -2 0)'
+                  : t(
+                      field.key === 'supplier'
+                        ? 'entityLibrary.form.supplierNamePlaceholder'
+                        : 'entityLibrary.form.otherPlaceholder',
+                    )
+              }
+              optionLabel={(option) =>
+                planeField
+                  ? substratePlaneLabel(
+                      option,
+                      substrateMaterial,
+                      i18n.language,
+                    )
+                  : localizedOption(option, i18n.language)
+              }
             />
           ) : enumOptions ? (
             <Select
-              value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
-              onValueChange={rhf.onChange}
+              value={
+                planeField &&
+                substrateMaterial === 'quartz' &&
+                quartzType === 'fused_silica'
+                  ? 'amorphous'
+                  : Array.isArray(rhf.value)
+                    ? ''
+                    : (rhf.value ?? '')
+              }
+              onValueChange={(value) => {
+                rhf.onChange(value)
+                if (field.key === 'quartz_type') onSubstrateTypeChange()
+              }}
               disabled={disabled}
             >
               <FormControl>
@@ -1214,7 +1312,13 @@ function EntityFieldControl({
               <SelectContent>
                 {enumOptions.map((option) => (
                   <SelectItem key={option} value={option}>
-                    {localizedOption(option, i18n.language)}
+                    {planeField
+                      ? substratePlaneLabel(
+                          option,
+                          substrateMaterial,
+                          i18n.language,
+                        )
+                      : localizedOption(option, i18n.language)}
                   </SelectItem>
                 ))}
               </SelectContent>

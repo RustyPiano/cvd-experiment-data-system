@@ -977,9 +977,9 @@ describe('simple substrate validation', () => {
       />,
     )
     expect(screen.queryByText('批次未记录')).not.toBeInTheDocument()
-    expect(screen.getByText('—')).toBeInTheDocument()
+    expect(screen.getAllByText('—')).toHaveLength(2)
     rerender(<SimpleSubstratesEditor {...props} substrates={[substrate]} />)
-    expect(screen.getByText('批次未记录')).toBeInTheDocument()
+    expect(screen.getAllByText('批次未记录')).toHaveLength(2)
     expect(screen.queryByText('衬底处理（推荐填写）')).not.toBeInTheDocument()
     expect(screen.getByText('衬底处理')).toBeInTheDocument()
   })
@@ -1223,7 +1223,7 @@ describe('simple substrate validation', () => {
     )
 
     expect(screen.getByText('衬底片 1（S1）')).toBeInTheDocument()
-    expect(screen.getByText('晶向与抛光')).toBeInTheDocument()
+    expect(screen.getByText('原晶向与抛光记录')).toBeInTheDocument()
     expect(screen.getByText('110；单面抛')).toBeInTheDocument()
     expect(screen.getByText('处理步骤 1')).toBeInTheDocument()
     expect(screen.getByText('处理步骤 2')).toBeInTheDocument()

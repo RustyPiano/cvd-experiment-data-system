@@ -17,6 +17,7 @@ describe('active substrate payload', () => {
           piece_label: 'S1',
           chemical_formula: 'SiO2/Si',
           crystal_orientation: '(100)',
+          polish: 'single_side_polished',
           oxide_thickness_nm: 285,
           size_placement: {
             length_mm: 10,

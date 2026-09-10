@@ -113,6 +113,9 @@ function StructuredMeasurementValue({
           {tr('extractionMethod')}：{String(value.extraction_method)}
         </span>
       ) : null}
+      {value.source_locator ? (
+        <span>{String(value.source_locator)}</span>
+      ) : null}
       {value.baseline_method ? (
         <span>
           {tr('baselineMethod')}：{String(value.baseline_method)}
@@ -313,6 +316,10 @@ export function MeasurementDetails({
   }
 
   const measurement = detail.data
+  const allEvidenceFiles = [
+    ...measurement.raw_files,
+    ...(measurement.supplementary_files ?? []),
+  ]
   const english = isEnglish(i18n.language)
   const instrument = measurement.instrument_snapshot_json
   const instrumentVersion =
@@ -335,6 +342,15 @@ export function MeasurementDetails({
           ? t('characterizations.details.quality.invalid')
           : measurement.quality_flag
   const profile = characterizationProfiles[measurement.method_profile]
+  const missingRecommended = (profile?.condition_fields ?? []).filter(
+    (field) =>
+      field.recommended &&
+      !field.legacy_only &&
+      Object.entries(field.when ?? {}).every(([key, values]) =>
+        values.includes(String(measurement.typed_conditions[key])),
+      ) &&
+      measurement.typed_conditions[field.key] == null,
+  )
   const conditionFields = new Map(
     (profile?.condition_fields ?? []).map((field) => [field.key, field]),
   )
@@ -502,6 +518,24 @@ export function MeasurementDetails({
           </div>
         ) : null}
       </dl>
+      <p className="text-sm">
+        {t('characterizations.metadata.operatorLabel')}
+        {measurement.operator_name ??
+          t('characterizations.metadata.notRecorded')}
+        {measurement.operator_institution
+          ? ` · ${measurement.operator_institution}`
+          : ''}
+      </p>
+      {missingRecommended.length ? (
+        <Alert>
+          <AlertDescription>
+            {t('characterizations.metadata.missingMetadata')}
+            {missingRecommended
+              .map((field) => (english ? field.label_en : field.label_zh))
+              .join(english ? ', ' : '、')}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {measurement.quality_note ? (
         <p className="rounded-md border px-3 py-2 text-sm">
@@ -548,7 +582,7 @@ export function MeasurementDetails({
                       <StructuredMeasurementValue
                         code={property.property_code}
                         value={property.structured_value}
-                        files={measurement.raw_files}
+                        files={allEvidenceFiles}
                       />
                     ) : (
                       <span>
@@ -565,6 +599,20 @@ export function MeasurementDetails({
                       </Badge>
                     ) : null}
                   </div>
+                  {property.source_file_id ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t('characterizations.metadata.sourceLabel')}
+                      {allEvidenceFiles.find(
+                        (file) => file.id === property.source_file_id,
+                      )?.original_name ?? property.source_file_id}
+                      {property.source_locator
+                        ? ` · ${property.source_locator}`
+                        : ''}
+                      {property.processing_note
+                        ? ` · ${property.processing_note}`
+                        : ''}
+                    </p>
+                  ) : null}
                   {property.statistic != null ||
                   property.uncertainty_value != null ||
                   property.sample_count != null ||
@@ -679,6 +727,50 @@ export function MeasurementDetails({
         )}
       </section>
 
+      {measurement.supplementary_files?.length ? (
+        <section className="flex flex-col gap-2">
+          <h5 className="text-sm font-medium">
+            {t('characterizations.metadata.supplementaryTitle')}
+          </h5>
+          {measurement.supplementary_files.map((file) => {
+            const context = measurement.file_contexts?.find(
+              (item) => item.file_id === file.id,
+            )
+            return (
+              <div
+                key={file.id}
+                className="flex flex-col gap-2 rounded-md border p-3"
+              >
+                {renderAnalysisFiles([file])}
+                <p className="text-sm">
+                  {context?.role === 'processed'
+                    ? t('characterizations.metadata.processedFile')
+                    : t('characterizations.metadata.supportingFile')}{' '}
+                  · {context?.description}
+                </p>
+                {context?.source_file_ids?.length ? (
+                  <p className="text-sm">
+                    {t('characterizations.metadata.rawSourcesLabel')}
+                    {context.source_file_ids
+                      .map(
+                        (id) =>
+                          measurement.raw_files.find(
+                            (source) => source.id === id,
+                          )?.original_name ?? id,
+                      )
+                      .join('、')}
+                  </p>
+                ) : null}
+                {context?.software_name ? (
+                  <p className="text-sm">
+                    {context.software_name} {context.software_version}
+                  </p>
+                ) : null}
+              </div>
+            )
+          })}
+        </section>
+      ) : null}
       {measurement.region_image_file ? (
         <section className="flex flex-col gap-2">
           <h5 className="text-sm font-medium">

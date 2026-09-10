@@ -50,6 +50,7 @@ import { gasCompositionSummary } from './gas-composition-editor'
 import type { GasCompositionComponent } from './gas-composition-editor'
 import { gasSpecies } from '@/shared/generated/field-metadata'
 import { gasCylinderMatchesSpecies } from '@/features/experiments-v2/components/reference-snapshot'
+import { substratePlaneLabel } from '@/shared/substrate-orientation'
 
 export function EntityDetailPage({
   kind,
@@ -241,6 +242,19 @@ export function EntityDetailPage({
           </CardHeader>
           <CardContent>
             <dl className="flex flex-col divide-y border-t text-sm">
+              {activeData['substrate_orientation_polish'] ? (
+                <div className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-4">
+                  <dt className="shrink-0 text-muted-foreground sm:w-48">
+                    {t('entityLibrary.orientation.legacy')}
+                  </dt>
+                  <dd className="min-w-0 flex-1 whitespace-pre-wrap">
+                    {localizedValue(
+                      activeData['substrate_orientation_polish'],
+                      i18n.language,
+                    )}
+                  </dd>
+                </div>
+              ) : null}
               {fields
                 .filter((field) =>
                   isFieldVisible(kind, field, visibilityValues),
@@ -254,21 +268,27 @@ export function EntityDetailPage({
                         )
                       : undefined
                   const value =
-                    field.key === 'capabilities'
-                      ? instrumentCapabilitiesSummary(raw, i18n.language)
-                      : field.key === 'gas_components' && Array.isArray(raw)
-                        ? gasCompositionSummary(
-                            raw as GasCompositionComponent[],
-                          )
-                        : legacyGasSpecies
-                          ? `${gasCompositionSummary([{ species: legacyGasSpecies, volume_percent: 100 }])} ${t('entityLibrary.gasComposition.legacyDerived')}`
-                          : isStructuredInput(field.input)
-                            ? localizedNamedValue(
-                                raw,
-                                i18n.language,
-                                structuredLabels,
-                              )
-                            : localizedValue(raw, i18n.language)
+                    field.key === 'substrate_crystal_plane'
+                      ? substratePlaneLabel(
+                          String(raw ?? ''),
+                          String(activeData['substrate_material'] ?? ''),
+                          i18n.language,
+                        )
+                      : field.key === 'capabilities'
+                        ? instrumentCapabilitiesSummary(raw, i18n.language)
+                        : field.key === 'gas_components' && Array.isArray(raw)
+                          ? gasCompositionSummary(
+                              raw as GasCompositionComponent[],
+                            )
+                          : legacyGasSpecies
+                            ? `${gasCompositionSummary([{ species: legacyGasSpecies, volume_percent: 100 }])} ${t('entityLibrary.gasComposition.legacyDerived')}`
+                            : isStructuredInput(field.input)
+                              ? localizedNamedValue(
+                                  raw,
+                                  i18n.language,
+                                  structuredLabels,
+                                )
+                              : localizedValue(raw, i18n.language)
                   const label =
                     kind === 'setup'
                       ? localizedSetupFieldLabel(
@@ -284,7 +304,10 @@ export function EntityDetailPage({
                             ),
                           },
                         )
-                      : localizedFieldLabel(field, i18n.language)
+                      : field.key === 'substrate_crystal_plane' &&
+                          activeData['substrate_material'] === 'sio2_si'
+                        ? t('entityLibrary.orientation.siliconCrystalPlane')
+                        : localizedFieldLabel(field, i18n.language)
                   const unit = localizedUnitLabel(field.unit, i18n.language)
                   return (
                     <div

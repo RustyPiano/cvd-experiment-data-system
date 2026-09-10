@@ -6,6 +6,29 @@ import {
 } from './material-lot-projection'
 
 describe('material lot projection', () => {
+  it('projects independent polish and supplier cuts, clearing stale run values', () => {
+    const snapshot = {
+      attrs: {
+        substrate_material: 'quartz',
+        substrate_crystal_plane: 'supplier_cut',
+        substrate_cut_spec: 'AT-cut',
+        substrate_polish: 'double_side_polished',
+      },
+    }
+    expect(materialLotProjection(snapshot)).toEqual({
+      material: 'quartz',
+      crystal_orientation: 'AT-cut',
+      polish: 'double_side_polished',
+    })
+    expect(
+      materialLotProjectedItem({
+        lot_ref: JSON.stringify({
+          snapshot: { attrs: { substrate_polish: 'single_side_polished' } },
+        }),
+        crystal_orientation: '(100)',
+      }),
+    ).toMatchObject({ crystal_orientation: '', polish: 'single_side_polished' })
+  })
   it('copies only the current substrate identity fields from the frozen lot', () => {
     const snapshot = {
       chemical_formula: 'SiO2/Si',

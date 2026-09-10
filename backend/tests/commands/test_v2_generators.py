@@ -482,7 +482,7 @@ def test_standard_schema_exports_current_scientific_and_result_models() -> None:
         "transformation",
         "dataset_query",
     }
-    assert schema["version"] == "v4.0-alpha.41"
+    assert schema["version"] == "v4.0-alpha.43"
     assert schema["status"] == "INTERNAL_VALIDATION"
     tilt_schema = schema["modules"]["substrates"]["$defs"]["SubstrateSizePlacementPayload"]
     assert tilt_schema["properties"]["tilt_angle_deg"]["anyOf"][0]["not"] == {"const": 0}

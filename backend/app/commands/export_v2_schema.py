@@ -111,6 +111,7 @@ def build_v2_json_schema(doc: dict[str, Any] | None = None) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "module_payload_schema_version": V2_MODULE_PAYLOAD_SCHEMA_VERSION,
         "scientific_contract": source["scientific_contract"],
+        "substrate_orientation": source["substrate_orientation"],
         "characterization_properties": source["characterization_properties"],
         "characterization_profiles": source["characterization_profiles"],
         "modules": modules,
@@ -143,6 +144,7 @@ def build_v2_field_dictionary(doc: dict[str, Any]) -> dict[str, Any]:
             for code, definition in doc["characterization_properties"].items()
         },
         "characterization_profiles": doc["characterization_profiles"],
+        "substrate_orientation": doc["substrate_orientation"],
         "fields": rows,
         "field_count": len(rows),
     }
@@ -569,6 +571,31 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
         for field in profile["condition_fields"]
         if field.get("when")
     ]
+    for field in profile["condition_fields"]:
+        if when := field.get("required_when"):
+            typed_schema["allOf"].append(
+                {
+                    "if": {
+                        "required": list(when),
+                        "properties": {key: {"enum": values} for key, values in when.items()},
+                    },
+                    "then": {"required": [field["key"]]},
+                }
+            )
+        for option in field.get("options", []):
+            if when := option.get("when"):
+                typed_schema["allOf"].append(
+                    {
+                        "if": {
+                            "required": [field["key"]],
+                            "properties": {field["key"]: {"const": option["value"]}},
+                        },
+                        "then": {
+                            "required": list(when),
+                            "properties": {key: {"enum": values} for key, values in when.items()},
+                        },
+                    }
+                )
     measurement_required = ["method_profile", "typed_conditions"]
     if profile["raw_files_required"]:
         measurement_properties["raw_file_ids"] = {"type": "array", "minItems": 1}
@@ -620,6 +647,31 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
     }
 
     constraints = []
+    if code == "optical_microscopy":
+        constraints.append(
+            {
+                "if": {
+                    "properties": {
+                        "measurement": {
+                            "properties": {
+                                "typed_conditions": {
+                                    "required": ["observation_mode"],
+                                    "properties": {"observation_mode": {"const": "digital"}},
+                                }
+                            }
+                        }
+                    }
+                },
+                "then": {
+                    "properties": {
+                        "measurement": {
+                            "required": ["instrument_id", "instrument_version", "raw_file_ids"],
+                            "properties": {**instrument_pair, "raw_file_ids": {"minItems": 1}},
+                        }
+                    }
+                },
+            }
+        )
     for property_code, conditions in profile.get("property_conditions", {}).items():
         constraints.append(
             {

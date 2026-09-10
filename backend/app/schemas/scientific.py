@@ -1601,6 +1601,125 @@ class Resolution2D(BaseModel):
 class MeasurementConditions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    observation_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    optical_path: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    contrast_method: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    contrast_method_other: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    objective_na: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    objective_immersion: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    exposure_time_ms: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    exposure_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    detector_gain: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    image_color_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    white_balance_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    white_balance_settings: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    white_balance_temperature_K: float | None = Field(
+        default=None, gt=0, strict=True, allow_inf_nan=False
+    )
+    white_balance_reference: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    illumination_source: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    illumination_setting: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    aperture_setting: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    image_scale_y_um_per_px: float | None = Field(
+        default=None, gt=0, strict=True, allow_inf_nan=False
+    )
+    scale_calibration: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    image_bit_depth: int | None = Field(default=None, ge=1, le=64, strict=True)
+    binning: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    camera_offset: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    image_processing: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+    incident_polarization_state: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    analyzer_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    incident_polarization_angle_deg: float | None = Field(
+        default=None, ge=-360, le=360, strict=True, allow_inf_nan=False
+    )
+    analyzer_angle_deg: float | None = Field(
+        default=None, ge=-360, le=360, strict=True, allow_inf_nan=False
+    )
+    polarization_reference: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    acquisition_note: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+    grating_lines_per_mm: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    slit_width_um: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    collection_geometry: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    collection_geometry_other: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    acquisition_kind: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    scan_coordinates: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+    measurement_environment: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    temperature_basis: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    intensity_processing: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    accumulation_method: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    confocal_aperture_um: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    filter_cutoff: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    response_correction: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    response_correction_source: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    scan_rate_definition: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    data_channel: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    scan_direction: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    scan_rotation_deg: float | None = Field(
+        default=None, ge=-360, le=360, strict=True, allow_inf_nan=False
+    )
+    feedback_setpoint: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    free_amplitude: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    feedback_gains: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    drive_frequency_kHz: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    height_calibration: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    pixel_dwell_time_us: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    frame_count: int | None = Field(default=None, ge=1, strict=True)
+    frame_combination: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    coating_material: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    coating_thickness_nm: float | None = Field(default=None, ge=0, strict=True, allow_inf_nan=False)
+    spectrum_acquisition: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    eds_live_time_s: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    eds_real_time_s: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    eds_dead_time_percent: float | None = Field(
+        default=None, ge=0, lt=100, strict=True, allow_inf_nan=False
+    )
+    eds_process_time: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    eds_energy_range: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    energy_dispersion_eV_channel: float | None = Field(
+        default=None, gt=0, strict=True, allow_inf_nan=False
+    )
+    vacuum_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    chamber_pressure_Pa: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    beam_current_setting: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    axis_coupling: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    fixed_two_theta_deg: float | None = Field(
+        default=None, ge=0, le=180, strict=True, allow_inf_nan=False
+    )
+    fixed_chi_deg: float | None = Field(
+        default=None, ge=-180, le=180, strict=True, allow_inf_nan=False
+    )
+    scan_reference: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    xray_optics: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    tube_voltage_kV: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    tube_current_mA: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    xrd_processing: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+    defocus_nm: float | None = Field(
+        default=None, ge=-1000000, le=1000000, strict=True, allow_inf_nan=False
+    )
+    aberration_correction: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    convergence_semiangle_mrad: float | None = Field(
+        default=None, gt=0, strict=True, allow_inf_nan=False
+    )
+    collection_inner_mrad: float | None = Field(
+        default=None, ge=0, strict=True, allow_inf_nan=False
+    )
+    collection_outer_mrad: float | None = Field(
+        default=None, gt=0, strict=True, allow_inf_nan=False
+    )
+    camera_length: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    diffraction_aperture: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    eels_energy_range: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    eels_collection_semiangle_mrad: float | None = Field(
+        default=None, gt=0, strict=True, allow_inf_nan=False
+    )
+    zero_loss_calibration: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    scan_angle_quantity: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    angle_step_deg: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    power_scan_coordinates: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+    spot_size_um: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    spot_size_definition: str | None = Field(default=None, max_length=128, pattern=r"\S")
+
     laser_wavelength_nm: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
     excitation_wavelength_nm: float | None = Field(
         default=None, gt=0, allow_inf_nan=False, strict=True
@@ -1715,6 +1834,33 @@ class MeasurementConditions(BaseModel):
             and self.excitation_power_value > 100
         ):
             raise ValueError("instrument power percentage cannot exceed 100")
+        if self.eds_live_time_s is not None and self.eds_real_time_s is not None:
+            if self.eds_live_time_s > self.eds_real_time_s:
+                raise ValueError("EDS live time cannot exceed real time")
+        if self.collection_inner_mrad is not None and self.collection_outer_mrad is not None:
+            if self.collection_inner_mrad >= self.collection_outer_mrad:
+                raise ValueError("detector inner collection angle must be smaller than outer angle")
+        return self
+
+
+class MeasurementSupplementaryFile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    file_id: UUID
+    role: Literal["processed", "supporting"]
+    source_file_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    description: str = Field(min_length=1, max_length=2000, pattern=r"\S")
+    software_name: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    software_version: str | None = Field(default=None, max_length=128, pattern=r"\S")
+
+    @model_validator(mode="after")
+    def validate_sources(self) -> Self:
+        if len(self.source_file_ids) != len(set(self.source_file_ids)):
+            raise ValueError("supplementary file sources must be unique")
+        if self.role == "processed" and not self.source_file_ids:
+            raise ValueError("processed files require raw source files")
+        if self.software_version and not self.software_name:
+            raise ValueError("software version requires a software name")
         return self
 
 
@@ -1734,6 +1880,11 @@ class MeasurementRunCreate(BaseModel):
     sample_region: SampleRegion | None = None
     typed_conditions: MeasurementConditions
     raw_file_ids: list[UUID] = Field(default_factory=list)
+    supplementary_files: list[MeasurementSupplementaryFile] = Field(
+        default_factory=list, max_length=100
+    )
+    operator_name: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    operator_institution: str | None = Field(default=None, max_length=256, pattern=r"\S")
     quality_flag: Literal["valid", "suspect"] = "valid"
     quality_note: str | None = Field(default=None, max_length=1000, pattern=r"\S")
 
@@ -1756,6 +1907,22 @@ class MeasurementRunCreate(BaseModel):
             raise ValueError("unsupported method profile")
         if profile["instrument_required"] and self.instrument_id is None:
             raise ValueError("selected measurement profile requires an instrument")
+        additional_ids = [item.file_id for item in self.supplementary_files]
+        if len(additional_ids) != len(set(additional_ids)) or set(additional_ids) & set(
+            self.raw_file_ids
+        ):
+            raise ValueError("measurement file roles must be unique and disjoint")
+        for item in self.supplementary_files:
+            if not set(item.source_file_ids) <= set(self.raw_file_ids):
+                raise ValueError(
+                    "supplementary file sources must belong to this measurement's raw files"
+                )
+        if (
+            self.method_profile == "optical_microscopy"
+            and self.typed_conditions.observation_mode == "digital"
+        ):
+            if self.instrument_id is None or not self.raw_file_ids:
+                raise ValueError("digital OM requires an instrument and an original image")
         required = set(profile["required_condition_keys"])
         allowed = {item["key"] for item in profile["condition_fields"]}
         conditions = self.typed_conditions.model_dump(exclude_none=True)
@@ -1785,6 +1952,14 @@ class MeasurementRunCreate(BaseModel):
                 f"conditions do not apply to {self.method_profile}: {', '.join(unexpected)}"
             )
         for field in profile["condition_fields"]:
+            if (
+                field.get("required_when")
+                and all(
+                    conditions.get(key) in values for key, values in field["required_when"].items()
+                )
+                and field["key"] not in conditions
+            ):
+                raise ValueError(f"condition {field['key']} is required for these settings")
             if field["key"] in conditions:
                 if any(
                     conditions.get(key) not in values
@@ -1807,6 +1982,11 @@ class MeasurementRunCreate(BaseModel):
             options = {option["value"] for option in field.get("options", [])}
             if conditions[field["key"]] not in options:
                 raise ValueError(f"unsupported value for measurement condition {field['key']}")
+            option = next(o for o in field["options"] if o["value"] == conditions[field["key"]])
+            if any(
+                conditions.get(key) not in values for key, values in option.get("when", {}).items()
+            ):
+                raise ValueError(f"condition {field['key']} does not apply to these settings")
         if self.method_profile == "XRD" and self.typed_conditions.scan_axis == "two_theta":
             scan = self.typed_conditions.scan_range_deg
             if scan and not 0 <= scan.start < scan.end <= 180:
@@ -1864,6 +2044,10 @@ class AnalysisRunCreate(BaseModel):
 
 class PropertyValueWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    source_file_id: UUID | None = None
+    source_locator: str | None = Field(default=None, max_length=256, pattern=r"\S")
+    processing_note: str | None = Field(default=None, max_length=2000, pattern=r"\S")
 
     property_code: str = Field(min_length=1, max_length=128, pattern=r"^[a-z][a-z0-9_]*$")
     numeric_value: float | None = Field(default=None, allow_inf_nan=False, strict=True)
@@ -2132,7 +2316,21 @@ class MeasurementBundleCreate(BaseModel):
             )
         mode = self.measurement.typed_conditions.mode
         conditions = self.measurement.typed_conditions.model_dump(exclude_none=True)
+        evidence_file_ids = {str(file_id) for file_id in self.measurement.raw_file_ids} | {
+            str(item.file_id)
+            for item in self.measurement.supplementary_files
+            if item.role == "processed"
+        }
         for item in self.properties:
+            if (
+                item.source_file_id is not None
+                and str(item.source_file_id) not in evidence_file_ids
+            ):
+                raise ValueError(
+                    "property source file must be raw or processed evidence in this measurement"
+                )
+            if (item.source_locator or item.processing_note) and item.source_file_id is None:
+                raise ValueError("property provenance requires a source file")
             if any(
                 conditions.get(key) not in values
                 for key, values in profile.get("property_conditions", {})
@@ -2155,10 +2353,14 @@ class MeasurementBundleCreate(BaseModel):
                     ]
                     if series["position_unit"] != axis_unit:
                         raise ValueError("peak position unit must match the XRD scan axis")
-                if series.get("source_file_id") and series["source_file_id"] not in {
-                    str(file_id) for file_id in self.measurement.raw_file_ids
-                }:
-                    raise ValueError("spectral peaks must reference a raw file in this measurement")
+                if (
+                    series.get("source_file_id")
+                    and series["source_file_id"] not in evidence_file_ids
+                ):
+                    raise ValueError(
+                        "spectral peaks must reference a raw file or processed evidence "
+                        "in this measurement"
+                    )
                 if (
                     self.measurement.method_profile != "XRD"
                     or conditions.get("scan_axis") != "two_theta"
@@ -2181,6 +2383,9 @@ class MeasurementBundleCreate(BaseModel):
         raw_files = self.measurement.raw_file_ids
         if len(raw_files) != len(set(raw_files)):
             raise ValueError("measurement raw files must be unique")
+        additional_ids = {item.file_id for item in self.measurement.supplementary_files}
+        if any(additional_ids & set(a.output_file_ids) for a in self.analyses):
+            raise ValueError("supplementary files cannot also be analysis outputs")
         output_producers: dict[UUID, int] = {}
         for index, analysis in enumerate(self.analyses):
             for file_id in analysis.output_file_ids:
@@ -2239,6 +2444,9 @@ class MeasurementListResponse(BaseModel):
 
 
 class MeasurementPropertyRead(BaseModel):
+    source_file_id: UUID | None = None
+    source_locator: str | None = None
+    processing_note: str | None = None
     id: UUID
     analysis_run_id: UUID | None
     property_code: str
@@ -2291,6 +2499,10 @@ class MeasurementRawFileRead(BaseModel):
 
 
 class MeasurementDetailRead(MeasurementSummaryRead):
+    supplementary_files: list[MeasurementRawFileRead] = Field(default_factory=list)
+    file_contexts: list[MeasurementSupplementaryFile] = Field(default_factory=list)
+    operator_name: str | None = None
+    operator_institution: str | None = None
     revision_number: int
     performed_by_name: str | None = None
     can_invalidate: bool

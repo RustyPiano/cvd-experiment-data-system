@@ -1858,10 +1858,27 @@ export function SimpleSubstratesEditor({
                   ) : null}
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label>晶向与抛光</Label>
+                  <Label>
+                    {/[；;]/.test(
+                      moduleValueAsString(item['crystal_orientation']),
+                    )
+                      ? '原晶向与抛光记录'
+                      : moduleValueAsString(item['material']) === 'sio2_si'
+                        ? '底层 Si 晶面取向'
+                        : '标称晶面取向'}
+                  </Label>
                   <p className="min-h-9 rounded-md border bg-muted px-3 py-2 text-sm">
                     {substrateOrientationSummary(
                       moduleValueAsString(item['crystal_orientation']),
+                    ) || (reference ? '批次未记录' : '—')}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>抛光状态</Label>
+                  <p className="min-h-9 rounded-md border bg-muted px-3 py-2 text-sm">
+                    {localizedOption(
+                      moduleValueAsString(item['polish']),
+                      'zh',
                     ) || (reference ? '批次未记录' : '—')}
                   </p>
                 </div>

@@ -162,6 +162,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "from uuid import UUID",
         "",
         "from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator",
+        "from app.services.substrate_orientation import normalize_substrate_orientation",
         "",
         "from app.services.v2_field_source import (",
         "    condition_matches as _matches,",
@@ -1394,6 +1395,18 @@ def _controlled_options(doc: dict[str, Any], field: dict[str, Any]) -> list[str]
 def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> list[str]:
     lines: list[str] = []
     keys = {field["key"] for field in fields}
+    if "substrate_crystal_plane" in keys:
+        lines.extend(
+            [
+                "",
+                f'{indent}@model_validator(mode="after")',
+                f"{indent}def _substrate_orientation(self) -> Self:",
+                f"{indent}    normalized = normalize_substrate_orientation(self.model_dump())",
+                f"{indent}    self.substrate_crystal_plane = normalized['substrate_crystal_plane']",
+                f"{indent}    self.substrate_cut_spec = normalized['substrate_cut_spec']",
+                f"{indent}    return self",
+            ]
+        )
     if "field_device_other_names" in keys:
         lines.extend(
             [

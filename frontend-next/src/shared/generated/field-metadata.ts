@@ -93,6 +93,9 @@ export interface StageType {
 
 export interface CharacterizationConditionField {
   when?: Record<string, string[]>
+  required_when?: Record<string, string[]>
+  recommended?: boolean
+  multiline?: boolean
   signed?: boolean
   section?: 'results'
   legacy_only?: boolean
@@ -112,7 +115,12 @@ export interface CharacterizationConditionField {
   unit?: string
   help_zh?: string
   help_en?: string
-  options?: Array<{ value: string; label_zh: string; label_en: string }>
+  options?: Array<{
+    value: string
+    label_zh: string
+    label_en: string
+    when?: Record<string, string[]>
+  }>
   validation?: FieldValidation
   components?: Array<{ key: string; label_zh: string; label_en: string }>
 }
@@ -157,9 +165,55 @@ export interface GasSpecies {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v4.0-alpha.41',
+  version: 'v4.0-alpha.43',
   status: 'INTERNAL_VALIDATION',
   source: 'docs/standard/field-source.yaml',
+}
+
+export const substrateOrientation: {
+  format: string
+  sources: string[]
+  max_length: number
+  statuses: string[]
+  presets: Record<string, string[]>
+  index_counts: Record<string, number[]>
+  sapphire_plane_names: Record<string, string>
+  sapphire_name_suffixes: string[]
+} = {
+  format:
+    '圆括号内三个或四个整数，空格分隔，负指数用负号；四指数满足 h+k+i=0；不得全零；不把晶向方括号转换为晶面。',
+  max_length: 128,
+  statuses: ['not_provided', 'amorphous', 'polycrystalline', 'supplier_cut'],
+  presets: {
+    sapphire_al2o3: ['(0 0 0 1)', '(1 1 -2 0)', '(1 0 -1 0)', '(1 0 -1 2)'],
+    sio2_si: ['(1 0 0)', '(1 1 0)', '(1 1 1)'],
+    mica: ['(0 0 1)'],
+    cu_foil: ['(1 0 0)', '(1 1 0)', '(1 1 1)'],
+    au_foil: ['(1 0 0)', '(1 1 0)', '(1 1 1)'],
+    'h-BN': ['(0 0 0 1)'],
+  },
+  index_counts: {
+    sapphire_al2o3: [4],
+    sio2_si: [3],
+    mica: [3],
+    cu_foil: [3],
+    au_foil: [3],
+    'h-BN': [4],
+  },
+  sapphire_plane_names: {
+    '(0 0 0 1)': 'c',
+    '(1 1 -2 0)': 'a',
+    '(1 0 -1 0)': 'm',
+    '(1 0 -1 2)': 'r',
+  },
+  sapphire_name_suffixes: ['', '面', 'plane'],
+  sources: [
+    'https://dictionary.iucr.org/Miller_indices',
+    'https://journals.iucr.org/j/services/notesforauthors.html',
+    'https://www.sciencedirect.com/science/article/pii/S0039602810001780',
+    'https://www.tedpella.com/vacuum_html/Substrates_Supports_Wafers_Slides.aspx',
+    'https://www.sciencedirect.com/science/article/pii/S0022024814003893',
+  ],
 }
 
 /** 已发布实验记录字段，按模块键分组。 */
@@ -1501,14 +1555,36 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'crystal_orientation',
-      labelZh: '晶面取向与抛光（来自批次）',
-      labelEn: 'Crystal orientation',
+      labelZh: '标称晶面取向（来自批次）',
+      labelEn: 'Nominal crystal plane (from lot)',
       input: '文本',
       unit: null,
-      options: '例如 (100)、c面、a面',
+      options: '规范晶面指数或明确的未知/非晶/多晶状态',
       validation: null,
       requirement: {
         raw: '选填（批次有明确规格时只读带出）',
+        level: 'optional',
+        otherwise: null,
+        condition: null,
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: null,
+      helpEn: null,
+      visibilityGated: true,
+    },
+    {
+      key: 'polish',
+      labelZh: '抛光状态（来自批次）',
+      labelEn: 'Polish (from lot)',
+      input: '文本',
+      unit: null,
+      options: '单面抛/双面抛/未抛光/未知',
+      validation: null,
+      requirement: {
+        raw: '选填（来自批次）',
         level: 'optional',
         otherwise: null,
         condition: null,
@@ -2666,18 +2742,41 @@ export const entities: Record<string, FieldMetadata[]> = {
       helpEn: null,
     },
     {
-      key: 'substrate_orientation_polish',
-      labelZh: '▸衬底·晶向与抛光',
-      labelEn: 'Substrate · orientation and polish',
-      input: '文本+下拉',
+      key: 'quartz_type',
+      labelZh: '▸衬底·石英类型',
+      labelEn: 'Substrate · quartz type',
+      input: '下拉',
       unit: null,
-      options: '晶向；单面抛/双面抛',
-      validation: {
-        require_value: true,
-        require_option: true,
-      },
+      options: '石英单晶·熔融石英／石英玻璃·未知／供应商未提供',
+      validation: null,
       requirement: {
-        raw: '选填(仅供应商明确提供时)',
+        raw: '选填(石英；填写晶面前明确类型)',
+        level: 'optional',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.▸衬底·材料',
+          op: 'eq',
+          value: 'quartz',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请选择',
+      placeholderEn: 'Select an option',
+      helpZh: null,
+      helpEn: null,
+    },
+    {
+      key: 'substrate_crystal_plane',
+      labelZh: '▸衬底·标称晶面取向',
+      labelEn: 'Substrate · nominal crystal plane',
+      input: '下拉+其他',
+      unit: null,
+      options:
+        '未知／供应商未提供·非晶，不适用·多晶，无单一取向·供应商切型·其他',
+      validation: null,
+      requirement: {
+        raw: '选填',
         level: 'optional',
         otherwise: null,
         condition: {
@@ -2688,8 +2787,60 @@ export const entities: Record<string, FieldMetadata[]> = {
       },
       r0: false,
       group: null,
-      placeholderZh: '例如 c 面',
-      placeholderEn: 'e.g. c-plane',
+      placeholderZh: '请选择晶面或取向状态',
+      placeholderEn: 'Select a plane or orientation status',
+      helpZh:
+        '按供应商规格选择；其他晶面填写如 (1 0 0) 或 (1 1 -2 0)，负指数用负号。偏切单独记录。',
+      helpEn:
+        'Use the supplier specification. Enter other planes as (1 0 0) or (1 1 -2 0), using minus signs. Record miscut separately.',
+    },
+    {
+      key: 'substrate_cut_spec',
+      labelZh: '▸衬底·供应商切型原文',
+      labelEn: 'Substrate · supplier cut specification',
+      input: '文本',
+      unit: null,
+      options: null,
+      validation: null,
+      requirement: {
+        raw: '条件必填(供应商切型)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.▸衬底·标称晶面取向',
+          op: 'eq',
+          value: 'supplier_cut',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: null,
+      helpEn: null,
+    },
+    {
+      key: 'substrate_polish',
+      labelZh: '▸衬底·抛光状态',
+      labelEn: 'Substrate · polish',
+      input: '下拉',
+      unit: null,
+      options: '单面抛·双面抛·未抛光·未知／供应商未提供',
+      validation: null,
+      requirement: {
+        raw: '选填',
+        level: 'optional',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.批次类别',
+          op: 'eq',
+          value: 'substrate',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请选择',
+      placeholderEn: 'Select an option',
       helpZh: null,
       helpEn: null,
     },
@@ -3429,6 +3580,13 @@ export const entities: Record<string, FieldMetadata[]> = {
 
 /** 稳定机器码 → 首选中文显示名（兼容别名不覆盖）。 */
 export const optionLabelsZh: Record<string, string> = {
+  single_crystal_quartz: '石英单晶',
+  fused_silica: '熔融石英／石英玻璃',
+  not_provided: '供应商未提供',
+  amorphous: '非晶，不适用',
+  polycrystalline: '多晶，无单一取向',
+  supplier_cut: '供应商切型',
+  unpolished: '未抛光',
   salt_assisted_cvd: '盐辅助CVD',
   pvd_magnetron_sputtering: 'PVD-磁控溅射',
   pvd_thermal_evaporation: 'PVD-热蒸发',
@@ -3583,7 +3741,6 @@ export const optionLabelsZh: Record<string, string> = {
   single_side_polished: '单面抛',
   double_side_polished: '双面抛',
   reported: '有规格数值',
-  not_provided: '供应商未提供',
   not_applicable: '不适用',
   industrial_grade: '工业级',
   matrix: '主体材料',
@@ -3624,6 +3781,13 @@ export const optionLabelsZh: Record<string, string> = {
 
 /** 稳定机器码 → 首选英文显示名（兼容别名不覆盖）。 */
 export const optionLabelsEn: Record<string, string> = {
+  single_crystal_quartz: 'Single-crystal quartz',
+  fused_silica: 'Fused silica / quartz glass',
+  not_provided: 'Unknown / not provided',
+  amorphous: 'Amorphous — not applicable',
+  polycrystalline: 'Polycrystalline — no single orientation',
+  supplier_cut: 'Supplier cut specification',
+  unpolished: 'Unpolished',
   salt_assisted_cvd: 'Salt-assisted CVD',
   pvd_magnetron_sputtering: 'PVD — magnetron sputtering',
   pvd_thermal_evaporation: 'PVD — thermal evaporation',
@@ -3778,7 +3942,6 @@ export const optionLabelsEn: Record<string, string> = {
   single_side_polished: 'Single-side polished',
   double_side_polished: 'Double-side polished',
   reported: 'Specification reported',
-  not_provided: 'Supplier did not provide',
   not_applicable: 'Not applicable',
   industrial_grade: 'Industrial grade',
   matrix: 'Host material',
@@ -3818,6 +3981,13 @@ export const optionLabelsEn: Record<string, string> = {
 
 /** 旧中文规范值 → 稳定字符串机器码；布尔复选映射不进入此表。 */
 export const optionCodes: Record<string, string> = {
+  石英单晶: 'single_crystal_quartz',
+  '熔融石英／石英玻璃': 'fused_silica',
+  '未知／供应商未提供': 'not_provided',
+  '非晶，不适用': 'amorphous',
+  '多晶，无单一取向': 'polycrystalline',
+  供应商切型: 'supplier_cut',
+  未抛光: 'unpolished',
   盐辅助CVD: 'salt_assisted_cvd',
   'PVD-磁控溅射': 'pvd_magnetron_sputtering',
   'PVD-热蒸发': 'pvd_thermal_evaporation',
@@ -4215,6 +4385,12 @@ export const characterizationProperties: Record<
             },
           },
         },
+        source_locator: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 256,
+          pattern: '\\S',
+        },
       },
       allOf: [
         {
@@ -4582,11 +4758,44 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_region_types: ['point', 'area', 'whole_sample', 'selected_area'],
       required_condition_keys: [],
       optional_condition_keys: [
-        'objective',
-        'illumination_mode',
         'image_object_type',
         'image_size_metric',
+        'objective',
+        'illumination_mode',
         'image_scale_um_per_px',
+        'observation_mode',
+        'optical_path',
+        'contrast_method',
+        'contrast_method_other',
+        'objective_na',
+        'objective_immersion',
+        'detector',
+        'exposure_time_ms',
+        'exposure_mode',
+        'detector_gain',
+        'image_color_mode',
+        'white_balance_mode',
+        'white_balance_settings',
+        'white_balance_temperature_K',
+        'white_balance_reference',
+        'illumination_source',
+        'illumination_setting',
+        'filter_configuration',
+        'aperture_setting',
+        'image_scale_y_um_per_px',
+        'resolution_px',
+        'scale_calibration',
+        'image_bit_depth',
+        'binning',
+        'camera_offset',
+        'image_processing',
+        'incident_polarization_state',
+        'analyzer_mode',
+        'incident_polarization_angle_deg',
+        'analyzer_angle_deg',
+        'polarization_reference',
+        'sample_preparation',
+        'acquisition_note',
       ],
       condition_fields: [
         {
@@ -4648,12 +4857,526 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'image_scale_um_per_px',
-          legacy_only: true,
-          label_zh: '图像标尺',
-          label_en: 'Image scale',
+          label_zh: 'X 像素尺度',
+          label_en: 'X pixel scale',
           value_type: 'number',
           unit: 'μm/px',
           section: 'results',
+          when: {
+            observation_mode: ['digital'],
+          },
+        },
+        {
+          key: 'observation_mode',
+          label_zh: '记录方式',
+          label_en: 'Observation type',
+          value_type: 'select',
+          options: [
+            {
+              value: 'visual',
+              label_zh: '目视观察',
+              label_en: 'Visual observation',
+            },
+            {
+              value: 'digital',
+              label_zh: '数字图像',
+              label_en: 'Digital image',
+            },
+          ],
+        },
+        {
+          key: 'optical_path',
+          label_zh: '光路',
+          label_en: 'Optical path',
+          value_type: 'select',
+          options: [
+            {
+              value: 'reflection',
+              label_zh: '反射',
+              label_en: 'Reflection',
+            },
+            {
+              value: 'transmission',
+              label_zh: '透射',
+              label_en: 'Transmission',
+            },
+          ],
+        },
+        {
+          key: 'contrast_method',
+          label_zh: '成像方式',
+          label_en: 'Contrast method',
+          value_type: 'select',
+          options: [
+            {
+              value: 'bright_field',
+              label_zh: '明场',
+              label_en: 'Bright field',
+            },
+            {
+              value: 'dark_field',
+              label_zh: '暗场',
+              label_en: 'Dark field',
+            },
+            {
+              value: 'dic',
+              label_zh: '微分干涉 DIC',
+              label_en: 'DIC',
+            },
+            {
+              value: 'phase_contrast',
+              label_zh: '相衬',
+              label_en: 'Phase contrast',
+            },
+            {
+              value: 'fluorescence',
+              label_zh: '荧光',
+              label_en: 'Fluorescence',
+            },
+            {
+              value: 'other',
+              label_zh: '其他',
+              label_en: 'Other',
+            },
+          ],
+        },
+        {
+          key: 'contrast_method_other',
+          label_zh: '其他成像方式',
+          label_en: 'Other contrast method',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            contrast_method: ['other'],
+          },
+          required_when: {
+            contrast_method: ['other'],
+          },
+        },
+        {
+          key: 'objective_na',
+          label_zh: '物镜数值孔径 NA',
+          label_en: 'Objective numerical aperture',
+          value_type: 'number',
+        },
+        {
+          key: 'objective_immersion',
+          label_zh: '物镜浸没介质',
+          label_en: 'Objective immersion medium',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'detector',
+          label_zh: '实际探测器/相机',
+          label_en: 'Detector / camera used',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            observation_mode: ['digital'],
+          },
+        },
+        {
+          key: 'exposure_time_ms',
+          label_zh: '实际曝光时间',
+          label_en: 'Actual exposure time',
+          value_type: 'number',
+          unit: 'ms',
+          when: {
+            observation_mode: ['digital'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'exposure_mode',
+          label_zh: '曝光模式',
+          label_en: 'Exposure mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'manual',
+              label_zh: '手动',
+              label_en: 'Manual',
+            },
+            {
+              value: 'one_shot',
+              label_zh: '一次自动后锁定',
+              label_en: 'One-shot auto / locked',
+            },
+            {
+              value: 'continuous_auto',
+              label_zh: '连续自动',
+              label_en: 'Continuous auto',
+            },
+          ],
+          when: {
+            observation_mode: ['digital'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'detector_gain',
+          label_zh: '探测器增益及单位/档位',
+          label_en: 'Detector gain and unit/setting',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '例如 1×、6 dB；按仪器显示填写',
+          placeholder_en: 'e.g. 1× or 6 dB, as reported',
+          when: {
+            observation_mode: ['digital'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'image_color_mode',
+          label_zh: '图像颜色类型',
+          label_en: 'Image color type',
+          value_type: 'select',
+          options: [
+            {
+              value: 'color',
+              label_zh: '彩色',
+              label_en: 'Color',
+            },
+            {
+              value: 'monochrome',
+              label_zh: '黑白',
+              label_en: 'Monochrome',
+            },
+          ],
+          when: {
+            observation_mode: ['digital'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'white_balance_mode',
+          label_zh: '白平衡模式',
+          label_en: 'White balance mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'off',
+              label_zh: '关闭',
+              label_en: 'Off',
+            },
+            {
+              value: 'manual',
+              label_zh: '手动',
+              label_en: 'Manual',
+            },
+            {
+              value: 'one_shot',
+              label_zh: '一次自动后锁定',
+              label_en: 'One-shot auto / locked',
+            },
+            {
+              value: 'continuous_auto',
+              label_zh: '连续自动',
+              label_en: 'Continuous auto',
+            },
+          ],
+          when: {
+            image_color_mode: ['color'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'white_balance_settings',
+          label_zh: '实际白平衡配置/RGB 增益',
+          label_en: 'White balance configuration / RGB gains',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            white_balance_mode: ['manual', 'one_shot', 'continuous_auto'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'white_balance_temperature_K',
+          label_zh: '软件显示白平衡色温',
+          label_en: 'Reported white balance color temperature',
+          value_type: 'number',
+          unit: 'K',
+          when: {
+            image_color_mode: ['color'],
+          },
+        },
+        {
+          key: 'white_balance_reference',
+          label_zh: '白平衡参考对象/文件',
+          label_en: 'White balance reference object / file',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            image_color_mode: ['color'],
+          },
+        },
+        {
+          key: 'illumination_source',
+          label_zh: '实际照明光源',
+          label_en: 'Illumination source used',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          recommended: true,
+        },
+        {
+          key: 'illumination_setting',
+          label_zh: '照明亮度及原机单位',
+          label_en: 'Illumination setting and instrument unit',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          recommended: true,
+        },
+        {
+          key: 'filter_configuration',
+          label_zh: '实际滤光配置',
+          label_en: 'Filter configuration used',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '滤光片型号/通带/截止范围',
+          placeholder_en: 'Filter model / passband / cutoff',
+        },
+        {
+          key: 'aperture_setting',
+          label_zh: '照明孔径设置',
+          label_en: 'Illumination aperture setting',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'image_scale_y_um_per_px',
+          label_zh: 'Y 像素尺度',
+          label_en: 'Y pixel scale',
+          value_type: 'number',
+          unit: 'μm/px',
+          when: {
+            observation_mode: ['digital'],
+          },
+        },
+        {
+          key: 'resolution_px',
+          label_zh: '采样点数',
+          label_en: 'Sampling points',
+          value_type: 'resolution',
+          components: [
+            {
+              key: 'width',
+              label_zh: '宽',
+              label_en: 'Width',
+            },
+            {
+              key: 'height',
+              label_zh: '高',
+              label_en: 'Height',
+            },
+          ],
+          when: {
+            observation_mode: ['digital'],
+          },
+        },
+        {
+          key: 'scale_calibration',
+          label_zh: '图像/衍射尺度校准来源',
+          label_en: 'Image / diffraction scale calibration source',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            observation_mode: ['digital'],
+          },
+        },
+        {
+          key: 'image_bit_depth',
+          label_zh: '图像有效位深',
+          label_en: 'Image significant bit depth',
+          value_type: 'integer',
+          validation: {
+            ge: 1,
+            le: 64,
+          },
+          when: {
+            observation_mode: ['digital'],
+          },
+        },
+        {
+          key: 'binning',
+          label_zh: '像素合并设置',
+          label_en: 'Pixel binning',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            observation_mode: ['digital'],
+          },
+        },
+        {
+          key: 'camera_offset',
+          label_zh: '相机黑电平/偏置及单位',
+          label_en: 'Camera black level / offset and unit',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            observation_mode: ['digital'],
+          },
+        },
+        {
+          key: 'image_processing',
+          label_zh: '图像处理/合成及配置',
+          label_en: 'Image processing / compositing settings',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          when: {
+            observation_mode: ['digital'],
+          },
+          section: 'results',
+        },
+        {
+          key: 'incident_polarization_state',
+          label_zh: '入射偏振状态',
+          label_en: 'Incident polarization state',
+          value_type: 'select',
+          options: [
+            {
+              value: 'linear',
+              label_zh: '线偏振',
+              label_en: 'Linear',
+            },
+            {
+              value: 'circular',
+              label_zh: '圆偏振',
+              label_en: 'Circular',
+            },
+            {
+              value: 'elliptical',
+              label_zh: '椭圆偏振',
+              label_en: 'Elliptical',
+            },
+            {
+              value: 'unpolarized',
+              label_zh: '非偏振',
+              label_en: 'Unpolarized',
+            },
+          ],
+        },
+        {
+          key: 'analyzer_mode',
+          label_zh: '检偏方式',
+          label_en: 'Analyzer mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'none',
+              label_zh: '未加检偏器',
+              label_en: 'No analyzer',
+            },
+            {
+              value: 'fixed',
+              label_zh: '固定角度',
+              label_en: 'Fixed angle',
+            },
+            {
+              value: 'parallel',
+              label_zh: '随动保持平行',
+              label_en: 'Parallel tracking',
+            },
+            {
+              value: 'crossed',
+              label_zh: '随动保持交叉',
+              label_en: 'Crossed tracking',
+            },
+          ],
+        },
+        {
+          key: 'incident_polarization_angle_deg',
+          label_zh: '入射偏振角',
+          label_en: 'Incident polarization angle',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -360,
+            le: 360,
+          },
+          when: {
+            incident_polarization_state: ['linear'],
+          },
+        },
+        {
+          key: 'analyzer_angle_deg',
+          label_zh: '检偏器角度',
+          label_en: 'Analyzer angle',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -360,
+            le: 360,
+          },
+          when: {
+            analyzer_mode: ['fixed'],
+          },
+        },
+        {
+          key: 'polarization_reference',
+          label_zh: '偏振角参照/正方向',
+          label_en: 'Polarization reference / positive direction',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'sample_preparation',
+          label_zh: '表征前制样/处理记录',
+          label_en: 'Preparation before measurement',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh: '处理时间、操作、载体/支撑膜；已有记录填写编号',
+          placeholder_en:
+            'Time, treatment, carrier/support; reference an existing record',
+        },
+        {
+          key: 'acquisition_note',
+          label_zh: '采集条件来源/缺项说明',
+          label_en: 'Acquisition metadata source / missing information',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh:
+            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_en:
+            'Source file/report location or unavailable settings; do not guess values',
         },
       ],
       allowed_property_codes: [
@@ -4664,7 +5387,23 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
       default_property_codes: ['observation_note'],
       allowed_assertion_types: [],
-      common_condition_keys: ['objective'],
+      common_condition_keys: [
+        'observation_mode',
+        'objective',
+        'objective_na',
+        'optical_path',
+        'contrast_method',
+        'contrast_method_other',
+        'detector',
+        'exposure_time_ms',
+        'exposure_mode',
+        'detector_gain',
+        'image_color_mode',
+        'white_balance_mode',
+        'white_balance_settings',
+        'illumination_source',
+        'illumination_setting',
+      ],
     },
     Raman: {
       legacy_property_codes: [
@@ -4697,6 +5436,28 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'raman_shift_range_cm1',
         'filter_configuration',
         'temperature_K',
+        'objective_na',
+        'grating_lines_per_mm',
+        'slit_width_um',
+        'detector',
+        'detector_gain',
+        'collection_geometry',
+        'incident_polarization_state',
+        'analyzer_mode',
+        'incident_polarization_angle_deg',
+        'analyzer_angle_deg',
+        'polarization_reference',
+        'collection_geometry_other',
+        'acquisition_kind',
+        'scan_coordinates',
+        'measurement_environment',
+        'temperature_basis',
+        'intensity_processing',
+        'accumulation_method',
+        'confocal_aperture_um',
+        'filter_cutoff',
+        'sample_preparation',
+        'acquisition_note',
       ],
       condition_fields: [
         {
@@ -4711,6 +5472,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '激光功率',
           label_en: 'Laser power',
           value_type: 'number',
+          recommended: true,
         },
         {
           key: 'excitation_power_basis',
@@ -4740,6 +5502,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           },
           placeholder_zh: '100×，NA 0.9',
           placeholder_en: '100×, NA 0.9',
+          recommended: true,
         },
         {
           key: 'integration_time_s',
@@ -4747,12 +5510,14 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_en: 'Time per acquisition',
           value_type: 'number',
           unit: 's',
+          recommended: true,
         },
         {
           key: 'accumulations',
           label_zh: '光谱累积次数',
           label_en: 'Spectral accumulations',
           value_type: 'integer',
+          recommended: true,
         },
         {
           key: 'raman_shift_range_cm1',
@@ -4776,13 +5541,14 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'filter_configuration',
-          legacy_only: true,
-          label_zh: '滤光配置',
-          label_en: 'Filter configuration',
+          label_zh: '实际滤光配置',
+          label_en: 'Filter configuration used',
           value_type: 'text',
           validation: {
             max_length: 128,
           },
+          placeholder_zh: '滤光片型号/通带/截止范围',
+          placeholder_en: 'Filter model / passband / cutoff',
         },
         {
           key: 'temperature_K',
@@ -4790,6 +5556,341 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_en: 'Measurement temperature',
           value_type: 'number',
           unit: 'K',
+        },
+        {
+          key: 'objective_na',
+          label_zh: '物镜数值孔径 NA',
+          label_en: 'Objective numerical aperture',
+          value_type: 'number',
+        },
+        {
+          key: 'grating_lines_per_mm',
+          label_zh: '实际光栅刻线密度',
+          label_en: 'Grating groove density',
+          value_type: 'number',
+          unit: 'lines/mm',
+        },
+        {
+          key: 'slit_width_um',
+          label_zh: '入口狭缝宽度',
+          label_en: 'Entrance slit width',
+          value_type: 'number',
+          unit: 'μm',
+        },
+        {
+          key: 'detector',
+          label_zh: '实际探测器/相机',
+          label_en: 'Detector / camera used',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'detector_gain',
+          label_zh: '探测器增益及单位/档位',
+          label_en: 'Detector gain and unit/setting',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '例如 1×、6 dB；按仪器显示填写',
+          placeholder_en: 'e.g. 1× or 6 dB, as reported',
+        },
+        {
+          key: 'collection_geometry',
+          label_zh: '光学收集几何',
+          label_en: 'Optical collection geometry',
+          value_type: 'select',
+          options: [
+            {
+              value: 'reflection',
+              label_zh: '反射/背散射',
+              label_en: 'Reflection / backscattering',
+            },
+            {
+              value: 'transmission',
+              label_zh: '透射',
+              label_en: 'Transmission',
+            },
+            {
+              value: 'other',
+              label_zh: '其他',
+              label_en: 'Other',
+            },
+          ],
+        },
+        {
+          key: 'incident_polarization_state',
+          label_zh: '入射偏振状态',
+          label_en: 'Incident polarization state',
+          value_type: 'select',
+          options: [
+            {
+              value: 'linear',
+              label_zh: '线偏振',
+              label_en: 'Linear',
+            },
+            {
+              value: 'circular',
+              label_zh: '圆偏振',
+              label_en: 'Circular',
+            },
+            {
+              value: 'elliptical',
+              label_zh: '椭圆偏振',
+              label_en: 'Elliptical',
+            },
+            {
+              value: 'unpolarized',
+              label_zh: '非偏振',
+              label_en: 'Unpolarized',
+            },
+          ],
+        },
+        {
+          key: 'analyzer_mode',
+          label_zh: '检偏方式',
+          label_en: 'Analyzer mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'none',
+              label_zh: '未加检偏器',
+              label_en: 'No analyzer',
+            },
+            {
+              value: 'fixed',
+              label_zh: '固定角度',
+              label_en: 'Fixed angle',
+            },
+            {
+              value: 'parallel',
+              label_zh: '随动保持平行',
+              label_en: 'Parallel tracking',
+            },
+            {
+              value: 'crossed',
+              label_zh: '随动保持交叉',
+              label_en: 'Crossed tracking',
+            },
+          ],
+        },
+        {
+          key: 'incident_polarization_angle_deg',
+          label_zh: '入射偏振角',
+          label_en: 'Incident polarization angle',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -360,
+            le: 360,
+          },
+          when: {
+            incident_polarization_state: ['linear'],
+          },
+        },
+        {
+          key: 'analyzer_angle_deg',
+          label_zh: '检偏器角度',
+          label_en: 'Analyzer angle',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -360,
+            le: 360,
+          },
+          when: {
+            analyzer_mode: ['fixed'],
+          },
+        },
+        {
+          key: 'polarization_reference',
+          label_zh: '偏振角参照/正方向',
+          label_en: 'Polarization reference / positive direction',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'collection_geometry_other',
+          label_zh: '其他收集几何',
+          label_en: 'Other collection geometry',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            collection_geometry: ['other'],
+          },
+          required_when: {
+            collection_geometry: ['other'],
+          },
+        },
+        {
+          key: 'acquisition_kind',
+          label_zh: '采集形式',
+          label_en: 'Acquisition type',
+          value_type: 'select',
+          options: [
+            {
+              value: 'single',
+              label_zh: '单次采集',
+              label_en: 'Single acquisition',
+            },
+            {
+              value: 'mapping',
+              label_zh: '映射',
+              label_en: 'Mapping',
+            },
+            {
+              value: 'series',
+              label_zh: '时间/参数序列',
+              label_en: 'Time / parameter series',
+            },
+          ],
+        },
+        {
+          key: 'scan_coordinates',
+          label_zh: '扫描轴/步距/逐点参数来源',
+          label_en: 'Scan axes / spacing / per-point metadata',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          when: {
+            acquisition_kind: ['mapping', 'series'],
+          },
+          placeholder_zh:
+            '填写文件名及坐标/时间/功率等列名；参数变化不共用一个数值',
+          placeholder_en:
+            'File and coordinate/time/power columns; retain varying values per point',
+        },
+        {
+          key: 'measurement_environment',
+          label_zh: '测量环境',
+          label_en: 'Measurement environment',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '空气、真空、氮气、液体等实际环境',
+          placeholder_en: 'Actual environment: air, vacuum, nitrogen, liquid…',
+        },
+        {
+          key: 'temperature_basis',
+          label_zh: '温度口径',
+          label_en: 'Temperature basis',
+          value_type: 'select',
+          options: [
+            {
+              value: 'ambient',
+              label_zh: '环境温度',
+              label_en: 'Ambient',
+            },
+            {
+              value: 'stage_setpoint',
+              label_zh: '样品台设定',
+              label_en: 'Stage setpoint',
+            },
+            {
+              value: 'sample_measured',
+              label_zh: '样品实测',
+              label_en: 'Measured at sample',
+            },
+          ],
+        },
+        {
+          key: 'intensity_processing',
+          label_zh: '强度处理口径',
+          label_en: 'Intensity processing',
+          value_type: 'select',
+          options: [
+            {
+              value: 'unscaled',
+              label_zh: '原始计数口径',
+              label_en: 'Unscaled acquisition counts',
+            },
+            {
+              value: 'count_rate',
+              label_zh: '计数率',
+              label_en: 'Count rate',
+            },
+            {
+              value: 'normalized',
+              label_zh: '归一化相对强度',
+              label_en: 'Normalized relative intensity',
+            },
+          ],
+          section: 'results',
+        },
+        {
+          key: 'accumulation_method',
+          label_zh: '光谱累积处理',
+          label_en: 'Spectral accumulation method',
+          value_type: 'select',
+          options: [
+            {
+              value: 'sum',
+              label_zh: '求和',
+              label_en: 'Sum',
+            },
+            {
+              value: 'mean',
+              label_zh: '平均',
+              label_en: 'Mean',
+            },
+            {
+              value: 'separate',
+              label_zh: '分别保存',
+              label_en: 'Kept separately',
+            },
+          ],
+        },
+        {
+          key: 'confocal_aperture_um',
+          label_zh: '共焦孔径',
+          label_en: 'Confocal aperture',
+          value_type: 'number',
+          unit: 'μm',
+        },
+        {
+          key: 'filter_cutoff',
+          label_zh: '实际可测低频范围/截止依据',
+          label_en: 'Accessible low-frequency range / filter cutoff source',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'sample_preparation',
+          label_zh: '表征前制样/处理记录',
+          label_en: 'Preparation before measurement',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh: '处理时间、操作、载体/支撑膜；已有记录填写编号',
+          placeholder_en:
+            'Time, treatment, carrier/support; reference an existing record',
+        },
+        {
+          key: 'acquisition_note',
+          label_zh: '采集条件来源/缺项说明',
+          label_en: 'Acquisition metadata source / missing information',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh:
+            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_en:
+            'Source file/report location or unavailable settings; do not guess values',
         },
       ],
       allowed_property_codes: ['spectral_peaks', 'observation_note'],
@@ -4911,6 +6012,32 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'temperature_K',
         'objective',
         'accumulations',
+        'objective_na',
+        'grating_lines_per_mm',
+        'slit_width_um',
+        'filter_configuration',
+        'detector',
+        'detector_gain',
+        'collection_geometry',
+        'incident_polarization_state',
+        'analyzer_mode',
+        'incident_polarization_angle_deg',
+        'analyzer_angle_deg',
+        'polarization_reference',
+        'collection_geometry_other',
+        'acquisition_kind',
+        'scan_coordinates',
+        'measurement_environment',
+        'temperature_basis',
+        'intensity_processing',
+        'accumulation_method',
+        'response_correction',
+        'response_correction_source',
+        'excitation_mode',
+        'pulse_width_fs',
+        'repetition_rate_MHz',
+        'sample_preparation',
+        'acquisition_note',
       ],
       condition_fields: [
         {
@@ -4925,6 +6052,10 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '激光功率',
           label_en: 'Laser power',
           value_type: 'number',
+          recommended: true,
+          help_zh: '脉冲激光填写平均功率；保留样品处实测或仪器设置口径。',
+          help_en:
+            'For pulsed light, record average power and retain its at-sample or instrument-setting basis.',
         },
         {
           key: 'excitation_power_basis',
@@ -4950,6 +6081,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_en: 'Time per acquisition',
           value_type: 'number',
           unit: 's',
+          recommended: true,
         },
         {
           key: 'spectral_range_nm',
@@ -4987,12 +6119,416 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           },
           placeholder_zh: '100×，NA 0.9',
           placeholder_en: '100×, NA 0.9',
+          recommended: true,
         },
         {
           key: 'accumulations',
           label_zh: '光谱累积次数',
           label_en: 'Spectral accumulations',
           value_type: 'integer',
+          recommended: true,
+        },
+        {
+          key: 'objective_na',
+          label_zh: '物镜数值孔径 NA',
+          label_en: 'Objective numerical aperture',
+          value_type: 'number',
+        },
+        {
+          key: 'grating_lines_per_mm',
+          label_zh: '实际光栅刻线密度',
+          label_en: 'Grating groove density',
+          value_type: 'number',
+          unit: 'lines/mm',
+        },
+        {
+          key: 'slit_width_um',
+          label_zh: '入口狭缝宽度',
+          label_en: 'Entrance slit width',
+          value_type: 'number',
+          unit: 'μm',
+        },
+        {
+          key: 'filter_configuration',
+          label_zh: '实际滤光配置',
+          label_en: 'Filter configuration used',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '滤光片型号/通带/截止范围',
+          placeholder_en: 'Filter model / passband / cutoff',
+        },
+        {
+          key: 'detector',
+          label_zh: '实际探测器/相机',
+          label_en: 'Detector / camera used',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'detector_gain',
+          label_zh: '探测器增益及单位/档位',
+          label_en: 'Detector gain and unit/setting',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '例如 1×、6 dB；按仪器显示填写',
+          placeholder_en: 'e.g. 1× or 6 dB, as reported',
+        },
+        {
+          key: 'collection_geometry',
+          label_zh: '光学收集几何',
+          label_en: 'Optical collection geometry',
+          value_type: 'select',
+          options: [
+            {
+              value: 'reflection',
+              label_zh: '反射/背散射',
+              label_en: 'Reflection / backscattering',
+            },
+            {
+              value: 'transmission',
+              label_zh: '透射',
+              label_en: 'Transmission',
+            },
+            {
+              value: 'other',
+              label_zh: '其他',
+              label_en: 'Other',
+            },
+          ],
+        },
+        {
+          key: 'incident_polarization_state',
+          label_zh: '入射偏振状态',
+          label_en: 'Incident polarization state',
+          value_type: 'select',
+          options: [
+            {
+              value: 'linear',
+              label_zh: '线偏振',
+              label_en: 'Linear',
+            },
+            {
+              value: 'circular',
+              label_zh: '圆偏振',
+              label_en: 'Circular',
+            },
+            {
+              value: 'elliptical',
+              label_zh: '椭圆偏振',
+              label_en: 'Elliptical',
+            },
+            {
+              value: 'unpolarized',
+              label_zh: '非偏振',
+              label_en: 'Unpolarized',
+            },
+          ],
+        },
+        {
+          key: 'analyzer_mode',
+          label_zh: '检偏方式',
+          label_en: 'Analyzer mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'none',
+              label_zh: '未加检偏器',
+              label_en: 'No analyzer',
+            },
+            {
+              value: 'fixed',
+              label_zh: '固定角度',
+              label_en: 'Fixed angle',
+            },
+            {
+              value: 'parallel',
+              label_zh: '随动保持平行',
+              label_en: 'Parallel tracking',
+            },
+            {
+              value: 'crossed',
+              label_zh: '随动保持交叉',
+              label_en: 'Crossed tracking',
+            },
+          ],
+        },
+        {
+          key: 'incident_polarization_angle_deg',
+          label_zh: '入射偏振角',
+          label_en: 'Incident polarization angle',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -360,
+            le: 360,
+          },
+          when: {
+            incident_polarization_state: ['linear'],
+          },
+        },
+        {
+          key: 'analyzer_angle_deg',
+          label_zh: '检偏器角度',
+          label_en: 'Analyzer angle',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -360,
+            le: 360,
+          },
+          when: {
+            analyzer_mode: ['fixed'],
+          },
+        },
+        {
+          key: 'polarization_reference',
+          label_zh: '偏振角参照/正方向',
+          label_en: 'Polarization reference / positive direction',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'collection_geometry_other',
+          label_zh: '其他收集几何',
+          label_en: 'Other collection geometry',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            collection_geometry: ['other'],
+          },
+          required_when: {
+            collection_geometry: ['other'],
+          },
+        },
+        {
+          key: 'acquisition_kind',
+          label_zh: '采集形式',
+          label_en: 'Acquisition type',
+          value_type: 'select',
+          options: [
+            {
+              value: 'single',
+              label_zh: '单次采集',
+              label_en: 'Single acquisition',
+            },
+            {
+              value: 'mapping',
+              label_zh: '映射',
+              label_en: 'Mapping',
+            },
+            {
+              value: 'series',
+              label_zh: '时间/参数序列',
+              label_en: 'Time / parameter series',
+            },
+          ],
+        },
+        {
+          key: 'scan_coordinates',
+          label_zh: '扫描轴/步距/逐点参数来源',
+          label_en: 'Scan axes / spacing / per-point metadata',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          when: {
+            acquisition_kind: ['mapping', 'series'],
+          },
+          placeholder_zh:
+            '填写文件名及坐标/时间/功率等列名；参数变化不共用一个数值',
+          placeholder_en:
+            'File and coordinate/time/power columns; retain varying values per point',
+        },
+        {
+          key: 'measurement_environment',
+          label_zh: '测量环境',
+          label_en: 'Measurement environment',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '空气、真空、氮气、液体等实际环境',
+          placeholder_en: 'Actual environment: air, vacuum, nitrogen, liquid…',
+        },
+        {
+          key: 'temperature_basis',
+          label_zh: '温度口径',
+          label_en: 'Temperature basis',
+          value_type: 'select',
+          options: [
+            {
+              value: 'ambient',
+              label_zh: '环境温度',
+              label_en: 'Ambient',
+            },
+            {
+              value: 'stage_setpoint',
+              label_zh: '样品台设定',
+              label_en: 'Stage setpoint',
+            },
+            {
+              value: 'sample_measured',
+              label_zh: '样品实测',
+              label_en: 'Measured at sample',
+            },
+          ],
+        },
+        {
+          key: 'intensity_processing',
+          label_zh: '强度处理口径',
+          label_en: 'Intensity processing',
+          value_type: 'select',
+          options: [
+            {
+              value: 'unscaled',
+              label_zh: '原始计数口径',
+              label_en: 'Unscaled acquisition counts',
+            },
+            {
+              value: 'count_rate',
+              label_zh: '计数率',
+              label_en: 'Count rate',
+            },
+            {
+              value: 'normalized',
+              label_zh: '归一化相对强度',
+              label_en: 'Normalized relative intensity',
+            },
+          ],
+          section: 'results',
+        },
+        {
+          key: 'accumulation_method',
+          label_zh: '光谱累积处理',
+          label_en: 'Spectral accumulation method',
+          value_type: 'select',
+          options: [
+            {
+              value: 'sum',
+              label_zh: '求和',
+              label_en: 'Sum',
+            },
+            {
+              value: 'mean',
+              label_zh: '平均',
+              label_en: 'Mean',
+            },
+            {
+              value: 'separate',
+              label_zh: '分别保存',
+              label_en: 'Kept separately',
+            },
+          ],
+        },
+        {
+          key: 'response_correction',
+          label_zh: '光谱响应校正',
+          label_en: 'Spectral response correction',
+          value_type: 'select',
+          options: [
+            {
+              value: 'applied',
+              label_zh: '已应用',
+              label_en: 'Applied',
+            },
+            {
+              value: 'not_applied',
+              label_zh: '未应用',
+              label_en: 'Not applied',
+            },
+          ],
+          section: 'results',
+        },
+        {
+          key: 'response_correction_source',
+          label_zh: '响应校正配置/报告',
+          label_en: 'Response correction configuration / report',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            response_correction: ['applied'],
+          },
+          section: 'results',
+        },
+        {
+          key: 'excitation_mode',
+          label_zh: '激光输出',
+          label_en: 'Laser output',
+          value_type: 'select',
+          options: [
+            {
+              value: 'continuous',
+              label_zh: '连续',
+              label_en: 'Continuous-wave',
+            },
+            {
+              value: 'pulsed',
+              label_zh: '脉冲',
+              label_en: 'Pulsed',
+            },
+          ],
+        },
+        {
+          key: 'pulse_width_fs',
+          label_zh: '脉冲宽度',
+          label_en: 'Pulse duration',
+          value_type: 'number',
+          unit: 'fs',
+          when: {
+            excitation_mode: ['pulsed'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'repetition_rate_MHz',
+          label_zh: '重复频率',
+          label_en: 'Repetition rate',
+          value_type: 'number',
+          unit: 'MHz',
+          when: {
+            excitation_mode: ['pulsed'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'sample_preparation',
+          label_zh: '表征前制样/处理记录',
+          label_en: 'Preparation before measurement',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh: '处理时间、操作、载体/支撑膜；已有记录填写编号',
+          placeholder_en:
+            'Time, treatment, carrier/support; reference an existing record',
+        },
+        {
+          key: 'acquisition_note',
+          label_zh: '采集条件来源/缺项说明',
+          label_en: 'Acquisition metadata source / missing information',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh:
+            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_en:
+            'Source file/report location or unavailable settings; do not guess values',
         },
       ],
       allowed_property_codes: ['spectral_peaks', 'observation_note'],
@@ -5024,6 +6560,19 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'scan_rate_hz',
         'height_processing',
         'mode_other',
+        'scan_rate_definition',
+        'data_channel',
+        'measurement_environment',
+        'scan_direction',
+        'scan_rotation_deg',
+        'feedback_setpoint',
+        'free_amplitude',
+        'feedback_gains',
+        'drive_frequency_kHz',
+        'height_calibration',
+        'scale_calibration',
+        'sample_preparation',
+        'acquisition_note',
       ],
       condition_fields: [
         {
@@ -5058,6 +6607,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
               label_en: 'Other',
             },
           ],
+          recommended: true,
         },
         {
           key: 'probe',
@@ -5067,6 +6617,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           validation: {
             max_length: 128,
           },
+          recommended: true,
         },
         {
           key: 'scan_size_um',
@@ -5107,14 +6658,16 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'scan_rate_hz',
-          label_zh: '扫描频率',
-          label_en: 'Scan frequency',
+          label_zh: '扫描线频率',
+          label_en: 'Scan line rate',
           value_type: 'number',
           unit: 'Hz',
+          help_zh: '按仪器定义记录；线/秒或往返/秒的口径在扫描频率定义中说明。',
+          help_en:
+            'Use the instrument definition and specify lines/s or round trips/s below.',
         },
         {
           key: 'height_processing',
-          legacy_only: true,
           label_zh: '高度数据处理',
           label_en: 'Height-data processing',
           value_type: 'text',
@@ -5124,6 +6677,8 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           section: 'results',
+          recommended: true,
+          multiline: true,
         },
         {
           key: 'mode_other',
@@ -5136,6 +6691,155 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             mode: ['other'],
           },
+          required_when: {
+            mode: ['other'],
+          },
+        },
+        {
+          key: 'scan_rate_definition',
+          label_zh: '扫描频率定义',
+          label_en: 'Scan rate definition',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'data_channel',
+          label_zh: '数据通道/文件内序列',
+          label_en: 'Data channel / series in file',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'measurement_environment',
+          label_zh: '测量环境',
+          label_en: 'Measurement environment',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '空气、真空、氮气、液体等实际环境',
+          placeholder_en: 'Actual environment: air, vacuum, nitrogen, liquid…',
+        },
+        {
+          key: 'scan_direction',
+          label_zh: '扫描方向',
+          label_en: 'Scan direction',
+          value_type: 'select',
+          options: [
+            {
+              value: 'trace',
+              label_zh: '正向 Trace',
+              label_en: 'Trace',
+            },
+            {
+              value: 'retrace',
+              label_zh: '反向 Retrace',
+              label_en: 'Retrace',
+            },
+            {
+              value: 'both',
+              label_zh: '正反向',
+              label_en: 'Trace and retrace',
+            },
+          ],
+        },
+        {
+          key: 'scan_rotation_deg',
+          label_zh: '快扫描轴角度',
+          label_en: 'Fast scan axis angle',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -360,
+            le: 360,
+          },
+        },
+        {
+          key: 'feedback_setpoint',
+          label_zh: '反馈设定值及单位',
+          label_en: 'Feedback setpoint and unit',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          recommended: true,
+        },
+        {
+          key: 'free_amplitude',
+          label_zh: '自由振幅及单位',
+          label_en: 'Free amplitude and unit',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            mode: ['tapping', 'non_contact'],
+          },
+        },
+        {
+          key: 'feedback_gains',
+          label_zh: '反馈增益/原机配置',
+          label_en: 'Feedback gains / instrument configuration',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'drive_frequency_kHz',
+          label_zh: '驱动频率',
+          label_en: 'Drive frequency',
+          value_type: 'number',
+          unit: 'kHz',
+        },
+        {
+          key: 'height_calibration',
+          label_zh: 'Z 高度校准来源',
+          label_en: 'Z-height calibration source',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'scale_calibration',
+          label_zh: '图像/衍射尺度校准来源',
+          label_en: 'Image / diffraction scale calibration source',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'sample_preparation',
+          label_zh: '表征前制样/处理记录',
+          label_en: 'Preparation before measurement',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh: '处理时间、操作、载体/支撑膜；已有记录填写编号',
+          placeholder_en:
+            'Time, treatment, carrier/support; reference an existing record',
+        },
+        {
+          key: 'acquisition_note',
+          label_zh: '采集条件来源/缺项说明',
+          label_en: 'Acquisition metadata source / missing information',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh:
+            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_en:
+            'Source file/report location or unavailable settings; do not guess values',
         },
       ],
       allowed_property_codes: [
@@ -5160,14 +6864,36 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_region_types: ['point', 'area', 'whole_sample', 'selected_area'],
       required_condition_keys: ['accelerating_voltage_kV', 'mode'],
       optional_condition_keys: [
+        'image_object_type',
+        'image_size_metric',
         'working_distance_mm',
         'beam_current_nA',
         'detector',
         'stage_tilt_deg',
         'sample_preparation',
         'field_of_view_um',
-        'image_object_type',
-        'image_size_metric',
+        'pixel_dwell_time_us',
+        'frame_count',
+        'frame_combination',
+        'resolution_px',
+        'image_scale_um_per_px',
+        'image_scale_y_um_per_px',
+        'scale_calibration',
+        'data_channel',
+        'coating_material',
+        'coating_thickness_nm',
+        'measurement_environment',
+        'spectrum_acquisition',
+        'eds_live_time_s',
+        'eds_real_time_s',
+        'eds_dead_time_percent',
+        'eds_process_time',
+        'eds_energy_range',
+        'energy_dispersion_eV_channel',
+        'vacuum_mode',
+        'chamber_pressure_Pa',
+        'beam_current_setting',
+        'acquisition_note',
       ],
       condition_fields: [
         {
@@ -5252,9 +6978,8 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'detector',
-          legacy_only: true,
-          label_zh: '探测器',
-          label_en: 'Detector',
+          label_zh: '实际探测器/相机',
+          label_en: 'Detector / camera used',
           value_type: 'text',
           validation: {
             max_length: 128,
@@ -5273,13 +6998,13 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'sample_preparation',
-          legacy_only: true,
           label_zh: '导电处理或镀膜',
           label_en: 'Conductive treatment or coating',
           value_type: 'text',
           validation: {
             max_length: 1000,
           },
+          multiline: true,
         },
         {
           key: 'field_of_view_um',
@@ -5299,6 +7024,270 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
               label_en: 'Height',
             },
           ],
+        },
+        {
+          key: 'pixel_dwell_time_us',
+          label_zh: '每像素驻留时间',
+          label_en: 'Pixel dwell time',
+          value_type: 'number',
+          unit: 'μs',
+        },
+        {
+          key: 'frame_count',
+          label_zh: '采集帧数',
+          label_en: 'Acquired frames',
+          value_type: 'integer',
+        },
+        {
+          key: 'frame_combination',
+          label_zh: '多帧处理',
+          label_en: 'Frame combination',
+          value_type: 'select',
+          options: [
+            {
+              value: 'sum',
+              label_zh: '求和',
+              label_en: 'Sum',
+            },
+            {
+              value: 'mean',
+              label_zh: '平均',
+              label_en: 'Mean',
+            },
+            {
+              value: 'separate',
+              label_zh: '分别保存',
+              label_en: 'Kept separately',
+            },
+          ],
+        },
+        {
+          key: 'resolution_px',
+          label_zh: '采样点数',
+          label_en: 'Sampling points',
+          value_type: 'resolution',
+          components: [
+            {
+              key: 'width',
+              label_zh: '宽',
+              label_en: 'Width',
+            },
+            {
+              key: 'height',
+              label_zh: '高',
+              label_en: 'Height',
+            },
+          ],
+        },
+        {
+          key: 'image_scale_um_per_px',
+          label_zh: 'X 像素尺度',
+          label_en: 'X pixel scale',
+          value_type: 'number',
+          unit: 'μm/px',
+        },
+        {
+          key: 'image_scale_y_um_per_px',
+          label_zh: 'Y 像素尺度',
+          label_en: 'Y pixel scale',
+          value_type: 'number',
+          unit: 'μm/px',
+        },
+        {
+          key: 'scale_calibration',
+          label_zh: '图像/衍射尺度校准来源',
+          label_en: 'Image / diffraction scale calibration source',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'data_channel',
+          label_zh: '数据通道/文件内序列',
+          label_en: 'Data channel / series in file',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'coating_material',
+          label_zh: '导电层/镀层材料',
+          label_en: 'Conductive coating material',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'coating_thickness_nm',
+          label_zh: '已知镀层厚度',
+          label_en: 'Known coating thickness',
+          value_type: 'number',
+          unit: 'nm',
+          validation: {
+            ge: 0,
+          },
+        },
+        {
+          key: 'measurement_environment',
+          label_zh: '测量环境',
+          label_en: 'Measurement environment',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '空气、真空、氮气、液体等实际环境',
+          placeholder_en: 'Actual environment: air, vacuum, nitrogen, liquid…',
+        },
+        {
+          key: 'spectrum_acquisition',
+          label_zh: '能谱采集形式',
+          label_en: 'Spectroscopy acquisition',
+          value_type: 'select',
+          options: [
+            {
+              value: 'single',
+              label_zh: '单谱',
+              label_en: 'Single spectrum',
+            },
+            {
+              value: 'line',
+              label_zh: '线扫描',
+              label_en: 'Line scan',
+            },
+            {
+              value: 'mapping',
+              label_zh: '映射',
+              label_en: 'Mapping',
+            },
+          ],
+          when: {
+            mode: ['EDS'],
+          },
+        },
+        {
+          key: 'eds_live_time_s',
+          label_zh: 'EDS 有效计数时间',
+          label_en: 'EDS live time',
+          value_type: 'number',
+          unit: 's',
+          when: {
+            mode: ['EDS'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'eds_real_time_s',
+          label_zh: 'EDS 实际计数时长',
+          label_en: 'EDS real time',
+          value_type: 'number',
+          unit: 's',
+          when: {
+            mode: ['EDS'],
+          },
+        },
+        {
+          key: 'eds_dead_time_percent',
+          label_zh: 'EDS 死时间占比',
+          label_en: 'EDS dead time',
+          value_type: 'number',
+          unit: '%',
+          validation: {
+            ge: 0,
+            lt: 100,
+          },
+          when: {
+            mode: ['EDS'],
+          },
+        },
+        {
+          key: 'eds_process_time',
+          label_zh: 'EDS 脉冲处理时间/档位',
+          label_en: 'EDS pulse process time / setting',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            mode: ['EDS'],
+          },
+        },
+        {
+          key: 'eds_energy_range',
+          label_zh: 'EDS 能量范围及单位',
+          label_en: 'EDS energy range and unit',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            mode: ['EDS'],
+          },
+        },
+        {
+          key: 'energy_dispersion_eV_channel',
+          label_zh: '能量轴采样间隔',
+          label_en: 'Energy dispersion',
+          value_type: 'number',
+          unit: 'eV/channel',
+          when: {
+            mode: ['EDS'],
+          },
+        },
+        {
+          key: 'vacuum_mode',
+          label_zh: '腔体真空模式',
+          label_en: 'Chamber vacuum mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'high_vacuum',
+              label_zh: '高真空',
+              label_en: 'High vacuum',
+            },
+            {
+              value: 'low_vacuum',
+              label_zh: '低真空',
+              label_en: 'Low vacuum',
+            },
+            {
+              value: 'environmental',
+              label_zh: '环境模式',
+              label_en: 'Environmental',
+            },
+          ],
+        },
+        {
+          key: 'chamber_pressure_Pa',
+          label_zh: '测量腔体压力',
+          label_en: 'Chamber pressure',
+          value_type: 'number',
+          unit: 'Pa',
+        },
+        {
+          key: 'beam_current_setting',
+          label_zh: '束流档位/读数来源',
+          label_en: 'Beam current setting / reading source',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'acquisition_note',
+          label_zh: '采集条件来源/缺项说明',
+          label_en: 'Acquisition metadata source / missing information',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh:
+            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_en:
+            'Source file/report location or unavailable settings; do not guess values',
         },
       ],
       allowed_property_codes: [
@@ -5346,14 +7335,25 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'scan_range_deg',
       ],
       optional_condition_keys: [
+        'geometry',
         'scan_range_2theta_deg',
         'step_size_deg',
         'count_time_s',
         'scan_rate_deg_min',
         'incident_angle_deg',
-        'geometry',
         'scan_mode',
         'geometry_other',
+        'axis_coupling',
+        'fixed_two_theta_deg',
+        'fixed_chi_deg',
+        'scan_reference',
+        'xray_optics',
+        'detector',
+        'tube_voltage_kV',
+        'tube_current_mA',
+        'xrd_processing',
+        'sample_preparation',
+        'acquisition_note',
       ],
       condition_fields: [
         {
@@ -5388,6 +7388,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
               label_en: 'Other',
             },
           ],
+          recommended: true,
         },
         {
           key: 'scan_axis',
@@ -5491,6 +7492,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             scan_mode: ['step'],
           },
+          recommended: true,
         },
         {
           key: 'scan_rate_deg_min',
@@ -5501,6 +7503,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             scan_mode: ['continuous'],
           },
+          recommended: true,
         },
         {
           key: 'incident_angle_deg',
@@ -5515,6 +7518,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             geometry: ['grazing_incidence', 'in_plane'],
           },
+          recommended: true,
         },
         {
           key: 'scan_mode',
@@ -5533,6 +7537,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
               label_en: 'Continuous scan',
             },
           ],
+          recommended: true,
         },
         {
           key: 'geometry_other',
@@ -5545,6 +7550,145 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             geometry: ['other'],
           },
+          required_when: {
+            geometry: ['other'],
+          },
+        },
+        {
+          key: 'axis_coupling',
+          label_zh: '扫描轴耦合',
+          label_en: 'Scan axis coupling',
+          value_type: 'select',
+          options: [
+            {
+              value: 'theta_two_theta',
+              label_zh: 'θ–2θ 联动',
+              label_en: 'Coupled θ–2θ',
+            },
+            {
+              value: 'omega_two_theta',
+              label_zh: 'ω–2θ 联动',
+              label_en: 'Coupled ω–2θ',
+            },
+            {
+              value: 'uncoupled',
+              label_zh: '单轴独立扫描',
+              label_en: 'Uncoupled single axis',
+            },
+            {
+              value: 'other',
+              label_zh: '其他程序',
+              label_en: 'Other program',
+            },
+          ],
+        },
+        {
+          key: 'fixed_two_theta_deg',
+          label_zh: '固定 2θ',
+          label_en: 'Fixed 2θ',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: 0,
+            le: 180,
+          },
+          when: {
+            scan_axis: ['omega', 'phi', 'chi'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'fixed_chi_deg',
+          label_zh: '固定 χ/倾角',
+          label_en: 'Fixed χ / tilt',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -180,
+            le: 180,
+          },
+          when: {
+            scan_axis: ['phi'],
+          },
+        },
+        {
+          key: 'scan_reference',
+          label_zh: '角度零点/非扫描轴设置',
+          label_en: 'Angular reference / fixed axis settings',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'xray_optics',
+          label_zh: '实际单色器/滤片/狭缝配置',
+          label_en: 'Monochromator / filter / slit configuration',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'detector',
+          label_zh: '实际探测器/相机',
+          label_en: 'Detector / camera used',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'tube_voltage_kV',
+          label_zh: 'X 射线管电压',
+          label_en: 'X-ray tube voltage',
+          value_type: 'number',
+          unit: 'kV',
+        },
+        {
+          key: 'tube_current_mA',
+          label_zh: 'X 射线管电流',
+          label_en: 'X-ray tube current',
+          value_type: 'number',
+          unit: 'mA',
+        },
+        {
+          key: 'xrd_processing',
+          label_zh: '背景/零点/仪器展宽处理',
+          label_en: 'Background / zero / instrumental broadening treatment',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          section: 'results',
+        },
+        {
+          key: 'sample_preparation',
+          label_zh: '表征前制样/处理记录',
+          label_en: 'Preparation before measurement',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh: '处理时间、操作、载体/支撑膜；已有记录填写编号',
+          placeholder_en:
+            'Time, treatment, carrier/support; reference an existing record',
+        },
+        {
+          key: 'acquisition_note',
+          label_zh: '采集条件来源/缺项说明',
+          label_en: 'Acquisition metadata source / missing information',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh:
+            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_en:
+            'Source file/report location or unavailable settings; do not guess values',
         },
       ],
       allowed_property_codes: ['spectral_peaks', 'observation_note'],
@@ -5584,12 +7728,45 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
       required_condition_keys: ['accelerating_voltage_kV', 'data_type'],
       optional_condition_keys: [
-        'sample_preparation',
         'mode',
+        'sample_preparation',
         'acquisition_mode',
         'image_mode',
         'diffraction_mode',
         'spectrum_mode',
+        'detector',
+        'pixel_dwell_time_us',
+        'frame_count',
+        'frame_combination',
+        'resolution_px',
+        'image_scale_um_per_px',
+        'image_scale_y_um_per_px',
+        'scale_calibration',
+        'data_channel',
+        'coating_material',
+        'coating_thickness_nm',
+        'measurement_environment',
+        'spectrum_acquisition',
+        'eds_live_time_s',
+        'eds_real_time_s',
+        'eds_dead_time_percent',
+        'eds_process_time',
+        'eds_energy_range',
+        'energy_dispersion_eV_channel',
+        'exposure_time_ms',
+        'beam_current_nA',
+        'stage_tilt_deg',
+        'defocus_nm',
+        'aberration_correction',
+        'convergence_semiangle_mrad',
+        'collection_inner_mrad',
+        'collection_outer_mrad',
+        'camera_length',
+        'diffraction_aperture',
+        'eels_energy_range',
+        'eels_collection_semiangle_mrad',
+        'zero_loss_calibration',
+        'acquisition_note',
       ],
       condition_fields: [
         {
@@ -5663,13 +7840,13 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'sample_preparation',
-          legacy_only: true,
           label_zh: '表征前制样',
           label_en: 'Preparation for characterization',
           value_type: 'text',
           validation: {
             max_length: 1000,
           },
+          multiline: true,
         },
         {
           key: 'acquisition_mode',
@@ -5688,6 +7865,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
               label_en: 'STEM',
             },
           ],
+          recommended: true,
         },
         {
           key: 'image_mode',
@@ -5709,11 +7887,17 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
               value: 'HRTEM',
               label_zh: 'HRTEM',
               label_en: 'HRTEM',
+              when: {
+                acquisition_mode: ['TEM'],
+              },
             },
             {
               value: 'HAADF',
               label_zh: 'HAADF',
               label_en: 'HAADF',
+              when: {
+                acquisition_mode: ['STEM'],
+              },
             },
             {
               value: 'other',
@@ -5724,6 +7908,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             data_type: ['image'],
           },
+          recommended: true,
         },
         {
           key: 'diffraction_mode',
@@ -5755,6 +7940,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             data_type: ['diffraction'],
           },
+          recommended: true,
         },
         {
           key: 'spectrum_mode',
@@ -5776,6 +7962,380 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             data_type: ['spectrum'],
           },
+          recommended: true,
+        },
+        {
+          key: 'detector',
+          label_zh: '实际探测器/相机',
+          label_en: 'Detector / camera used',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'pixel_dwell_time_us',
+          label_zh: '每像素驻留时间',
+          label_en: 'Pixel dwell time',
+          value_type: 'number',
+          unit: 'μs',
+        },
+        {
+          key: 'frame_count',
+          label_zh: '采集帧数',
+          label_en: 'Acquired frames',
+          value_type: 'integer',
+        },
+        {
+          key: 'frame_combination',
+          label_zh: '多帧处理',
+          label_en: 'Frame combination',
+          value_type: 'select',
+          options: [
+            {
+              value: 'sum',
+              label_zh: '求和',
+              label_en: 'Sum',
+            },
+            {
+              value: 'mean',
+              label_zh: '平均',
+              label_en: 'Mean',
+            },
+            {
+              value: 'separate',
+              label_zh: '分别保存',
+              label_en: 'Kept separately',
+            },
+          ],
+        },
+        {
+          key: 'resolution_px',
+          label_zh: '采样点数',
+          label_en: 'Sampling points',
+          value_type: 'resolution',
+          components: [
+            {
+              key: 'width',
+              label_zh: '宽',
+              label_en: 'Width',
+            },
+            {
+              key: 'height',
+              label_zh: '高',
+              label_en: 'Height',
+            },
+          ],
+        },
+        {
+          key: 'image_scale_um_per_px',
+          label_zh: 'X 像素尺度',
+          label_en: 'X pixel scale',
+          value_type: 'number',
+          unit: 'μm/px',
+        },
+        {
+          key: 'image_scale_y_um_per_px',
+          label_zh: 'Y 像素尺度',
+          label_en: 'Y pixel scale',
+          value_type: 'number',
+          unit: 'μm/px',
+        },
+        {
+          key: 'scale_calibration',
+          label_zh: '图像/衍射尺度校准来源',
+          label_en: 'Image / diffraction scale calibration source',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'data_channel',
+          label_zh: '数据通道/文件内序列',
+          label_en: 'Data channel / series in file',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'coating_material',
+          label_zh: '导电层/镀层材料',
+          label_en: 'Conductive coating material',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'coating_thickness_nm',
+          label_zh: '已知镀层厚度',
+          label_en: 'Known coating thickness',
+          value_type: 'number',
+          unit: 'nm',
+          validation: {
+            ge: 0,
+          },
+        },
+        {
+          key: 'measurement_environment',
+          label_zh: '测量环境',
+          label_en: 'Measurement environment',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '空气、真空、氮气、液体等实际环境',
+          placeholder_en: 'Actual environment: air, vacuum, nitrogen, liquid…',
+        },
+        {
+          key: 'spectrum_acquisition',
+          label_zh: '能谱采集形式',
+          label_en: 'Spectroscopy acquisition',
+          value_type: 'select',
+          options: [
+            {
+              value: 'single',
+              label_zh: '单谱',
+              label_en: 'Single spectrum',
+            },
+            {
+              value: 'line',
+              label_zh: '线扫描',
+              label_en: 'Line scan',
+            },
+            {
+              value: 'mapping',
+              label_zh: '映射',
+              label_en: 'Mapping',
+            },
+          ],
+          when: {
+            data_type: ['spectrum'],
+          },
+        },
+        {
+          key: 'eds_live_time_s',
+          label_zh: 'EDS 有效计数时间',
+          label_en: 'EDS live time',
+          value_type: 'number',
+          unit: 's',
+          when: {
+            spectrum_mode: ['EDS'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'eds_real_time_s',
+          label_zh: 'EDS 实际计数时长',
+          label_en: 'EDS real time',
+          value_type: 'number',
+          unit: 's',
+          when: {
+            spectrum_mode: ['EDS'],
+          },
+        },
+        {
+          key: 'eds_dead_time_percent',
+          label_zh: 'EDS 死时间占比',
+          label_en: 'EDS dead time',
+          value_type: 'number',
+          unit: '%',
+          validation: {
+            ge: 0,
+            lt: 100,
+          },
+          when: {
+            spectrum_mode: ['EDS'],
+          },
+        },
+        {
+          key: 'eds_process_time',
+          label_zh: 'EDS 脉冲处理时间/档位',
+          label_en: 'EDS pulse process time / setting',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            spectrum_mode: ['EDS'],
+          },
+        },
+        {
+          key: 'eds_energy_range',
+          label_zh: 'EDS 能量范围及单位',
+          label_en: 'EDS energy range and unit',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            spectrum_mode: ['EDS'],
+          },
+        },
+        {
+          key: 'energy_dispersion_eV_channel',
+          label_zh: '能量轴采样间隔',
+          label_en: 'Energy dispersion',
+          value_type: 'number',
+          unit: 'eV/channel',
+          when: {
+            data_type: ['spectrum'],
+          },
+        },
+        {
+          key: 'exposure_time_ms',
+          label_zh: '实际曝光时间',
+          label_en: 'Actual exposure time',
+          value_type: 'number',
+          unit: 'ms',
+        },
+        {
+          key: 'beam_current_nA',
+          label_zh: '束流',
+          label_en: 'Beam current',
+          value_type: 'number',
+          unit: 'nA',
+        },
+        {
+          key: 'stage_tilt_deg',
+          label_zh: '样品台倾角',
+          label_en: 'Stage tilt',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -90,
+            le: 90,
+          },
+        },
+        {
+          key: 'defocus_nm',
+          label_zh: '离焦量（原机符号）',
+          label_en: 'Defocus (instrument sign)',
+          value_type: 'number',
+          unit: 'nm',
+          validation: {
+            ge: -1000000,
+            le: 1000000,
+          },
+          when: {
+            image_mode: ['HRTEM'],
+          },
+        },
+        {
+          key: 'aberration_correction',
+          label_zh: '像差校正/物镜配置',
+          label_en: 'Aberration correction / objective configuration',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            image_mode: ['HRTEM'],
+          },
+        },
+        {
+          key: 'convergence_semiangle_mrad',
+          label_zh: '电子束收敛半角',
+          label_en: 'Beam convergence semi-angle',
+          value_type: 'number',
+          unit: 'mrad',
+        },
+        {
+          key: 'collection_inner_mrad',
+          label_zh: '探测器内收集半角',
+          label_en: 'Detector inner collection semi-angle',
+          value_type: 'number',
+          unit: 'mrad',
+          validation: {
+            ge: 0,
+          },
+          when: {
+            acquisition_mode: ['STEM'],
+          },
+        },
+        {
+          key: 'collection_outer_mrad',
+          label_zh: '探测器外收集半角',
+          label_en: 'Detector outer collection semi-angle',
+          value_type: 'number',
+          unit: 'mrad',
+          when: {
+            acquisition_mode: ['STEM'],
+          },
+        },
+        {
+          key: 'camera_length',
+          label_zh: '相机长度/原机档位',
+          label_en: 'Camera length / instrument setting',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            data_type: ['diffraction', 'spectrum'],
+          },
+        },
+        {
+          key: 'diffraction_aperture',
+          label_zh: '衍射光阑/束斑配置',
+          label_en: 'Diffraction aperture / probe configuration',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            data_type: ['diffraction'],
+          },
+        },
+        {
+          key: 'eels_energy_range',
+          label_zh: 'EELS 能量损失范围及单位',
+          label_en: 'EELS energy-loss range and unit',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            spectrum_mode: ['EELS'],
+          },
+        },
+        {
+          key: 'eels_collection_semiangle_mrad',
+          label_zh: 'EELS 收集半角',
+          label_en: 'EELS collection semi-angle',
+          value_type: 'number',
+          unit: 'mrad',
+          when: {
+            spectrum_mode: ['EELS'],
+          },
+        },
+        {
+          key: 'zero_loss_calibration',
+          label_zh: '零损失峰/能量校准来源',
+          label_en: 'Zero-loss peak / energy calibration source',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            spectrum_mode: ['EELS'],
+          },
+        },
+        {
+          key: 'acquisition_note',
+          label_zh: '采集条件来源/缺项说明',
+          label_en: 'Acquisition metadata source / missing information',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh:
+            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_en:
+            'Source file/report location or unavailable settings; do not guess values',
         },
       ],
       allowed_property_codes: [
@@ -5810,7 +8370,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       raw_file_guidance_zh: '请上传原始数据文件。',
       allowed_region_types: ['whole_sample', 'point', 'area', 'selected_area'],
       required_condition_keys: ['method_description'],
-      optional_condition_keys: [],
+      optional_condition_keys: ['sample_preparation', 'acquisition_note'],
       condition_fields: [
         {
           key: 'method_description',
@@ -5821,6 +8381,33 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             min_length: 1,
             max_length: 1000,
           },
+        },
+        {
+          key: 'sample_preparation',
+          label_zh: '表征前制样/处理记录',
+          label_en: 'Preparation before measurement',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh: '处理时间、操作、载体/支撑膜；已有记录填写编号',
+          placeholder_en:
+            'Time, treatment, carrier/support; reference an existing record',
+        },
+        {
+          key: 'acquisition_note',
+          label_zh: '采集条件来源/缺项说明',
+          label_en: 'Acquisition metadata source / missing information',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh:
+            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_en:
+            'Source file/report location or unavailable settings; do not guess values',
         },
       ],
       allowed_property_codes: ['observation_note'],
@@ -5849,6 +8436,35 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'angle_reference',
         'polarization_scan_axis',
         'angle_range_deg',
+        'objective_na',
+        'grating_lines_per_mm',
+        'slit_width_um',
+        'filter_configuration',
+        'detector',
+        'detector_gain',
+        'collection_geometry',
+        'incident_polarization_state',
+        'analyzer_mode',
+        'incident_polarization_angle_deg',
+        'analyzer_angle_deg',
+        'polarization_reference',
+        'collection_geometry_other',
+        'acquisition_kind',
+        'scan_coordinates',
+        'intensity_processing',
+        'accumulation_method',
+        'scan_angle_quantity',
+        'angle_step_deg',
+        'power_scan_coordinates',
+        'spot_size_um',
+        'spot_size_definition',
+        'exposure_time_ms',
+        'pixel_dwell_time_us',
+        'resolution_px',
+        'image_scale_um_per_px',
+        'image_scale_y_um_per_px',
+        'sample_preparation',
+        'acquisition_note',
       ],
       common_condition_keys: [
         'excitation_power_value',
@@ -5898,6 +8514,10 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '激光功率',
           label_en: 'Laser power',
           value_type: 'number',
+          recommended: true,
+          help_zh: '脉冲激光填写平均功率；保留样品处实测或仪器设置口径。',
+          help_en:
+            'For pulsed light, record average power and retain its at-sample or instrument-setting basis.',
         },
         {
           key: 'excitation_power_basis',
@@ -5923,6 +8543,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_en: 'Time per acquisition',
           value_type: 'number',
           unit: 's',
+          recommended: true,
         },
         {
           key: 'objective',
@@ -5934,6 +8555,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           },
           placeholder_zh: '100×，NA 0.9',
           placeholder_en: '100×, NA 0.9',
+          recommended: true,
         },
         {
           key: 'excitation_mode',
@@ -5962,6 +8584,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             excitation_mode: ['pulsed'],
           },
+          recommended: true,
         },
         {
           key: 'repetition_rate_MHz',
@@ -5972,6 +8595,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             excitation_mode: ['pulsed'],
           },
+          recommended: true,
         },
         {
           key: 'input_polarization',
@@ -5995,7 +8619,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'angle_reference',
-          legacy_only: true,
           label_zh: '角度零点',
           label_en: 'Angular zero reference',
           value_type: 'text',
@@ -6005,6 +8628,10 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             data_type: ['polarization_scan'],
           },
+          recommended: true,
+          help_zh: '实验室零点与正方向；不要求填写晶体学取向。',
+          help_en:
+            'Laboratory zero and positive direction; no crystallographic assignment required.',
         },
         {
           key: 'polarization_scan_axis',
@@ -6031,10 +8658,10 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           when: {
             data_type: ['polarization_scan'],
           },
+          recommended: true,
         },
         {
           key: 'angle_range_deg',
-          legacy_only: true,
           label_zh: '角度范围',
           label_en: 'Angular range',
           value_type: 'range',
@@ -6055,6 +8682,435 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             data_type: ['polarization_scan'],
           },
           signed: true,
+        },
+        {
+          key: 'objective_na',
+          label_zh: '物镜数值孔径 NA',
+          label_en: 'Objective numerical aperture',
+          value_type: 'number',
+        },
+        {
+          key: 'grating_lines_per_mm',
+          label_zh: '实际光栅刻线密度',
+          label_en: 'Grating groove density',
+          value_type: 'number',
+          unit: 'lines/mm',
+        },
+        {
+          key: 'slit_width_um',
+          label_zh: '入口狭缝宽度',
+          label_en: 'Entrance slit width',
+          value_type: 'number',
+          unit: 'μm',
+        },
+        {
+          key: 'filter_configuration',
+          label_zh: '实际滤光配置',
+          label_en: 'Filter configuration used',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '滤光片型号/通带/截止范围',
+          placeholder_en: 'Filter model / passband / cutoff',
+        },
+        {
+          key: 'detector',
+          label_zh: '实际探测器/相机',
+          label_en: 'Detector / camera used',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'detector_gain',
+          label_zh: '探测器增益及单位/档位',
+          label_en: 'Detector gain and unit/setting',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          placeholder_zh: '例如 1×、6 dB；按仪器显示填写',
+          placeholder_en: 'e.g. 1× or 6 dB, as reported',
+        },
+        {
+          key: 'collection_geometry',
+          label_zh: '光学收集几何',
+          label_en: 'Optical collection geometry',
+          value_type: 'select',
+          options: [
+            {
+              value: 'reflection',
+              label_zh: '反射/背散射',
+              label_en: 'Reflection / backscattering',
+            },
+            {
+              value: 'transmission',
+              label_zh: '透射',
+              label_en: 'Transmission',
+            },
+            {
+              value: 'other',
+              label_zh: '其他',
+              label_en: 'Other',
+            },
+          ],
+        },
+        {
+          key: 'incident_polarization_state',
+          label_zh: '入射偏振状态',
+          label_en: 'Incident polarization state',
+          value_type: 'select',
+          options: [
+            {
+              value: 'linear',
+              label_zh: '线偏振',
+              label_en: 'Linear',
+            },
+            {
+              value: 'circular',
+              label_zh: '圆偏振',
+              label_en: 'Circular',
+            },
+            {
+              value: 'elliptical',
+              label_zh: '椭圆偏振',
+              label_en: 'Elliptical',
+            },
+            {
+              value: 'unpolarized',
+              label_zh: '非偏振',
+              label_en: 'Unpolarized',
+            },
+          ],
+        },
+        {
+          key: 'analyzer_mode',
+          label_zh: '检偏方式',
+          label_en: 'Analyzer mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'none',
+              label_zh: '未加检偏器',
+              label_en: 'No analyzer',
+            },
+            {
+              value: 'fixed',
+              label_zh: '固定角度',
+              label_en: 'Fixed angle',
+            },
+            {
+              value: 'parallel',
+              label_zh: '随动保持平行',
+              label_en: 'Parallel tracking',
+            },
+            {
+              value: 'crossed',
+              label_zh: '随动保持交叉',
+              label_en: 'Crossed tracking',
+            },
+          ],
+        },
+        {
+          key: 'incident_polarization_angle_deg',
+          label_zh: '入射偏振角',
+          label_en: 'Incident polarization angle',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -360,
+            le: 360,
+          },
+          when: {
+            incident_polarization_state: ['linear'],
+          },
+        },
+        {
+          key: 'analyzer_angle_deg',
+          label_zh: '检偏器角度',
+          label_en: 'Analyzer angle',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -360,
+            le: 360,
+          },
+          when: {
+            analyzer_mode: ['fixed'],
+          },
+        },
+        {
+          key: 'polarization_reference',
+          label_zh: '偏振角参照/正方向',
+          label_en: 'Polarization reference / positive direction',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'collection_geometry_other',
+          label_zh: '其他收集几何',
+          label_en: 'Other collection geometry',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+          when: {
+            collection_geometry: ['other'],
+          },
+          required_when: {
+            collection_geometry: ['other'],
+          },
+        },
+        {
+          key: 'acquisition_kind',
+          label_zh: '采集形式',
+          label_en: 'Acquisition type',
+          value_type: 'select',
+          options: [
+            {
+              value: 'single',
+              label_zh: '单次采集',
+              label_en: 'Single acquisition',
+            },
+            {
+              value: 'mapping',
+              label_zh: '映射',
+              label_en: 'Mapping',
+            },
+            {
+              value: 'series',
+              label_zh: '时间/参数序列',
+              label_en: 'Time / parameter series',
+            },
+          ],
+        },
+        {
+          key: 'scan_coordinates',
+          label_zh: '扫描轴/步距/逐点参数来源',
+          label_en: 'Scan axes / spacing / per-point metadata',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          when: {
+            acquisition_kind: ['mapping', 'series'],
+          },
+          placeholder_zh:
+            '填写文件名及坐标/时间/功率等列名；参数变化不共用一个数值',
+          placeholder_en:
+            'File and coordinate/time/power columns; retain varying values per point',
+        },
+        {
+          key: 'intensity_processing',
+          label_zh: '强度处理口径',
+          label_en: 'Intensity processing',
+          value_type: 'select',
+          options: [
+            {
+              value: 'unscaled',
+              label_zh: '原始计数口径',
+              label_en: 'Unscaled acquisition counts',
+            },
+            {
+              value: 'count_rate',
+              label_zh: '计数率',
+              label_en: 'Count rate',
+            },
+            {
+              value: 'normalized',
+              label_zh: '归一化相对强度',
+              label_en: 'Normalized relative intensity',
+            },
+          ],
+          section: 'results',
+        },
+        {
+          key: 'accumulation_method',
+          label_zh: '光谱累积处理',
+          label_en: 'Spectral accumulation method',
+          value_type: 'select',
+          options: [
+            {
+              value: 'sum',
+              label_zh: '求和',
+              label_en: 'Sum',
+            },
+            {
+              value: 'mean',
+              label_zh: '平均',
+              label_en: 'Mean',
+            },
+            {
+              value: 'separate',
+              label_zh: '分别保存',
+              label_en: 'Kept separately',
+            },
+          ],
+        },
+        {
+          key: 'scan_angle_quantity',
+          label_zh: '扫描文件中的角度量',
+          label_en: 'Angle quantity in scan file',
+          value_type: 'select',
+          options: [
+            {
+              value: 'waveplate',
+              label_zh: '半波片机械角',
+              label_en: 'Half-wave plate mechanical angle',
+            },
+            {
+              value: 'polarization',
+              label_zh: '入射偏振角',
+              label_en: 'Incident polarization angle',
+            },
+            {
+              value: 'analyzer',
+              label_zh: '检偏器角',
+              label_en: 'Analyzer angle',
+            },
+            {
+              value: 'sample',
+              label_zh: '样品转角',
+              label_en: 'Sample rotation',
+            },
+          ],
+          when: {
+            data_type: ['polarization_scan'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'angle_step_deg',
+          label_zh: '角度步距',
+          label_en: 'Angular step',
+          value_type: 'number',
+          unit: '°',
+          when: {
+            data_type: ['polarization_scan'],
+          },
+        },
+        {
+          key: 'power_scan_coordinates',
+          label_zh: '逐点功率/信号列及口径',
+          label_en: 'Per-point power / signal columns and basis',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          when: {
+            data_type: ['power_scan'],
+          },
+          recommended: true,
+        },
+        {
+          key: 'spot_size_um',
+          label_zh: '实测光斑尺寸',
+          label_en: 'Measured spot size',
+          value_type: 'number',
+          unit: 'μm',
+        },
+        {
+          key: 'spot_size_definition',
+          label_zh: '光斑尺寸定义/测量依据',
+          label_en: 'Spot size definition / measurement source',
+          value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
+        },
+        {
+          key: 'exposure_time_ms',
+          label_zh: '实际曝光时间',
+          label_en: 'Actual exposure time',
+          value_type: 'number',
+          unit: 'ms',
+          when: {
+            data_type: ['image'],
+          },
+        },
+        {
+          key: 'pixel_dwell_time_us',
+          label_zh: '每像素驻留时间',
+          label_en: 'Pixel dwell time',
+          value_type: 'number',
+          unit: 'μs',
+          when: {
+            data_type: ['image'],
+          },
+        },
+        {
+          key: 'resolution_px',
+          label_zh: '采样点数',
+          label_en: 'Sampling points',
+          value_type: 'resolution',
+          components: [
+            {
+              key: 'width',
+              label_zh: '宽',
+              label_en: 'Width',
+            },
+            {
+              key: 'height',
+              label_zh: '高',
+              label_en: 'Height',
+            },
+          ],
+          when: {
+            data_type: ['image'],
+          },
+        },
+        {
+          key: 'image_scale_um_per_px',
+          label_zh: 'X 像素尺度',
+          label_en: 'X pixel scale',
+          value_type: 'number',
+          unit: 'μm/px',
+          when: {
+            data_type: ['image'],
+          },
+        },
+        {
+          key: 'image_scale_y_um_per_px',
+          label_zh: 'Y 像素尺度',
+          label_en: 'Y pixel scale',
+          value_type: 'number',
+          unit: 'μm/px',
+          when: {
+            data_type: ['image'],
+          },
+        },
+        {
+          key: 'sample_preparation',
+          label_zh: '表征前制样/处理记录',
+          label_en: 'Preparation before measurement',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh: '处理时间、操作、载体/支撑膜；已有记录填写编号',
+          placeholder_en:
+            'Time, treatment, carrier/support; reference an existing record',
+        },
+        {
+          key: 'acquisition_note',
+          label_zh: '采集条件来源/缺项说明',
+          label_en: 'Acquisition metadata source / missing information',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
+          multiline: true,
+          placeholder_zh:
+            '填写原文件/仪器报告位置或无法获取的参数；不猜填默认值',
+          placeholder_en:
+            'Source file/report location or unavailable settings; do not guess values',
         },
       ],
       allowed_property_codes: ['spectral_peaks', 'observation_note'],
