@@ -990,6 +990,9 @@ class V2ReportingService:
                     "scan_file_id": (record.attrs or {}).get("scan_file_id"),
                     "variable_conditions": (record.attrs or {}).get("variable_conditions", []),
                     "file_intensity_units": (record.attrs or {}).get("file_intensity_units", {}),
+                    "file_response_corrections": (record.attrs or {}).get(
+                        "file_response_corrections", {}
+                    ),
                     "quality_flag": record.quality_flag,
                     "quality_note": (record.attrs or {}).get("quality_note"),
                     "attrs": record.attrs,

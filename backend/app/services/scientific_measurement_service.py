@@ -236,12 +236,14 @@ class ScientificMeasurementService:
             measurement.method_profile,
             measurement.measured_at,
         )
-        if measurement.method_profile == "Raman":
+        if measurement.method_profile in {"Raman", "PL"}:
             instrument_snapshot["calibration_at_measurement"] = self._raman_calibration_snapshot(
                 measurement.instrument_id,
                 measurement.measured_at,
                 measurement.instrument_configuration,
                 measurement.instrument_version,
+                method=measurement.method_profile,
+                conditions=measurement.typed_conditions.model_dump(exclude_none=True),
             )
             attrs = (instrument_snapshot or {}).get("attrs_snapshot", {})
             capability = next(
@@ -249,31 +251,40 @@ class ScientificMeasurementService:
                     item
                     for item in attrs.get("capabilities", [])
                     if isinstance(item, dict)
-                    and item.get("code") in {"Raman", "low_frequency_raman"}
+                    and item.get("code")
+                    in (
+                        {"PL"}
+                        if measurement.method_profile == "PL"
+                        else {"Raman", "low_frequency_raman"}
+                    )
                 ),
                 {},
             )
-            catalog = capability.get("configuration", {}).get("raman")
+            catalog = capability.get("configuration", {}).get(measurement.method_profile.lower())
             try:
                 if catalog:
                     fixed, adjustable = resolve_om_configuration(
-                        catalog, measurement.instrument_configuration, method="Raman"
+                        catalog,
+                        measurement.instrument_configuration,
+                        method=measurement.method_profile,
                     )
                     actual = measurement.typed_conditions.model_dump(exclude_none=True)
                     for key, value in fixed.items():
                         if key not in adjustable and actual.get(key) != value:
                             raise ValueError(
-                                "Raman conditions must match the selected instrument configuration"
+                                "Conditions must match the selected instrument configuration"
                             )
                     required = set(
-                        self.entities.doc["raman_configuration"]["required_acquisition_keys"]
+                        self.entities.doc[f"{measurement.method_profile.lower()}_configuration"][
+                            "required_acquisition_keys"
+                        ]
                     )
                     if required - actual.keys() - set(measurement.variable_conditions):
-                        raise ValueError("complete the Raman acquisition settings")
+                        raise ValueError("complete the spectral acquisition settings")
                     if (set(measurement.variable_conditions) & fixed.keys()) - adjustable:
                         raise ValueError("a fixed instrument setting cannot vary in this scan")
                 elif measurement.instrument_configuration:
-                    raise ValueError("Raman catalog is absent from this instrument version")
+                    raise ValueError("Instrument catalog is absent from this instrument version")
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
         if measurement.method_profile == "optical_microscopy":
@@ -391,12 +402,16 @@ class ScientificMeasurementService:
                         if measurement.scan_file_id
                         else None,
                         "variable_conditions": measurement.variable_conditions,
+                        "file_response_corrections": {
+                            str(k): v.model_dump(exclude_none=True)
+                            for k, v in measurement.file_response_corrections.items()
+                        },
                         "file_intensity_units": {
                             str(key): value
                             for key, value in measurement.file_intensity_units.items()
                         },
                     }
-                    if measurement.method_profile == "Raman"
+                    if measurement.method_profile in {"Raman", "PL"}
                     else {}
                 ),
                 **(
@@ -931,6 +946,7 @@ class ScientificMeasurementService:
             scan_file_id=(record.attrs or {}).get("scan_file_id"),
             variable_conditions=(record.attrs or {}).get("variable_conditions", []),
             file_intensity_units=(record.attrs or {}).get("file_intensity_units", {}),
+            file_response_corrections=(record.attrs or {}).get("file_response_corrections", {}),
             supplementary_files=[file_read(file) for file in supplementary_files],
             file_contexts=attrs.get("file_contexts", []),
             operator_name=attrs.get("operator_name"),
@@ -1084,7 +1100,13 @@ class ScientificMeasurementService:
         return snapshot
 
     def _raman_calibration_snapshot(
-        self, instrument_id: UUID, measured_at: datetime, selection: dict, version: int
+        self,
+        instrument_id: UUID,
+        measured_at: datetime,
+        selection: dict,
+        version: int,
+        method: str = "Raman",
+        conditions: dict | None = None,
     ) -> dict:
         events = self.db.scalars(
             select(InstrumentLifecycleEvent)
@@ -1103,8 +1125,40 @@ class ScientificMeasurementService:
             if type(scope_version) is not int or scope_version != version:
                 continue
             quantity = (event.quantity or "").strip().lower().replace(" ", "_")
-            if quantity not in {"raman_shift", "relative_intensity", "laser_power"}:
+            allowed = (
+                {"wavelength", "emission_response", "laser_power"}
+                if method == "PL"
+                else {"raman_shift", "relative_intensity", "laser_power"}
+            )
+            if quantity not in allowed:
                 continue
+            if method == "PL" and (event.details_json or {}).get("method_profile") != "PL":
+                continue
+            if method == "PL" and quantity == "laser_power":
+                measured = conditions or {}
+                calibrated = (event.details_json or {}).get("conditions", {})
+                keys = {
+                    "excitation_wavelength_nm",
+                    "pulse_width_fs",
+                    "repetition_rate_MHz",
+                } & measured.keys()
+                if (
+                    not keys
+                    or not isinstance(calibrated, dict)
+                    or any(calibrated.get(key) != measured[key] for key in keys)
+                ):
+                    continue
+            if method == "PL" and quantity == "emission_response":
+                covered = (event.details_json or {}).get("spectral_range_nm", {})
+                used = (conditions or {}).get("spectral_range_nm", {})
+                if (
+                    not isinstance(covered, dict)
+                    or not used
+                    or not all(type(covered.get(key)) in {int, float} for key in ["min", "max"])
+                ):
+                    continue
+                if not 0 < covered["min"] <= used["min"] < used["max"] <= covered["max"]:
+                    continue
             refs = (event.details_json or {}).get("configuration", {})
             required = {
                 "lasers",

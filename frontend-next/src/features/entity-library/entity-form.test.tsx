@@ -333,84 +333,96 @@ describe('EntityForm — multi-select values', () => {
       },
     })
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'PL' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'AFM' }))
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(onSubmit.mock.calls[0][0].capabilities).toEqual([
-      { code: 'PL', configuration: {} },
+      { code: 'AFM', configuration: {} },
     ])
-    expect(onSubmit.mock.calls[0][0].name_type).toBe('PL')
+    expect(onSubmit.mock.calls[0][0].name_type).toBe('AFM')
     expect(screen.queryByRole('combobox', { name: /表征方法/ })).toBeNull()
   })
 
-  it('registers Raman objectives with NA and saves acquisition presets separately', async () => {
-    const user = userEvent.setup()
-    const onSubmit = vi.fn()
-    renderForm({
-      kind: 'instrument',
-      onSubmit,
-      defaultData: {
-        instrument_code: 'R46',
-        capabilities: [
-          {
-            code: 'Raman',
-            configuration: {
-              raman: {
-                lasers: [
-                  {
-                    name: 'Green',
-                    conditions: {
-                      laser_wavelength_nm: 532,
-                      power_setting_unit: 'percent',
+  it.each(['Raman', 'PL'])(
+    'registers %s objectives with NA and saves acquisition presets separately',
+    async (method) => {
+      const user = userEvent.setup()
+      const onSubmit = vi.fn()
+      renderForm({
+        kind: 'instrument',
+        onSubmit,
+        defaultData: {
+          instrument_code: 'R46',
+          capabilities: [
+            {
+              code: method,
+              configuration: {
+                [method.toLowerCase()]: {
+                  lasers: [
+                    {
+                      name: 'Green',
+                      conditions: {
+                        [method === 'PL'
+                          ? 'excitation_wavelength_nm'
+                          : 'laser_wavelength_nm']: 532,
+                        ...(method === 'PL'
+                          ? {
+                              excitation_source_kind: 'laser',
+                              excitation_mode: 'continuous',
+                            }
+                          : {}),
+                        power_setting_unit: 'percent',
+                      },
                     },
-                  },
-                ],
-                objectives: [
-                  {
-                    name: '100x',
-                    conditions: {
-                      sampling_optic: 'microscope',
-                      objective_magnification: 100,
-                      objective_immersion: 'air',
+                  ],
+                  objectives: [
+                    {
+                      name: '100x',
+                      conditions: {
+                        sampling_optic: 'microscope',
+                        objective_magnification: 100,
+                        objective_immersion: 'air',
+                      },
                     },
-                  },
-                ],
-                spectrometers: [
-                  {
-                    name: 'CCD1800',
-                    references: { lasers: 'Green' },
-                    conditions: {
-                      grating_lines_per_mm: 1800,
-                      detector: 'CCD',
-                      collection_geometry: 'reflection',
-                      filter_configuration: '532 edge',
+                  ],
+                  spectrometers: [
+                    {
+                      name: 'CCD1800',
+                      references: { lasers: 'Green' },
+                      conditions: {
+                        grating_lines_per_mm: 1800,
+                        detector: 'CCD',
+                        collection_geometry: 'reflection',
+                        filter_configuration: '532 edge',
+                      },
                     },
-                  },
+                  ],
+                },
+                presets: [
+                  { name: '10s', conditions: { integration_time_s: 10 } },
                 ],
               },
-              presets: [
-                { name: '10s', conditions: { integration_time_s: 10 } },
-              ],
             },
-          },
-        ],
-      },
-    })
-    fireEvent.click(screen.getByRole('button', { name: '保存' }))
-    expect(onSubmit).not.toHaveBeenCalled()
-    await user.type(screen.getByLabelText(/^物镜数值孔径 NA/), '0.9')
-    fireEvent.click(screen.getByRole('button', { name: '保存' }))
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
-    expect(
-      onSubmit.mock.calls[0][0].capabilities[0].configuration.raman
-        .objectives[0].conditions.objective_na,
-    ).toBe(0.9)
-    expect(
-      onSubmit.mock.calls[0][0].capabilities[0].configuration.presets[0]
-        .conditions,
-    ).toEqual({ integration_time_s: 10 })
-  })
+          ],
+        },
+      })
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+      expect(onSubmit).not.toHaveBeenCalled()
+      await user.type(screen.getByLabelText(/^物镜数值孔径 NA/), '0.9')
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+      expect(
+        onSubmit.mock.calls[0][0].capabilities[0].configuration[
+          method.toLowerCase()
+        ].objectives[0].conditions.objective_na,
+      ).toBe(0.9)
+      expect(
+        onSubmit.mock.calls[0][0].capabilities[0].configuration.presets[0]
+          .conditions,
+      ).toEqual({ integration_time_s: 10 })
+    },
+  )
 
   it('requires objective NA and preserves the previous hardware version', async () => {
     const onSubmit = vi.fn()
@@ -501,12 +513,12 @@ describe('EntityForm — multi-select values', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: '添加方法' }))
     fireEvent.click(screen.getByRole('button', { name: '删除方法 3' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'PL' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'AFM' }))
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(onSubmit.mock.calls[0][0].capabilities).toEqual([
       { code: 'other', configuration: { method_names: ['XPS', 'FTIR'] } },
-      { code: 'PL', configuration: {} },
+      { code: 'AFM', configuration: {} },
     ])
   })
 

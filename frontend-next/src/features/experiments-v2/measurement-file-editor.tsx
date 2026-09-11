@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/select'
 
 export type MeasurementFileDraft = {
+  responseCorrection?: 'applied' | 'not_applied' | ''
+  responseSource?: string
   intensityUnit?: string
   role: 'raw' | 'processed' | 'supporting'
   sourceIndices: number[]
@@ -94,7 +96,8 @@ export function MeasurementFileEditor({
                     </SelectContent>
                   </Select>
                 </Field>
-                {method === 'Raman' && item.role !== 'supporting' ? (
+                {['Raman', 'PL'].includes(method ?? '') &&
+                item.role !== 'supporting' ? (
                   <Field>
                     <FieldLabel htmlFor={`file-intensity-${index}`}>
                       {t('raman.fileIntensity')}
@@ -128,6 +131,66 @@ export function MeasurementFileEditor({
                       </SelectContent>
                     </Select>
                   </Field>
+                ) : null}
+                {method === 'PL' && item.role !== 'supporting' ? (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor={`file-response-${index}`}>
+                        {t('pl.responseCorrection')}
+                      </FieldLabel>
+                      <Select
+                        value={item.responseCorrection || '__empty'}
+                        disabled={disabled}
+                        onValueChange={(value) =>
+                          onChange(index, {
+                            responseCorrection:
+                              value === '__empty'
+                                ? ''
+                                : (value as 'applied' | 'not_applied'),
+                            responseSource: '',
+                          })
+                        }
+                      >
+                        <SelectTrigger id={`file-response-${index}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="__empty">
+                              {t('raman.notRecorded')}
+                            </SelectItem>
+                            <SelectItem value="applied">
+                              {t('pl.applied')}
+                            </SelectItem>
+                            <SelectItem value="not_applied">
+                              {t('pl.notApplied')}
+                            </SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    {item.responseCorrection === 'applied' ? (
+                      <Field
+                        data-invalid={!item.responseSource?.trim() || undefined}
+                      >
+                        <FieldLabel htmlFor={`file-response-source-${index}`}>
+                          {t('pl.correctionSource')}
+                        </FieldLabel>
+                        <Input
+                          id={`file-response-source-${index}`}
+                          required
+                          aria-invalid={!item.responseSource?.trim()}
+                          maxLength={1000}
+                          value={item.responseSource ?? ''}
+                          onChange={(event) =>
+                            onChange(index, {
+                              responseSource: event.target.value,
+                            })
+                          }
+                        />
+                      </Field>
+                    ) : null}
+                  </>
                 ) : null}
                 {item.role !== 'raw' ? (
                   <>

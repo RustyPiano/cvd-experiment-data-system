@@ -91,6 +91,7 @@ interface RawDoc {
   substrate_orientation: Record<string, unknown>
   om_configuration: Record<string, unknown>
   raman_configuration: Record<string, unknown>
+  pl_configuration: Record<string, unknown>
   scientific_contract: { property_units: Record<string, string> }
   gas_species: Record<
     string,
@@ -417,6 +418,7 @@ export interface StageType {
 }
 
 export interface CharacterizationConditionField {
+  display_units?: string[]
   requires?: string[]
   conditional_validation?: Array<{ when: Record<string, string[]>; validation: { ge?: number; gt?: number; le?: number; lt?: number } }>
   when?: Record<string, string[]>
@@ -511,6 +513,7 @@ const content =
     `export const fieldMetadataMeta: FieldMetadataMeta = ${JSON.stringify(meta, null, 2)}`,
     `export const substrateOrientation: { format: string; sources: string[]; max_length: number; statuses: string[]; presets: Record<string, string[]>; index_counts: Record<string, number[]>; sapphire_plane_names: Record<string, string>; sapphire_name_suffixes: string[] } = ${JSON.stringify(doc.substrate_orientation, null, 2)}`,
     `export const omConfiguration: OpticalConfigurationSpec = ${JSON.stringify(doc.om_configuration, null, 2)}`,
+    `export const plConfiguration: OpticalConfigurationSpec = ${JSON.stringify(doc.pl_configuration, null, 2)}`,
     `export const ramanConfiguration: OpticalConfigurationSpec = ${JSON.stringify(doc.raman_configuration, null, 2)}`,
     `/** 已发布实验记录字段，按模块键分组。 */\nexport const experimentModules: Record<string, FieldMetadata[]> = ${JSON.stringify(experimentModules, null, 2)}`,
     `/** 三个一等实体的登记字段（material_lot / setup / instrument） */\nexport const entities: Record<string, FieldMetadata[]> = ${JSON.stringify(entities, null, 2)}`,

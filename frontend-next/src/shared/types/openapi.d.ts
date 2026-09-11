@@ -1905,6 +1905,10 @@ export interface components {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "whole_sample" | "selected_area";
                 } | null;
+                scan_file_id?: null;
+                variable_conditions?: unknown;
+                file_intensity_units?: unknown;
+                file_response_corrections?: unknown;
             } & ({
                 instrument_id?: null;
                 instrument_version?: null;
@@ -1986,6 +1990,7 @@ export interface components {
                 /** Format: uuid */
                 instrument_id: string;
                 instrument_version: number;
+                file_response_corrections?: unknown;
                 variable_conditions?: ("power_setting" | "sample_power_mW" | "integration_time_s" | "temperature_K" | "incident_polarization_angle_deg" | "analyzer_angle_deg")[];
             } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
             properties?: unknown;
@@ -2013,6 +2018,11 @@ export interface components {
                 /** Format: uuid */
                 instrument_id: string;
                 instrument_version: number;
+                instrument_configuration?: unknown;
+                scan_file_id?: null;
+                variable_conditions?: unknown;
+                file_intensity_units?: unknown;
+                file_response_corrections?: unknown;
             };
             properties?: unknown;
             assertions?: unknown;
@@ -2042,11 +2052,11 @@ export interface components {
                     detector?: string;
                     detector_gain?: string;
                     /** @enum {string} */
-                    collection_geometry?: "reflection" | "transmission" | "other";
+                    collection_geometry?: "reflection" | "transmission" | "right_angle" | "other";
                     /** @enum {string} */
                     incident_polarization_state?: "linear" | "circular" | "elliptical" | "unpolarized";
                     /** @enum {string} */
-                    analyzer_mode?: "none" | "fixed" | "parallel" | "crossed";
+                    analyzer_mode?: "none" | "fixed" | "parallel" | "crossed" | "circular";
                     incident_polarization_angle_deg?: number;
                     analyzer_angle_deg?: number;
                     polarization_reference?: string;
@@ -2060,7 +2070,7 @@ export interface components {
                     /** @enum {string} */
                     intensity_processing?: "unscaled" | "count_rate" | "normalized";
                     /** @enum {string} */
-                    accumulation_method?: "sum" | "mean" | "separate";
+                    accumulation_method?: "sum" | "mean";
                     /** @enum {string} */
                     response_correction?: "applied" | "not_applied";
                     response_correction_source?: string;
@@ -2070,7 +2080,37 @@ export interface components {
                     repetition_rate_MHz?: number;
                     sample_preparation?: string;
                     acquisition_note?: string;
-                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
+                    objective_magnification?: number;
+                    /** @enum {string} */
+                    objective_immersion?: "air" | "oil" | "water" | "other";
+                    /** @enum {string} */
+                    sampling_optic?: "microscope" | "probe";
+                    power_setting?: string;
+                    /** @enum {string} */
+                    power_setting_unit?: "percent" | "mW" | "level";
+                    sample_power_mW?: number;
+                    /** @enum {string} */
+                    temperature_control?: "ambient" | "recorded";
+                    /** @enum {string} */
+                    environment_kind?: "air" | "vacuum" | "gas" | "liquid" | "other";
+                    confocal_aperture_um?: number;
+                    relative_intensity_calibration?: string;
+                    /** @enum {string} */
+                    excitation_source_kind?: "laser" | "led" | "lamp" | "other";
+                    /** @enum {string} */
+                    incident_helicity?: "sigma_plus" | "sigma_minus";
+                    /** @enum {string} */
+                    detection_helicity?: "sigma_plus" | "sigma_minus";
+                    helicity_reference?: string;
+                    wavelength_calibration?: string;
+                    elapsed_time_s?: number;
+                    /** @enum {string} */
+                    slit_setting_kind?: "width" | "bandwidth";
+                    emission_bandwidth_nm?: number;
+                    /** @enum {string} */
+                    spectral_acquisition?: "array" | "scanning";
+                    wavelength_step_nm?: number;
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "line" | "whole_sample" | "selected_area";
@@ -2079,7 +2119,11 @@ export interface components {
                 /** Format: uuid */
                 instrument_id: string;
                 instrument_version: number;
-            };
+                file_response_corrections?: {
+                    [key: string]: unknown;
+                };
+                variable_conditions?: ("power_setting" | "sample_power_mW" | "integration_time_s" | "temperature_K" | "incident_polarization_angle_deg" | "analyzer_angle_deg" | "pulse_width_fs" | "repetition_rate_MHz" | "elapsed_time_s")[];
+            } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
             properties?: unknown;
             assertions?: unknown;
         } & {
@@ -2126,6 +2170,11 @@ export interface components {
                 /** Format: uuid */
                 instrument_id: string;
                 instrument_version: number;
+                instrument_configuration?: unknown;
+                scan_file_id?: null;
+                variable_conditions?: unknown;
+                file_intensity_units?: unknown;
+                file_response_corrections?: unknown;
             };
             properties?: unknown;
             assertions?: unknown;
@@ -2186,6 +2235,11 @@ export interface components {
                 /** Format: uuid */
                 instrument_id: string;
                 instrument_version: number;
+                instrument_configuration?: unknown;
+                scan_file_id?: null;
+                variable_conditions?: unknown;
+                file_intensity_units?: unknown;
+                file_response_corrections?: unknown;
             };
             properties?: unknown;
             assertions?: unknown;
@@ -2236,6 +2290,11 @@ export interface components {
                 /** Format: uuid */
                 instrument_id: string;
                 instrument_version: number;
+                instrument_configuration?: unknown;
+                scan_file_id?: null;
+                variable_conditions?: unknown;
+                file_intensity_units?: unknown;
+                file_response_corrections?: unknown;
             };
             properties?: unknown;
             assertions?: unknown;
@@ -2307,6 +2366,11 @@ export interface components {
                 /** Format: uuid */
                 instrument_id: string;
                 instrument_version: number;
+                instrument_configuration?: unknown;
+                scan_file_id?: null;
+                variable_conditions?: unknown;
+                file_intensity_units?: unknown;
+                file_response_corrections?: unknown;
             };
             properties?: unknown;
             assertions?: unknown;
@@ -2324,6 +2388,11 @@ export interface components {
                     geometry_type: "whole_sample" | "point" | "area" | "selected_area";
                 } | null;
                 raw_file_ids: unknown[];
+                instrument_configuration?: unknown;
+                scan_file_id?: null;
+                variable_conditions?: unknown;
+                file_intensity_units?: unknown;
+                file_response_corrections?: unknown;
             } & ({
                 instrument_id?: null;
                 instrument_version?: null;
@@ -2408,6 +2477,11 @@ export interface components {
                 /** Format: uuid */
                 instrument_id: string;
                 instrument_version: number;
+                instrument_configuration?: unknown;
+                scan_file_id?: null;
+                variable_conditions?: unknown;
+                file_intensity_units?: unknown;
+                file_response_corrections?: unknown;
             };
             properties?: unknown;
             assertions?: unknown;
@@ -2653,6 +2727,26 @@ export interface components {
             diffraction_mode?: string | null;
             /** Spectrum Mode */
             spectrum_mode?: string | null;
+            /** Slit Setting Kind */
+            slit_setting_kind?: string | null;
+            /** Spectral Acquisition */
+            spectral_acquisition?: string | null;
+            /** Emission Bandwidth Nm */
+            emission_bandwidth_nm?: number | null;
+            /** Wavelength Step Nm */
+            wavelength_step_nm?: number | null;
+            /** Elapsed Time S */
+            elapsed_time_s?: number | null;
+            /** Excitation Source Kind */
+            excitation_source_kind?: string | null;
+            /** Incident Helicity */
+            incident_helicity?: string | null;
+            /** Detection Helicity */
+            detection_helicity?: string | null;
+            /** Helicity Reference */
+            helicity_reference?: string | null;
+            /** Wavelength Calibration */
+            wavelength_calibration?: string | null;
             /** Excitation Mode */
             excitation_mode?: string | null;
             /** Input Polarization */
@@ -2802,6 +2896,10 @@ export interface components {
             file_intensity_units?: {
                 [key: string]: string;
             };
+            /** File Response Corrections */
+            file_response_corrections?: {
+                [key: string]: components["schemas"]["SpectralResponseCorrection"];
+            };
             /** Supplementary Files */
             supplementary_files?: components["schemas"]["MeasurementRawFileRead"][];
             /** File Contexts */
@@ -2935,6 +3033,10 @@ export interface components {
             scan_file_id?: string | null;
             /** Variable Conditions */
             variable_conditions?: string[];
+            /** File Response Corrections */
+            file_response_corrections?: {
+                [key: string]: components["schemas"]["SpectralResponseCorrection"];
+            };
             /** File Intensity Units */
             file_intensity_units?: {
                 [key: string]: "a.u." | "counts" | "counts/s";
@@ -3634,6 +3736,16 @@ export interface components {
             value: number;
             /** Unit */
             unit: string;
+        };
+        /** SpectralResponseCorrection */
+        SpectralResponseCorrection: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "not_applied";
+            /** Source */
+            source?: string | null;
         };
         /** SubstrateOrientationPolishValue */
         SubstrateOrientationPolishValue: {

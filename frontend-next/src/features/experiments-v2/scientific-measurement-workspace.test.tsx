@@ -87,6 +87,7 @@ vi.mock('./components/entity-reference-select', () => ({
                 capabilities: [
                   'optical_microscopy',
                   'Raman',
+                  'PL',
                   'AFM',
                   'SEM',
                   'TEM',
@@ -357,59 +358,93 @@ describe('SimpleCharacterizationWorkspace', () => {
     })
   })
 
-  it('applies the selected instrument version preset and allows actual settings to differ', async () => {
-    const user = userEvent.setup()
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
-    entityApi.listEntityVersions.mockResolvedValue({
-      items: [
-        {
-          id: 'preset-version',
-          entity_id: 'instrument-1',
-          version: 2,
-          data: {
-            name_type: 'Raman',
-            capabilities: [
-              {
-                code: 'Raman',
-                configuration: {
-                  presets: [
-                    {
-                      name: '10 s',
-                      conditions: {
-                        integration_time_s: 10,
+  it.each(['Raman', 'PL'])(
+    'applies the selected instrument version preset and allows actual settings to differ',
+    async (method) => {
+      const user = userEvent.setup()
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+      entityApi.listEntityVersions.mockResolvedValue({
+        items: [
+          {
+            id: 'preset-version',
+            entity_id: 'instrument-1',
+            version: 2,
+            data: {
+              name_type: method,
+              capabilities: [
+                {
+                  code: method,
+                  configuration: {
+                    presets: [
+                      {
+                        name: '10 s',
+                        conditions: {
+                          integration_time_s: 10,
+                        },
                       },
-                    },
-                  ],
+                    ],
+                  },
                 },
-              },
-            ],
+              ],
+            },
           },
-        },
-      ],
-    })
-    renderWorkspace()
-    await chooseSampleAndMethod(user, 'Raman')
-    await user.click(screen.getByRole('button', { name: '选择表征仪器' }))
-    await user.click(screen.getByLabelText(/^仪器版本/))
-    await user.click(screen.getByRole('option', { name: /^v2/ }))
-    await user.type(screen.getByLabelText('观察说明'), '光谱有荧光背景')
-    await user.click(screen.getByRole('button', { name: '添加峰' }))
-    await user.type(screen.getByLabelText('峰 1 峰位 (cm⁻¹)'), '380')
-    await user.click(screen.getByLabelText('仪器配置预设'))
-    await user.click(screen.getByRole('option', { name: '10 s' }))
-    expect(screen.getByLabelText(/^积分时间/)).toHaveValue(10)
-    expect(screen.getByLabelText('观察说明')).toHaveValue('光谱有荧光背景')
-    expect(screen.getByLabelText('峰 1 峰位 (cm⁻¹)')).toHaveValue(380)
-    await user.clear(screen.getByLabelText(/^积分时间/))
-    await user.type(screen.getByLabelText(/^积分时间/), '12.5')
-    expect(screen.getByLabelText(/^积分时间/)).toHaveValue(12.5)
-    confirm.mockReturnValue(false)
-    await user.click(screen.getByLabelText('仪器配置预设'))
-    await user.click(screen.getByRole('option', { name: '10 s' }))
-    expect(confirm).toHaveBeenCalled()
-    expect(screen.getByLabelText(/^积分时间/)).toHaveValue(12.5)
-    confirm.mockRestore()
-  }, 20_000)
+        ],
+      })
+      renderWorkspace()
+      await chooseSampleAndMethod(user, method)
+      await user.click(screen.getByRole('button', { name: '选择表征仪器' }))
+      await user.click(screen.getByLabelText(/^仪器版本/))
+      await user.click(screen.getByRole('option', { name: /^v2/ }))
+      await user.type(screen.getByLabelText('观察说明'), '光谱有荧光背景')
+      await user.click(screen.getByRole('button', { name: '添加峰' }))
+      await user.type(
+        screen.getByLabelText(`峰 1 峰位 (${method === 'PL' ? 'nm' : 'cm⁻¹'})`),
+        '380',
+      )
+      await user.click(screen.getByLabelText('仪器配置预设'))
+      await user.click(screen.getByRole('option', { name: '10 s' }))
+      expect(screen.getByLabelText(/^积分时间/)).toHaveValue(10)
+      expect(screen.getByLabelText('观察说明')).toHaveValue('光谱有荧光背景')
+      expect(
+        screen.getByLabelText(`峰 1 峰位 (${method === 'PL' ? 'nm' : 'cm⁻¹'})`),
+      ).toHaveValue(380)
+      await user.clear(screen.getByLabelText(/^积分时间/))
+      await user.type(screen.getByLabelText(/^积分时间/), '12.5')
+      expect(screen.getByLabelText(/^积分时间/)).toHaveValue(12.5)
+      confirm.mockReturnValue(false)
+      await user.click(screen.getByLabelText('仪器配置预设'))
+      await user.click(screen.getByRole('option', { name: '10 s' }))
+      expect(confirm).toHaveBeenCalled()
+      expect(screen.getByLabelText(/^积分时间/)).toHaveValue(12.5)
+      await user.click(screen.getByRole('button', { name: '选择表征仪器' }))
+      expect(screen.getByLabelText(/^积分时间/)).toHaveValue(null)
+      expect(screen.getByLabelText('观察说明')).toHaveValue('光谱有荧光背景')
+      confirm.mockRestore()
+    },
+    20_000,
+  )
+
+  it('saves PL response corrections on their source file', async () => {
+    const user = userEvent.setup()
+    const { container } = renderWorkspace()
+    await chooseSampleAndMethod(user, 'PL')
+    await chooseInstrument(user)
+    await user.type(screen.getByLabelText(/^激发波长/), '532')
+    await user.upload(
+      container.querySelector<HTMLInputElement>('#characterization-raw-files')!,
+      new File(['wavelength,counts\n680,20'], 'pl.txt'),
+    )
+    await user.click(screen.getByLabelText('发射响应校正'))
+    await user.click(screen.getByRole('option', { name: '已应用' }))
+    expect(screen.getByRole('button', { name: '保存表征记录' })).toBeDisabled()
+    await user.type(screen.getByLabelText('校正曲线或报告'), 'PL curve 47')
+    await user.click(screen.getByRole('button', { name: '保存表征记录' }))
+    await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
+    expect(
+      api.createMeasurement.mock.calls[0][0].measurement
+        .file_response_corrections,
+    ).toEqual({ 'file-1': { status: 'applied', source: 'PL curve 47' } })
+  })
 
   describe('measurement settings constraints', () => {
     it('accepts zero and negative bounded values and caps percentage power', () => {
@@ -587,7 +622,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     )
     await user.click(screen.getByRole('button', { name: '添加峰' }))
     await user.type(screen.getByLabelText('峰 1 峰位 (cm⁻¹)'), '385')
-    await user.click(screen.getByLabelText('对应原始光谱'))
+    await user.click(screen.getByLabelText('来源光谱'))
     await user.click(screen.getByRole('option', { name: 'second.txt' }))
     await user.click(screen.getByRole('button', { name: '移除文件 first.txt' }))
     expect(confirm).not.toHaveBeenCalled()

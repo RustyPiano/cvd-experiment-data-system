@@ -1,6 +1,22 @@
 // en locale. Mirrors the key shape of zh/common.ts (the authoritative default).
 // English UI polish is a post-v2.0 task (D12); keep keys in sync as文案 lands.
 export const common = {
+  pl: {
+    register: 'Register PL configurations',
+    widthUnit: 'FWHM unit',
+    invalidCatalog:
+      'Complete the source, objective or probe, and spectral configurations.',
+    selectionRequired:
+      'Select the excitation source, objective or probe, and spectral configuration.',
+    peakRange: 'Peak positions must lie within the emission range.',
+    responseCorrection: 'Emission response correction',
+    applied: 'Applied',
+    notApplied: 'Not applied',
+    correctionSource: 'Correction curve or report',
+    correctionSourceRequired:
+      'Provide the response correction curve or report.',
+    unit: 'Unit',
+  },
   raman: {
     presetPowerUnitMismatch:
       'The preset power unit does not match the selected laser configuration.',
@@ -261,7 +277,7 @@ export const common = {
         solvent_cleaning: 'Solvent cleaning',
         nitrogen_dry: 'Nitrogen dry',
         plasma_treatment: 'Plasma treatment',
-        uv_ozone_treatment: 'UV/ozone treatment',
+        uv_ozone_treatment: 'UV/ozone surface treatment',
       },
       fields: {
         mode: 'Treatment mode',

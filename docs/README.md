@@ -6,6 +6,8 @@
 
 | 类别 | 文档 | 作用 |
 |---|---|---|
+| PL实施 | [reviews/2026-09-11-pl-implementation.md](reviews/2026-09-11-pl-implementation.md) | alpha.47设备配置、扫描/偏振、光谱单位、逐文件校正与校准适用性；本地验证通过，未部署 |
+| PL专项审查 | [reviews/2026-09-11-pl-field-review.md](reviews/2026-09-11-pl-field-review.md) | 34项条件、设备配置、偏振/脉冲、光谱单位与校正、峰来源及校准的逐项建议；只读探针与测试证据，未实施 |
 | Raman实施 | [reviews/2026-09-11-raman-implementation.md](reviews/2026-09-11-raman-implementation.md) | alpha.46设备配置、功率与序列、峰来源、校准适用性和验证记录；本地未部署 |
 | Raman专项审查 | [reviews/2026-09-10-raman-field-review.md](reviews/2026-09-10-raman-field-review.md) | 31项条件、设备登记、功率/偏振/扫描/峰来源及校准的逐项建议；只读探针与现有测试证据，未修改业务或发布 |
 | OM实施 | [reviews/2026-09-10-om-implementation.md](reviews/2026-09-10-om-implementation.md) | alpha.45设备目录、采集表单、图像校验及历史兼容的本地实施与验证 |

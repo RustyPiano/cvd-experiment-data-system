@@ -146,11 +146,15 @@ function instrumentCapabilitiesAreValid(value: string | string[]): boolean {
             capability.configuration,
             ['Raman', 'low_frequency_raman'].includes(capability.code)
               ? 'Raman'
-              : 'optical_microscopy',
+              : capability.code === 'PL'
+                ? 'PL'
+                : 'optical_microscopy',
           ),
           ['Raman', 'low_frequency_raman'].includes(capability.code)
             ? 'Raman'
-            : 'optical_microscopy',
+            : capability.code === 'PL'
+              ? 'PL'
+              : 'optical_microscopy',
         ) &&
         instrumentPresetsAreValid(capability.code, capability.configuration) &&
         (capability.configuration === undefined ||
@@ -990,9 +994,12 @@ function EntityFieldControl({
                       item.code === code ||
                       (code === 'Raman' && item.code === 'low_frequency_raman'),
                   )
-                  const catalogMethod =
-                    code === 'Raman' ? 'Raman' : 'optical_microscopy'
-                  const catalogKey = code === 'Raman' ? 'raman' : 'om'
+                  const catalogMethod = ['Raman', 'PL'].includes(code)
+                    ? code
+                    : 'optical_microscopy'
+                  const catalogKey = ['Raman', 'PL'].includes(code)
+                    ? code.toLowerCase()
+                    : 'om'
                   const catalog = omCatalog(
                     capability?.configuration,
                     catalogMethod,
@@ -1049,7 +1056,9 @@ function EntityFieldControl({
                                               ? { om: {} }
                                               : code === 'Raman'
                                                 ? { raman: {} }
-                                                : {},
+                                                : code === 'PL'
+                                                  ? { pl: {} }
+                                                  : {},
                                       },
                                     ]
                                   : capabilities.filter(
@@ -1071,7 +1080,7 @@ function EntityFieldControl({
                         </span>
                       </label>
                       {selected &&
-                      ['optical_microscopy', 'Raman'].includes(code) ? (
+                      ['optical_microscopy', 'Raman', 'PL'].includes(code) ? (
                         catalog ? (
                           <OMCatalogEditor
                             method={catalogMethod}
@@ -1119,9 +1128,11 @@ function EntityFieldControl({
                             }
                           >
                             {t(
-                              code === 'Raman'
-                                ? 'raman.register'
-                                : 'om.register',
+                              code === 'PL'
+                                ? 'pl.register'
+                                : code === 'Raman'
+                                  ? 'raman.register'
+                                  : 'om.register',
                             )}
                           </Button>
                         )

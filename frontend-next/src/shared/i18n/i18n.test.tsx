@@ -132,6 +132,7 @@ describe('i18n scaffolding', () => {
       'zh.experimentsV2.sections.targetProduct.guides.vertical',
       'zh.experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
       'zh.structuredEditors.coolingParams.coolingRateCPerMin',
+      'zh.structuredEditors.treatmentSteps.types.uv_ozone_treatment',
     ])
     for (const [, value] of slashEntries) {
       expect(value.match(/[／/]/g)).toHaveLength(1)
@@ -146,7 +147,7 @@ describe('i18n scaffolding', () => {
     expect(
       i18n.getResourceBundle('zh', 'common').structuredEditors.treatmentSteps
         .types.uv_ozone_treatment,
-    ).toBe('紫外臭氧联合处理')
+    ).toBe('紫外/臭氧表面处理')
   })
 
   it('keeps retired implementation wording out of visible copy', () => {

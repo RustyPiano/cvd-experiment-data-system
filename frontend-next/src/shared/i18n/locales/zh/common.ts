@@ -2,6 +2,19 @@
 // 字段标签（labelZh/labelEn）不放这里——它们由生成器⑤从 field-source.yaml 产出，
 // 见 src/shared/generated/field-metadata.ts。
 export const common = {
+  pl: {
+    register: '登记PL设备配置',
+    widthUnit: '半高全宽单位',
+    invalidCatalog: '请补齐激发光源、物镜或探头及光谱配置。',
+    selectionRequired: '请选择激发光源、物镜或探头及光谱配置。',
+    peakRange: '峰位须位于发射范围内。',
+    responseCorrection: '发射响应校正',
+    applied: '已应用',
+    notApplied: '未应用',
+    correctionSource: '校正曲线或报告',
+    correctionSourceRequired: '请填写响应校正的曲线或报告。',
+    unit: '单位',
+  },
   raman: {
     presetPowerUnitMismatch: '预设的功率单位与所选激光配置不一致。',
     dependencyRequired: '请填写{{name}}。',
@@ -251,7 +264,7 @@ export const common = {
         solvent_cleaning: '溶剂清洗',
         nitrogen_dry: '氮气吹干',
         plasma_treatment: '等离子体处理',
-        uv_ozone_treatment: '紫外臭氧联合处理',
+        uv_ozone_treatment: '紫外/臭氧表面处理',
       },
       fields: {
         mode: '处理模式',
@@ -1018,7 +1031,7 @@ export const common = {
         not_detected: '未检出可分辨峰',
         not_analyzed: '尚未分析',
         positionUnit: '峰位单位',
-        source: '对应原始光谱',
+        source: '来源光谱',
         peak: '峰',
         add: '添加峰',
         remove: '删除峰',
@@ -1031,7 +1044,7 @@ export const common = {
         processing: '数据处理',
         extractionMethod: '取峰或拟合方法',
         baselineMethod: '基线处理',
-        sourceRequired: '请选择对应的原始光谱',
+        sourceRequired: '请选择来源光谱',
         peakRequired: '请添加至少一个峰',
         invalidPeak:
           '请检查峰参数：峰位必填，半高全宽和间距须大于 0，强度不能小于 0',

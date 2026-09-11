@@ -1,4 +1,4 @@
-"""OM instrument catalogs and immutable selections, using the field source."""
+"""Optical instrument catalogs and immutable selections, using the field source."""
 
 import re
 from copy import deepcopy
@@ -10,10 +10,12 @@ from app.services.v2_field_source import load_field_source
 def resolve_om_configuration(
     catalog: dict, selection: dict, digital: bool = True, method: str = "optical_microscopy"
 ) -> tuple[dict, set]:
-    config = load_field_source()["raman_configuration" if method == "Raman" else "om_configuration"]
+    config = load_field_source()[
+        f"{method.lower()}_configuration" if method in {"Raman", "PL"} else "om_configuration"
+    ]
     spec = config["sections"]
     if set(selection) - set(spec):
-        raise ValueError("unknown OM configuration selection")
+        raise ValueError("unknown instrument configuration selection")
     required = set(config.get("required_sections", ["objectives", "optics"]))
     if method == "optical_microscopy" and digital:
         required.add("cameras")
@@ -29,12 +31,12 @@ def resolve_om_configuration(
             (item for item in catalog.get(section, []) if item["name"] == selection[section]), None
         )
         if entry is None:
-            raise ValueError("OM configuration does not belong to this instrument version")
+            raise ValueError("instrument configuration does not belong to this instrument version")
         if any(selection.get(key) != name for key, name in entry.get("references", {}).items()):
-            raise ValueError("scale calibration does not match the selected imaging configuration")
+            raise ValueError("configuration references do not match the selected components")
         for key, value in entry["conditions"].items():
             if key in values and values[key] != value and key not in adjustable:
-                raise ValueError("inconsistent fixed OM configurations")
+                raise ValueError("inconsistent fixed instrument configurations")
             values[key] = value
         if field := spec[section].get("name_field"):
             values[field] = entry["name"]
@@ -45,14 +47,16 @@ def resolve_om_configuration(
 
 
 def validate_om_catalog(catalog: dict, method: str = "optical_microscopy") -> dict:
-    spec = load_field_source()["raman_configuration" if method == "Raman" else "om_configuration"]
+    spec = load_field_source()[
+        f"{method.lower()}_configuration" if method in {"Raman", "PL"} else "om_configuration"
+    ]
     if not isinstance(catalog, dict) or set(catalog) - set(spec["sections"]):
-        raise ValueError("invalid OM catalog")
+        raise ValueError("invalid instrument catalog")
     catalog = deepcopy(catalog)
     for section, definition in spec["sections"].items():
         entries = catalog.get(section, [])
         if not isinstance(entries, list) or len(entries) > spec["max_entries"]:
-            raise ValueError("invalid OM catalog entries")
+            raise ValueError("invalid instrument catalog entries")
         if section in spec.get("required_sections", ["objectives", "optics"]) and not entries:
             raise ValueError("register the required instrument configurations")
         names = set()
@@ -65,14 +69,14 @@ def validate_om_catalog(catalog: dict, method: str = "optical_microscopy") -> di
                 "native_extensions",
                 "mode_options",
             }:
-                raise ValueError("invalid OM catalog entry")
+                raise ValueError("invalid instrument catalog entry")
             name = entry.get("name")
             if (
                 not isinstance(name, str)
                 or not 1 <= len(name.strip()) <= 128
                 or name.strip().lower() in names
             ):
-                raise ValueError("OM configuration names must be nonempty and unique")
+                raise ValueError("instrument configuration names must be nonempty and unique")
             entry["name"] = name.strip()
             modes = entry.get("mode_options", {})
             if (
@@ -114,11 +118,11 @@ def validate_om_catalog(catalog: dict, method: str = "optical_microscopy") -> di
             names.add(name.strip().lower())
             conditions = entry.get("conditions")
             if not isinstance(conditions, dict) or set(conditions) - set(definition["fields"]):
-                raise ValueError("invalid OM configuration fields")
+                raise ValueError("invalid instrument configuration fields")
             if not set(definition["required"]) <= conditions.keys() or any(
                 v is None for v in conditions.values()
             ):
-                raise ValueError("complete the required OM configuration fields")
+                raise ValueError("complete the required instrument configuration fields")
             normalized = MeasurementConditions.model_validate(conditions).model_dump(
                 exclude_none=True
             )
@@ -155,10 +159,10 @@ def validate_om_catalog(catalog: dict, method: str = "optical_microscopy") -> di
             if not isinstance(references, dict) or set(references) != set(
                 definition.get("references", [])
             ):
-                raise ValueError("select the imaging configuration for the scale calibration")
+                raise ValueError("select the referenced instrument configuration")
             for key, ref in references.items():
                 if not any(item.get("name", "").strip() == ref for item in catalog.get(key, [])):
-                    raise ValueError("unknown scale calibration reference")
+                    raise ValueError("unknown instrument configuration reference")
     for scale in catalog.get("scales", []):
         resolve_om_configuration(catalog, {**scale["references"], "scales": scale["name"]}, True)
     return catalog

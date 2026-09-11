@@ -472,6 +472,13 @@ class V2EntityService:
             if code not in allowed or code in seen:
                 self._raise_invalid("capabilities", "value_or_duplicate")
             seen.add(code)
+            if "pl" in configuration:
+                try:
+                    if code != "PL":
+                        raise ValueError("PL catalog requires the PL method")
+                    configuration["pl"] = validate_om_catalog(configuration["pl"], "PL")
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
             if "raman" in configuration:
                 try:
                     if code not in {"Raman", "low_frequency_raman"}:
@@ -525,9 +532,11 @@ class V2EntityService:
                                 "image_color_mode": "color",
                                 **conditions,
                             }
-                        elif code in {"Raman", "low_frequency_raman"}:
+                        elif code in {"Raman", "low_frequency_raman", "PL"}:
                             if set(conditions) - set(
-                                self.doc["raman_configuration"]["preset_fields"]
+                                self.doc[
+                                    "pl_configuration" if code == "PL" else "raman_configuration"
+                                ]["preset_fields"]
                             ):
                                 raise ValueError(
                                     "Raman presets may contain only acquisition settings"

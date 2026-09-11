@@ -123,3 +123,35 @@ describe('objective spectral peaks', () => {
     confirm.mockRestore()
   })
 })
+
+it('stores PL width entered in meV as eV without changing the peak position', async () => {
+  await i18n.changeLanguage('zh')
+  function Form() {
+    const [value, setValue] = useState(emptyPeakSeries('eV', ''))
+    return (
+      <>
+        <output data-testid="pl-peaks">{JSON.stringify(value)}</output>
+        <SpectralPeaksEditor
+          value={value}
+          onChange={setValue}
+          units={['nm', 'eV']}
+          method="PL"
+          rawFiles={[new File(['raw'], 'pl.txt')]}
+          rawIndexes={[0]}
+          disabled={false}
+        />
+      </>
+    )
+  }
+  const user = userEvent.setup()
+  render(<Form />)
+  await user.click(screen.getByRole('button', { name: '添加峰' }))
+  await user.type(screen.getByLabelText('峰 1 峰位 (eV)'), '1.82')
+  await user.click(screen.getByLabelText('半高全宽单位'))
+  await user.click(screen.getByRole('option', { name: 'meV' }))
+  await user.type(screen.getByLabelText('峰 1 半高全宽 (meV)'), '40')
+  const draft = JSON.parse(screen.getByTestId('pl-peaks').textContent)
+  expect(Number(draft.peaks[0].fwhm)).toBeCloseTo(0.04)
+  expect(draft.peaks[0].position).toBe('1.82')
+  expect(draft.intensityUnit).toBe('')
+})

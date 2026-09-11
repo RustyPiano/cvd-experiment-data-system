@@ -512,8 +512,29 @@ export function MeasurementDetails({
           </div>
         ) : null}
       </dl>
-      {measurement.method_profile === 'Raman' ? (
+      {['Raman', 'PL'].includes(measurement.method_profile) ? (
         <dl className="grid gap-3 text-sm sm:grid-cols-2 [&_dd]:break-words [&_dt]:break-words">
+          {Object.entries(measurement.file_response_corrections ?? {}).map(
+            ([id, correction]) => (
+              <div key={id}>
+                <dt className="text-muted-foreground">
+                  {[
+                    ...measurement.raw_files,
+                    ...(measurement.supplementary_files ?? []),
+                  ].find((file) => file.id === id)?.original_name ?? id}{' '}
+                  · {t('pl.responseCorrection')}
+                </dt>
+                <dd>
+                  {t(
+                    correction.status === 'applied'
+                      ? 'pl.applied'
+                      : 'pl.notApplied',
+                  )}
+                  {correction.source ? ` · ${correction.source}` : ''}
+                </dd>
+              </div>
+            ),
+          )}
           {measurement.scan_file_id ? (
             <div>
               <dt className="text-muted-foreground">{t('raman.scanSource')}</dt>

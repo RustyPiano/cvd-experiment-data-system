@@ -2,6 +2,7 @@ import {
   characterizationProfiles,
   omConfiguration,
   ramanConfiguration,
+  plConfiguration,
 } from './generated/field-metadata'
 import {
   characterizationConditionIssue,
@@ -21,15 +22,19 @@ export type OMCatalog = Record<string, OMEntry[]>
 export type OMSelection = Record<string, string>
 
 export const opticalSpec = (method = 'optical_microscopy') =>
-  method === 'Raman' ? ramanConfiguration : omConfiguration
+  method === 'PL'
+    ? plConfiguration
+    : method === 'Raman'
+      ? ramanConfiguration
+      : omConfiguration
 
 export function omCatalog(
   configuration?: Record<string, unknown>,
   method = 'optical_microscopy',
 ): OMCatalog | undefined {
-  return configuration?.[method === 'Raman' ? 'raman' : 'om'] as
-    | OMCatalog
-    | undefined
+  return configuration?.[
+    ['Raman', 'PL'].includes(method) ? method.toLowerCase() : 'om'
+  ] as OMCatalog | undefined
 }
 
 export function omCatalogValid(
@@ -122,9 +127,9 @@ export function omDefaultSelection(
   digital: boolean,
   method = 'optical_microscopy',
 ): OMSelection {
-  if (method === 'Raman') {
+  if (['Raman', 'PL'].includes(method)) {
     const selection: OMSelection = {}
-    for (const section of Object.keys(ramanConfiguration.sections)) {
+    for (const section of Object.keys(opticalSpec(method).sections)) {
       const entries = (catalog[section] ?? []).filter((entry) =>
         Object.entries(entry.references ?? {}).every(
           ([key, name]) => selection[key] === name,
@@ -152,8 +157,8 @@ export function omSelectionComplete(
   digital: boolean,
   method = 'optical_microscopy',
 ) {
-  if (method === 'Raman')
-    return ramanConfiguration.required_sections!.every((section) =>
+  if (['Raman', 'PL'].includes(method))
+    return opticalSpec(method).required_sections!.every((section) =>
       catalog[section]?.some(
         (entry) =>
           entry.name === selection[section] &&
@@ -184,9 +189,9 @@ export function omEntryConditions(
   method = 'optical_microscopy',
 ) {
   const fixed = omFixedConditions(catalog, selection, method)
-  if (method === 'Raman') {
+  if (['Raman', 'PL'].includes(method)) {
     const hardware = new Set(
-      Object.values(ramanConfiguration.sections).flatMap((spec) => [
+      Object.values(opticalSpec(method).sections).flatMap((spec) => [
         ...spec.fields,
         ...(spec.name_field ? [spec.name_field] : []),
       ]),
@@ -239,17 +244,23 @@ export function omVisibleFields(
   conditions: Record<string, string>,
   method = 'optical_microscopy',
 ) {
-  if (method === 'Raman') {
-    if (!catalog) return ramanConfiguration.manual_fields
+  if (['Raman', 'PL'].includes(method)) {
+    if (!catalog) return opticalSpec(method).manual_fields
     const { adjustable } = omFixedConditions(catalog, selection, method)
     const hardware = new Set(
-      Object.values(ramanConfiguration.sections).flatMap((spec) => [
+      Object.values(opticalSpec(method).sections).flatMap((spec) => [
         ...spec.fields,
         ...(spec.name_field ? [spec.name_field] : []),
       ]),
     )
-    return ramanConfiguration.manual_fields.filter(
-      (key) => !hardware.has(key) || adjustable.has(key),
+    return opticalSpec(method).manual_fields.filter(
+      (key) =>
+        (!hardware.has(key) || adjustable.has(key)) &&
+        !(
+          method === 'PL' &&
+          conditions.slit_setting_kind === 'bandwidth' &&
+          key === 'slit_width_um'
+        ),
     )
   }
   const fields = omConfiguration.manual_fields

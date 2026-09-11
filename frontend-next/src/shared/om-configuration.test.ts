@@ -232,3 +232,47 @@ describe('OM hardware selection', () => {
     ).toBe(true)
   })
 })
+
+it('uses registered PL hardware while keeping measured values out of presets', () => {
+  const plCatalog = structuredClone(ramanCatalog)
+  plCatalog.lasers[0].conditions = {
+    excitation_source_kind: 'laser',
+    excitation_wavelength_nm: 532,
+    excitation_mode: 'continuous',
+    power_setting_unit: 'percent',
+  }
+  expect(omCatalogValid(plCatalog, 'PL')).toBe(true)
+  const selection = {
+    lasers: 'Green',
+    objectives: '100x',
+    spectrometers: 'CCD 1800',
+  }
+  const conditions = omEntryConditions(
+    plCatalog,
+    selection,
+    { objective_na: '0.2', acquisition_note: 'sample note' },
+    'PL',
+  )
+  expect(conditions.objective_na).toBe('0.9')
+  expect(conditions.acquisition_note).toBe('sample note')
+  expect(omVisibleFields(plCatalog, selection, conditions, 'PL')).not.toContain(
+    'objective_na',
+  )
+  expect(
+    instrumentPresetsAreValid('PL', {
+      presets: [{ name: 'sample power', conditions: { sample_power_mW: 0.2 } }],
+    }),
+  ).toBe(false)
+  expect(
+    instrumentPresetsAreValid('PL', {
+      presets: [
+        {
+          name: '10s',
+          conditions: { integration_time_s: 10, accumulations: 3 },
+        },
+      ],
+    }),
+  ).toBe(true)
+  delete plCatalog.objectives[0].conditions.objective_na
+  expect(omCatalogValid(plCatalog, 'PL')).toBe(false)
+})

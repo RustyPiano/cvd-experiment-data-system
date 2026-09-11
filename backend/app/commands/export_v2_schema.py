@@ -114,6 +114,7 @@ def build_v2_json_schema(doc: dict[str, Any] | None = None) -> dict[str, Any]:
         "substrate_orientation": source["substrate_orientation"],
         "om_configuration": source["om_configuration"],
         "raman_configuration": source["raman_configuration"],
+        "pl_configuration": source["pl_configuration"],
         "characterization_properties": source["characterization_properties"],
         "characterization_profiles": source["characterization_profiles"],
         "modules": modules,
@@ -604,8 +605,9 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
                 }
             )
         if (when := field.get("required_when")) and not (
-            code == "Raman"
-            and field["key"] in load_field_source()["raman_configuration"]["series_fields"]
+            code in {"Raman", "PL"}
+            and field["key"]
+            in load_field_source()[f"{code.lower()}_configuration"]["series_fields"]
         ):
             typed_schema["allOf"].append(
                 {
@@ -680,9 +682,39 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
         }
     }
 
+    if code not in {"optical_microscopy", "Raman", "PL"}:
+        measurement_properties["instrument_configuration"] = {"maxProperties": 0}
+    if code not in {"Raman", "PL"}:
+        measurement_properties.update(
+            {
+                "scan_file_id": {"type": "null"},
+                "variable_conditions": {"maxItems": 0},
+                "file_intensity_units": {"maxProperties": 0},
+            }
+        )
+    if code != "PL":
+        measurement_properties["file_response_corrections"] = {"maxProperties": 0}
+    else:
+        measurement_properties["file_response_corrections"] = {
+            "additionalProperties": {
+                "allOf": [
+                    {
+                        "if": {
+                            "properties": {"status": {"const": "applied"}},
+                            "required": ["status"],
+                        },
+                        "then": {
+                            "required": ["source"],
+                            "properties": {"source": {"type": "string", "pattern": "\\S"}},
+                        },
+                        "else": {"properties": {"source": {"type": "null"}}},
+                    }
+                ]
+            }
+        }
     constraints = []
-    if code == "Raman":
-        spec = load_field_source()["raman_configuration"]
+    if code in {"Raman", "PL"}:
+        spec = load_field_source()[f"{code.lower()}_configuration"]
         measurement_properties["variable_conditions"] = {
             "type": "array",
             "items": {"enum": spec["series_fields"]},

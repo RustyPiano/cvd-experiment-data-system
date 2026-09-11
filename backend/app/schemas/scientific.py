@@ -1754,6 +1754,18 @@ class MeasurementConditions(BaseModel):
     image_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
     diffraction_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
     spectrum_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    slit_setting_kind: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    spectral_acquisition: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    emission_bandwidth_nm: float | None = Field(
+        default=None, gt=0, strict=True, allow_inf_nan=False
+    )
+    wavelength_step_nm: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    elapsed_time_s: float | None = Field(default=None, ge=0, strict=True, allow_inf_nan=False)
+    excitation_source_kind: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    incident_helicity: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    detection_helicity: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    helicity_reference: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+    wavelength_calibration: str | None = Field(default=None, max_length=1000, pattern=r"\S")
     excitation_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
     input_polarization: str | None = Field(default=None, max_length=128, pattern=r"\S")
     analyzer_polarization: str | None = Field(default=None, max_length=128, pattern=r"\S")
@@ -1876,6 +1888,21 @@ class MeasurementSupplementaryFile(BaseModel):
         return self
 
 
+class SpectralResponseCorrection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["applied", "not_applied"]
+    source: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+
+    @model_validator(mode="after")
+    def validate_source(self) -> Self:
+        if self.status == "applied" and not self.source:
+            raise ValueError("response correction requires its curve or report reference")
+        if self.status == "not_applied" and self.source:
+            raise ValueError("an unapplied correction cannot have an applied curve reference")
+        return self
+
+
 class MeasurementRunCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1894,6 +1921,7 @@ class MeasurementRunCreate(BaseModel):
     instrument_configuration: dict[str, str] = Field(default_factory=dict)
     scan_file_id: UUID | None = None
     variable_conditions: list[str] = Field(default_factory=list, max_length=20)
+    file_response_corrections: dict[UUID, SpectralResponseCorrection] = Field(default_factory=dict)
     file_intensity_units: dict[UUID, Literal["a.u.", "counts", "counts/s"]] = Field(
         default_factory=dict
     )
@@ -1921,12 +1949,15 @@ class MeasurementRunCreate(BaseModel):
         if self.instrument_configuration and self.method_profile not in {
             "optical_microscopy",
             "Raman",
+            "PL",
         }:
-            raise ValueError("instrument_configuration applies only to OM and Raman")
-        if self.method_profile != "Raman" and (
+            raise ValueError("instrument_configuration applies only to OM, Raman and PL")
+        if self.method_profile not in {"Raman", "PL"} and (
             self.scan_file_id or self.variable_conditions or self.file_intensity_units
         ):
-            raise ValueError("spectral file metadata applies only to Raman")
+            raise ValueError("spectral file metadata applies only to Raman and PL")
+        if self.file_response_corrections and self.method_profile != "PL":
+            raise ValueError("file response corrections apply only to PL")
         if (self.instrument_id is None) != (self.instrument_version is None):
             raise ValueError("instrument_id and instrument_version must be provided together")
         profile = characterization_profiles().get(self.method_profile)
@@ -1971,12 +2002,12 @@ class MeasurementRunCreate(BaseModel):
         validate_profile_conditions(
             self.method_profile, conditions, variable_conditions=self.variable_conditions
         )
-        if self.method_profile == "Raman":
-            spec = load_field_source()["raman_configuration"]
+        if self.method_profile in {"Raman", "PL"}:
+            spec = load_field_source()[f"{self.method_profile.lower()}_configuration"]
             if len(set(self.variable_conditions)) != len(self.variable_conditions) or set(
                 self.variable_conditions
             ) - set(spec["series_fields"]):
-                raise ValueError("unsupported or duplicate variable Raman conditions")
+                raise ValueError("unsupported or duplicate variable spectral conditions")
             if self.variable_conditions and conditions.get("acquisition_kind") not in {
                 "mapping",
                 "series",
@@ -2002,6 +2033,8 @@ class MeasurementRunCreate(BaseModel):
             evidence_ids = set(self.raw_file_ids) | {
                 f.file_id for f in self.supplementary_files if f.role == "processed"
             }
+            if set(self.file_response_corrections) - evidence_ids:
+                raise ValueError("response correction requires a raw or processed source file")
             if set(self.file_intensity_units) - evidence_ids:
                 raise ValueError("intensity units require a raw or processed source file")
         if (
@@ -2027,7 +2060,11 @@ def validate_profile_conditions(
 ) -> None:
     """Validate method-specific settings; instrument presets may be incomplete."""
     profile = characterization_profiles()[method_profile]
-    required = set(profile["required_condition_keys"]) if require_complete else set()
+    required = (
+        (set(profile["required_condition_keys"]) - set(variable_conditions or []))
+        if require_complete
+        else set()
+    )
     allowed = {item["key"] for item in profile["condition_fields"]}
     missing = sorted(required - conditions.keys())
     if missing:
@@ -2083,7 +2120,7 @@ def validate_profile_conditions(
         scan = conditions.get("scan_range_deg")
         if scan and not 0 <= scan["start"] < scan["end"] <= 180:
             raise ValueError("2theta scan range must be within 0 to 180 degrees")
-    if method_profile == "Raman":
+    if method_profile in {"Raman", "PL"}:
         if "power_setting" in conditions:
             unit = conditions.get("power_setting_unit")
             if unit not in {"percent", "mW", "level"}:
@@ -2095,6 +2132,13 @@ def validate_profile_conditions(
                     raise ValueError("power setting must be numeric") from exc
                 if not isfinite(power) or power <= 0 or (unit == "percent" and power > 100):
                     raise ValueError("power setting is out of range")
+
+    if method_profile == "PL":
+        if conditions.get("slit_setting_kind") == "bandwidth" and "slit_width_um" in conditions:
+            raise ValueError("spectral bandwidth and physical slit width are distinct settings")
+        width, rate = conditions.get("pulse_width_fs"), conditions.get("repetition_rate_MHz")
+        if width and rate and width * rate >= 1e9:
+            raise ValueError("pulse duration must be shorter than the repetition period")
 
 
 class AnalysisRunCreate(BaseModel):
@@ -2437,19 +2481,31 @@ class MeasurementBundleCreate(BaseModel):
                 raise ValueError(f"{item.property_code} does not apply to mode {mode}")
             if item.property_code == "spectral_peaks":
                 series = item.structured_value
-                if self.measurement.method_profile == "Raman":
+                if self.measurement.method_profile in {"Raman", "PL"}:
                     source_id = series.get("source_file_id")
                     units = self.measurement.file_intensity_units
                     file_unit = units.get(UUID(source_id)) if source_id else None
                     if any("height" in peak or "area" in peak for peak in series["peaks"]):
                         if file_unit and series.get("intensity_unit") != file_unit:
                             raise ValueError("peak intensity units must match their source file")
-                    scan = conditions.get("raman_shift_range_cm1")
-                    if scan and any(
-                        not scan["start"] <= peak["position"] <= scan["end"]
-                        for peak in series["peaks"]
-                    ):
-                        raise ValueError("peak position lies outside the Raman shift range")
+                    if self.measurement.method_profile == "PL":
+                        scan = conditions.get("spectral_range_nm")
+                        limits = (scan["min"], scan["max"]) if scan else None
+                    else:
+                        scan = conditions.get("raman_shift_range_cm1")
+                        limits = (scan["start"], scan["end"]) if scan else None
+                    if limits:
+                        for peak in series["peaks"]:
+                            position = peak["position"]
+                            if (
+                                self.measurement.method_profile == "PL"
+                                and series["position_unit"] == "eV"
+                            ):
+                                position = 1239.8419843320025 / position
+                            if not limits[0] <= position <= limits[1]:
+                                raise ValueError(
+                                    "peak position lies outside the recorded spectral range"
+                                )
                     if conditions.get("acquisition_kind") in {
                         "mapping",
                         "series",
@@ -2627,6 +2683,7 @@ class MeasurementDetailRead(MeasurementSummaryRead):
     scan_file_id: UUID | None = None
     variable_conditions: list[str] = Field(default_factory=list)
     file_intensity_units: dict[str, str] = Field(default_factory=dict)
+    file_response_corrections: dict[str, SpectralResponseCorrection] = Field(default_factory=dict)
     supplementary_files: list[MeasurementRawFileRead] = Field(default_factory=list)
     file_contexts: list[MeasurementSupplementaryFile] = Field(default_factory=list)
     operator_name: str | None = None

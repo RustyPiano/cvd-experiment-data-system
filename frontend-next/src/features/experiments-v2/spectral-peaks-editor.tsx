@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -60,13 +61,13 @@ export function peakSeriesIssue(
 ): string | null {
   if (!value.status) return null
   if (
-    method === 'Raman' &&
+    ['Raman', 'PL'].includes(method) &&
     value.peaks.some((peak) => peak.height.trim() || peak.area.trim()) &&
     !value.intensityUnit
   )
     return 'intensityRequired'
   if (
-    method === 'Raman' &&
+    ['Raman', 'PL'].includes(method) &&
     value.peaks.some(
       (peak) => peak.fwhm.trim() || peak.height.trim() || peak.area.trim(),
     ) &&
@@ -172,6 +173,7 @@ export function SpectralPeaksEditor({
   disabled: boolean
 }) {
   const { t, i18n } = useTranslation()
+  const [widthUnit, setWidthUnit] = useState('eV')
   const tr = (key: string) =>
     t(`characterizations.workspace.peaks.${key}`, { defaultValue: key })
   const fields = [
@@ -185,15 +187,17 @@ export function SpectralPeaksEditor({
   ] as (keyof Omit<PeakDraft, 'id'>)[]
   const issue = peakSeriesIssue(value, rawIndexes, method)
   const unitFor = (key: string) =>
-    key === 'd_spacing_nm'
-      ? 'nm'
-      : key === 'height'
-        ? value.intensityUnit
-        : key === 'area'
+    key === 'fwhm' && method === 'PL' && value.positionUnit === 'eV'
+      ? widthUnit
+      : key === 'd_spacing_nm'
+        ? 'nm'
+        : key === 'height'
           ? value.intensityUnit
-            ? `${value.intensityUnit} · ${value.positionUnit}`
-            : ''
-          : value.positionUnit
+          : key === 'area'
+            ? value.intensityUnit
+              ? `${value.intensityUnit} · ${value.positionUnit}`
+              : ''
+            : value.positionUnit
   return (
     <fieldset className="flex min-w-0 flex-col gap-4" disabled={disabled}>
       <legend className="mb-3 text-sm font-medium">{tr('title')}</legend>
@@ -332,6 +336,26 @@ export function SpectralPeaksEditor({
           </div>
         ) : null}
       </div>
+      {method === 'PL' && value.positionUnit === 'eV' ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="pl-width-unit">{t('pl.widthUnit')}</Label>
+          <Select
+            value={widthUnit}
+            disabled={disabled}
+            onValueChange={setWidthUnit}
+          >
+            <SelectTrigger id="pl-width-unit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="eV">eV</SelectItem>
+                <SelectItem value="meV">meV</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
       {value.peaks.map((peak, index) => (
         <fieldset
           key={peak.id}
@@ -357,7 +381,15 @@ export function SpectralPeaksEditor({
                     id={id}
                     type="number"
                     step="any"
-                    value={peak[key]}
+                    value={
+                      key === 'fwhm' &&
+                      method === 'PL' &&
+                      value.positionUnit === 'eV' &&
+                      widthUnit === 'meV' &&
+                      peak[key]
+                        ? String(Number(peak[key]) * 1000)
+                        : peak[key]
+                    }
                     min={
                       key === 'position' &&
                       !['nm', 'eV', '° 2θ'].includes(value.positionUnit)
@@ -377,7 +409,17 @@ export function SpectralPeaksEditor({
                         ...value,
                         peaks: value.peaks.map((item) =>
                           item.id === peak.id
-                            ? { ...item, [key]: event.target.value }
+                            ? {
+                                ...item,
+                                [key]:
+                                  key === 'fwhm' &&
+                                  method === 'PL' &&
+                                  value.positionUnit === 'eV' &&
+                                  widthUnit === 'meV' &&
+                                  event.target.value
+                                    ? String(Number(event.target.value) / 1000)
+                                    : event.target.value,
+                              }
                             : item,
                         ),
                       })
@@ -433,7 +475,7 @@ export function SpectralPeaksEditor({
         {tr('add')}
       </Button>
       {value.status === 'recorded' &&
-      (method !== 'Raman' ||
+      (!['Raman', 'PL'].includes(method) ||
         value.peaks.some((peak) => peak.height || peak.area)) ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-2">

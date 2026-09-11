@@ -2,6 +2,7 @@ import {
   characterizationProfiles,
   omConfiguration,
   ramanConfiguration,
+  plConfiguration,
 } from '@/shared/generated/field-metadata'
 import {
   characterizationConditionIssue,
@@ -25,6 +26,7 @@ export function presetPowerUnitMatches(
 }
 
 export function presetFields(method: string) {
+  if (method === 'PL') return plConfiguration.preset_fields
   return method === 'optical_microscopy'
     ? omConfiguration.preset_fields
     : ['Raman', 'low_frequency_raman'].includes(method)
@@ -60,6 +62,8 @@ export function reconcileConditions(
   draft: Record<string, string>,
 ) {
   const next = { ...draft }
+  if (method === 'PL' && next.slit_setting_kind === 'bandwidth')
+    delete next.slit_width_um
   let size: number
   do {
     size = Object.keys(next).length

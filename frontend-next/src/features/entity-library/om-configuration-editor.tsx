@@ -417,7 +417,13 @@ export function OMCatalogEditor({
       ))}
       {!omCatalogValid(catalog, method) ? (
         <p role="alert" className="text-sm text-destructive">
-          {t(method === 'Raman' ? 'raman.invalidCatalog' : 'om.invalid')}
+          {t(
+            method === 'PL'
+              ? 'pl.invalidCatalog'
+              : method === 'Raman'
+                ? 'raman.invalidCatalog'
+                : 'om.invalid',
+          )}
         </p>
       ) : null}
     </FieldGroup>

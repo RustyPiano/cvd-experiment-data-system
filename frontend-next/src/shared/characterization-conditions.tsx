@@ -1,4 +1,5 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
+import type { ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -154,6 +155,11 @@ export function characterizationConditionIssue(
     const unit = field.unit ? ` ${localizedUnit(field.unit, language)}` : ''
     if (numbers[1] <= numbers[0]) return translate('range')
     if (
+      typeof field.validation?.gt === 'number' &&
+      numbers.some((value) => value <= field.validation!.gt!)
+    )
+      return translate('positiveNumber')
+    if (
       (numbers[0] < min || numbers[1] > max) &&
       Number.isFinite(min) &&
       Number.isFinite(max)
@@ -234,7 +240,7 @@ export function typedConditions(
   )
 }
 
-export function ConditionInput({
+function BaseConditionInput({
   field,
   conditions,
   required,
@@ -432,5 +438,96 @@ export function ConditionInput({
         </p>
       ) : null}
     </Field>
+  )
+}
+
+/** Convert only coordinates/settings; this never rescales spectral intensities. */
+export function opticalUnitValue(
+  value: number,
+  unit: string,
+  toCanonical = true,
+): number {
+  if (unit === 'eV') return 1239.8419843320025 / value
+  if (unit === '℃') return value + (toCanonical ? 273.15 : -273.15)
+  const scale =
+    ({ ps: 1000, ns: 1e6, kHz: 1e-3, Hz: 1e-6 } as Record<string, number>)[
+      unit
+    ] ?? 1
+  return toCanonical ? value * scale : value / scale
+}
+
+export function ConditionInput(
+  props: ComponentProps<typeof BaseConditionInput>,
+) {
+  const { field, conditions, onChange, language } = props
+  const [displayUnit, setDisplayUnit] = useState(field.unit ?? '')
+  const unit = field.display_units?.includes(displayUnit)
+    ? displayUnit
+    : (field.unit ?? '')
+  if (!field.display_units) return <BaseConditionInput {...props} />
+  const keys = field.components?.map((part) => `${field.key}.${part.key}`) ?? [
+    field.key,
+  ]
+  const display = { ...conditions }
+  for (const key of keys)
+    if (display[key]?.trim() && Number.isFinite(Number(display[key])))
+      display[key] = String(
+        Number(
+          opticalUnitValue(Number(display[key]), unit, false).toPrecision(12),
+        ),
+      )
+  const components =
+    unit === 'eV' && field.components
+      ? [...field.components].reverse().map((part, index) => ({
+          ...part,
+          label_zh: field.components![index].label_zh,
+          label_en: field.components![index].label_en,
+        }))
+      : field.components
+  const validation = { ...field.validation }
+  if (
+    unit === '℃' &&
+    validation.gt === undefined &&
+    validation.ge === undefined
+  )
+    validation.gt = 0
+  for (const key of ['ge', 'gt', 'le', 'lt'] as const)
+    if (typeof validation[key] === 'number' && unit !== 'eV')
+      validation[key] = opticalUnitValue(validation[key], unit, false)
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <BaseConditionInput
+        {...props}
+        field={{ ...field, unit, components, validation }}
+        conditions={display}
+        onChange={(key, value) =>
+          onChange(
+            key,
+            !value.trim() ? '' : String(opticalUnitValue(Number(value), unit)),
+          )
+        }
+      />
+      <Select
+        value={unit}
+        disabled={props.disabled}
+        onValueChange={setDisplayUnit}
+      >
+        <SelectTrigger
+          aria-label={`${isEnglish(language) ? field.label_en : field.label_zh} ${i18nInstance.getFixedT(language)('pl.unit')}`}
+          className="w-full"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {field.display_units.map((value) => (
+              <SelectItem key={value} value={value}>
+                {value}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </div>
   )
 }
