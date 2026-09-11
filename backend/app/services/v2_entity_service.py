@@ -43,6 +43,7 @@ from app.schemas.v2 import (
 )
 from app.services.audit_service import AuditService
 from app.services.entity_file_service import ENTITY_ASSET_ROLE
+from app.services.om_configuration import validate_om_catalog
 from app.services.substrate_orientation import normalize_substrate_orientation
 from app.services.v2_entity_snapshot_service import FIXED_COORDINATE_SYSTEM
 from app.services.v2_field_source import (
@@ -471,6 +472,26 @@ class V2EntityService:
             if code not in allowed or code in seen:
                 self._raise_invalid("capabilities", "value_or_duplicate")
             seen.add(code)
+            if "raman" in configuration:
+                try:
+                    if code not in {"Raman", "low_frequency_raman"}:
+                        raise ValueError("Raman catalog requires the Raman method")
+                    configuration["raman"] = validate_om_catalog(configuration["raman"], "Raman")
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={"invalid": [{"key": "capabilities", "reason": str(exc)}]},
+                    ) from exc
+            if "om" in configuration:
+                try:
+                    if code != "optical_microscopy":
+                        raise ValueError("OM catalog requires the OM method")
+                    configuration["om"] = validate_om_catalog(configuration["om"])
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={"invalid": [{"key": "capabilities", "reason": str(exc)}]},
+                    ) from exc
             if "presets" in configuration:
                 presets = configuration["presets"]
                 if not isinstance(presets, list) or len(presets) > 50:
@@ -494,7 +515,31 @@ class V2EntityService:
                         conditions = MeasurementConditions.model_validate(
                             preset["conditions"]
                         ).model_dump(exclude_none=True)
-                        validate_profile_conditions(code, conditions, require_complete=False)
+                        if code == "optical_microscopy":
+                            allowed_presets = set(self.doc["om_configuration"]["preset_fields"])
+                            if set(conditions) - allowed_presets:
+                                raise ValueError("OM presets may contain only acquisition settings")
+                            # Check hardware-dependent settings again at acquisition.
+                            context = {
+                                "observation_mode": "digital",
+                                "image_color_mode": "color",
+                                **conditions,
+                            }
+                        elif code in {"Raman", "low_frequency_raman"}:
+                            if set(conditions) - set(
+                                self.doc["raman_configuration"]["preset_fields"]
+                            ):
+                                raise ValueError(
+                                    "Raman presets may contain only acquisition settings"
+                                )
+                            context = conditions
+                        else:
+                            context = conditions
+                        validate_profile_conditions(
+                            "Raman" if code == "low_frequency_raman" else code,
+                            context,
+                            require_complete=False,
+                        )
                     except (ValueError, KeyError) as exc:
                         raise HTTPException(
                             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

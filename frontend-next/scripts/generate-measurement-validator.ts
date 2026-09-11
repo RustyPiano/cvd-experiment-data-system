@@ -3,6 +3,7 @@ import { readFile, writeFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import Ajv from 'ajv/dist/2020'
 import standaloneCode from 'ajv/dist/standalone'
+import { _ } from 'ajv/dist/compile/codegen'
 const root = join(import.meta.dir, '..')
 const source = JSON.parse(
   await readFile(
@@ -17,6 +18,17 @@ const ajv = new Ajv({
   validateFormats: false,
   code: { source: true },
   inlineRefs: false,
+})
+ajv.addKeyword({
+  keyword: 'x-cvd-ordered',
+  type: 'object',
+  schemaType: 'array',
+  code(context) {
+    const { data, schema } = context
+    context.fail(
+      _`typeof ${data}[${schema[0]}] === "number" && typeof ${data}[${schema[1]}] === "number" && ${data}[${schema[1]}] <= ${data}[${schema[0]}]`,
+    )
+  },
 })
 const validate = ajv.compile(source.result_models.measurement_bundle)
 const temp = join(root, 'src/shared/generated/.measurement-validator.cjs')

@@ -62,7 +62,37 @@ export function characterizationConditionIssue(
     return required ? translate('conditionRequired') : null
   }
   if (values.some((value) => !value)) return translate('completeValues')
+  const missingDependency = field.requires?.find(
+    (key) => !conditions[key]?.trim(),
+  )
+  if (missingDependency) {
+    const dependency = Object.values(characterizationProfiles)
+      .flatMap((profile) => profile.condition_fields)
+      .find((item) => item.key === missingDependency)
+    const label = dependency
+      ? isEnglish(language)
+        ? dependency.label_en
+        : dependency.label_zh
+      : missingDependency
+    return i18nInstance.getFixedT(language)('raman.dependencyRequired', {
+      name: label,
+    })
+  }
   if (field.value_type === 'text' || field.value_type === 'select') {
+    if (
+      field.key === 'power_setting' &&
+      conditions.power_setting_unit !== 'level'
+    ) {
+      const power = Number(values[0])
+      if (
+        !['percent', 'mW'].includes(conditions.power_setting_unit ?? '') ||
+        !/^\+?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(values[0]) ||
+        !Number.isFinite(power) ||
+        power <= 0 ||
+        (conditions.power_setting_unit === 'percent' && power > 100)
+      )
+        return i18nInstance.getFixedT(language)('raman.powerInvalid')
+    }
     if (
       field.value_type === 'select' &&
       !field.options?.some(
@@ -85,6 +115,21 @@ export function characterizationConditionIssue(
   }
 
   const numbers = values.map(Number)
+  for (const rule of field.conditional_validation ?? []) {
+    if (conditionMatches(rule.when, conditions)) {
+      const issue = characterizationConditionIssue(
+        {
+          ...field,
+          conditional_validation: undefined,
+          validation: { ...field.validation, ...rule.validation },
+        },
+        conditions,
+        required,
+        language,
+      )
+      if (issue) return issue
+    }
+  }
   if (numbers.some((value) => !Number.isFinite(value))) {
     return translate('conditionNumber')
   }
@@ -211,6 +256,12 @@ export function ConditionInput({
   if (field.key === 'excitation_power_basis') return null
   const issueId = `${inputPrefix}-condition-${field.key}-error`
   const fieldLabel = isEnglish(language) ? field.label_en : field.label_zh
+  const unit =
+    field.key === 'power_setting'
+      ? ({ percent: '%', mW: 'mW' } as Record<string, string>)[
+          conditions.power_setting_unit
+        ]
+      : field.unit
   const minLength =
     typeof field.validation?.min_length === 'number'
       ? field.validation.min_length
@@ -227,10 +278,10 @@ export function ConditionInput({
         }
       >
         {fieldLabel}
-        {field.unit
+        {unit
           ? isEnglish(language)
-            ? ` (${localizedUnit(field.unit, language)})`
-            : `（${field.unit}）`
+            ? ` (${localizedUnit(unit, language)})`
+            : `（${unit}）`
           : ''}
         {required ? <RequiredMark /> : null}
       </FieldLabel>

@@ -942,6 +942,7 @@ def test_scientific_revision_measurement_and_query_chain(
                     "unit": "μm",
                 },
                 "typed_conditions": {
+                    "observation_mode": "visual",
                     "objective": "50x",
                     "illumination_mode": "bright_field",
                 },
@@ -1167,6 +1168,7 @@ def test_scientific_revision_measurement_and_query_chain(
                     "coordinate_system": "sample_local",
                 },
                 "typed_conditions": {
+                    "observation_mode": "visual",
                     "objective": "10x",
                     "illumination_mode": "bright_field",
                 },
@@ -1708,7 +1710,7 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
                         "label": "whole sample",
                         "coordinate_system": "sample_local",
                     },
-                    "typed_conditions": {},
+                    "typed_conditions": {"observation_mode": "visual"},
                 },
                 "properties": [
                     {

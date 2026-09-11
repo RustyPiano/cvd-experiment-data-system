@@ -15,6 +15,8 @@ describe('objective spectral peaks', () => {
     const value = {
       ...emptyPeakSeries('cm⁻¹'),
       status: 'recorded' as const,
+      extractionMethod: 'Lorentzian fit',
+      baselineMethod: 'none',
       peaks: [
         {
           id: 1,
@@ -29,12 +31,10 @@ describe('objective spectral peaks', () => {
     expect(peakSeriesIssue(value, [0, 1], 'Raman')).toBe('sourceRequired')
     expect(peakSeriesIssue(value, [0], 'Raman')).toBeNull()
     expect(peakSeriesValue(value, [0], ['raw']).peaks[0].position).toBe(-20)
-    expect(peakSeriesValue(value, [0], ['raw'])).not.toHaveProperty(
-      'extraction_method',
+    expect(peakSeriesValue(value, [0], ['raw']).extraction_method).toBe(
+      'Lorentzian fit',
     )
-    expect(peakSeriesValue(value, [0], ['raw'])).not.toHaveProperty(
-      'baseline_method',
-    )
+    expect(peakSeriesValue(value, [0], ['raw']).baseline_method).toBe('none')
     expect(
       peakSeriesIssue(
         { ...value, peaks: [{ ...value.peaks[0], fwhm: '0' }] },

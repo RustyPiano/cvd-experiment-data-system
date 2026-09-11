@@ -7,9 +7,10 @@ from math import isfinite
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
-from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema import FormatChecker
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.core.scientific_json_schema import ScientificJSONValidator as Draft202012Validator
 from app.core.scientific_units import normalize_process_value, validate_process_unit
 from app.generated.material_phase_catalog import MATERIAL_PHASE_CATALOG
 from app.schemas.generated.v2_module_payload import ActualFieldPayload
@@ -1539,7 +1540,7 @@ class SampleRegion(BaseModel):
 
 
 class NumericRange(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"x-cvd-ordered": ["min", "max"]})
 
     min: float = Field(ge=0, allow_inf_nan=False, strict=True)
     max: float = Field(gt=0, allow_inf_nan=False, strict=True)
@@ -1552,7 +1553,7 @@ class NumericRange(BaseModel):
 
 
 class ScanRange(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"x-cvd-ordered": ["start", "end"]})
 
     start: float = Field(ge=0, allow_inf_nan=False, strict=True)
     end: float = Field(gt=0, allow_inf_nan=False, strict=True)
@@ -1565,7 +1566,7 @@ class ScanRange(BaseModel):
 
 
 class SignedScanRange(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"x-cvd-ordered": ["start", "end"]})
 
     start: float = Field(allow_inf_nan=False, strict=True)
     end: float = Field(allow_inf_nan=False, strict=True)
@@ -1601,10 +1602,21 @@ class Resolution2D(BaseModel):
 class MeasurementConditions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    sampling_optic: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    power_setting_unit: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    sample_power_mW: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    environment_kind: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    temperature_control: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    wavenumber_calibration: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+    relative_intensity_calibration: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+
     observation_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
     optical_path: str | None = Field(default=None, max_length=128, pattern=r"\S")
     contrast_method: str | None = Field(default=None, max_length=128, pattern=r"\S")
     contrast_method_other: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    objective_magnification: float | None = Field(
+        default=None, gt=0, strict=True, allow_inf_nan=False
+    )
     objective_na: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
     objective_immersion: str | None = Field(default=None, max_length=128, pattern=r"\S")
     exposure_time_ms: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
@@ -1879,6 +1891,12 @@ class MeasurementRunCreate(BaseModel):
     measured_at: datetime
     sample_region: SampleRegion | None = None
     typed_conditions: MeasurementConditions
+    instrument_configuration: dict[str, str] = Field(default_factory=dict)
+    scan_file_id: UUID | None = None
+    variable_conditions: list[str] = Field(default_factory=list, max_length=20)
+    file_intensity_units: dict[UUID, Literal["a.u.", "counts", "counts/s"]] = Field(
+        default_factory=dict
+    )
     raw_file_ids: list[UUID] = Field(default_factory=list)
     supplementary_files: list[MeasurementSupplementaryFile] = Field(
         default_factory=list, max_length=100
@@ -1900,6 +1918,15 @@ class MeasurementRunCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_measurement(self) -> Self:
+        if self.instrument_configuration and self.method_profile not in {
+            "optical_microscopy",
+            "Raman",
+        }:
+            raise ValueError("instrument_configuration applies only to OM and Raman")
+        if self.method_profile != "Raman" and (
+            self.scan_file_id or self.variable_conditions or self.file_intensity_units
+        ):
+            raise ValueError("spectral file metadata applies only to Raman")
         if (self.instrument_id is None) != (self.instrument_version is None):
             raise ValueError("instrument_id and instrument_version must be provided together")
         profile = characterization_profiles().get(self.method_profile)
@@ -1941,7 +1968,42 @@ class MeasurementRunCreate(BaseModel):
             if legacy_mode in {"EDS", "EELS"}:
                 conditions.setdefault("spectrum_mode", legacy_mode)
         self.typed_conditions = MeasurementConditions.model_validate(conditions)
-        validate_profile_conditions(self.method_profile, conditions)
+        validate_profile_conditions(
+            self.method_profile, conditions, variable_conditions=self.variable_conditions
+        )
+        if self.method_profile == "Raman":
+            spec = load_field_source()["raman_configuration"]
+            if len(set(self.variable_conditions)) != len(self.variable_conditions) or set(
+                self.variable_conditions
+            ) - set(spec["series_fields"]):
+                raise ValueError("unsupported or duplicate variable Raman conditions")
+            if self.variable_conditions and conditions.get("acquisition_kind") not in {
+                "mapping",
+                "series",
+            }:
+                raise ValueError("variable conditions require a scan or parameter series")
+            if any(key in conditions for key in self.variable_conditions):
+                raise ValueError("variable conditions belong in the scan file, not a scalar")
+            for field in profile["condition_fields"]:
+                if field["key"] in self.variable_conditions and any(
+                    conditions.get(key) not in values
+                    for key, values in field.get("when", {}).items()
+                ):
+                    raise ValueError("variable condition does not apply to this configuration")
+            if self.scan_file_id and self.scan_file_id not in self.raw_file_ids:
+                raise ValueError("scan source must be a raw file in this measurement")
+            if (
+                conditions.get("acquisition_kind") in {"mapping", "series"}
+                and not self.scan_file_id
+            ):
+                raise ValueError("select a scan data file")
+            if conditions.get("acquisition_kind") == "series" and not self.variable_conditions:
+                raise ValueError("select the varying parameters")
+            evidence_ids = set(self.raw_file_ids) | {
+                f.file_id for f in self.supplementary_files if f.role == "processed"
+            }
+            if set(self.file_intensity_units) - evidence_ids:
+                raise ValueError("intensity units require a raw or processed source file")
         if (
             self.sample_region
             and self.sample_region.geometry_type not in profile["allowed_region_types"]
@@ -1957,7 +2019,11 @@ class MeasurementRunCreate(BaseModel):
 
 
 def validate_profile_conditions(
-    method_profile: str, conditions: dict, *, require_complete: bool = True
+    method_profile: str,
+    conditions: dict,
+    *,
+    require_complete: bool = True,
+    variable_conditions: list[str] | None = None,
 ) -> None:
     """Validate method-specific settings; instrument presets may be incomplete."""
     profile = characterization_profiles()[method_profile]
@@ -1970,11 +2036,17 @@ def validate_profile_conditions(
     if unexpected:
         raise ValueError(f"conditions do not apply to {method_profile}: {', '.join(unexpected)}")
     for field in profile["condition_fields"]:
+        if field["key"] in conditions or field["key"] in (variable_conditions or []):
+            if any(key not in conditions for key in field.get("requires", [])):
+                raise ValueError(
+                    f"condition {field['key']} requires {', '.join(field['requires'])}"
+                )
         if (
             require_complete
             and field.get("required_when")
             and all(conditions.get(key) in values for key, values in field["required_when"].items())
             and field["key"] not in conditions
+            and field["key"] not in (variable_conditions or [])
         ):
             raise ValueError(f"condition {field['key']} is required for these settings")
         if field["key"] in conditions:
@@ -1984,7 +2056,13 @@ def validate_profile_conditions(
                 raise ValueError(f"condition {field['key']} does not apply to these settings")
             value = conditions[field["key"]]
             values = list(value.values()) if isinstance(value, dict) else [value]
-            validation = field.get("validation", {})
+            validation = dict(field.get("validation", {}))
+            for rule in field.get("conditional_validation", []):
+                if all(
+                    conditions.get(k) in allowed_values
+                    for k, allowed_values in rule["when"].items()
+                ):
+                    validation.update(rule["validation"])
             for value in values:
                 if isinstance(value, (int, float)) and (
                     ("ge" in validation and value < validation["ge"])
@@ -2005,6 +2083,18 @@ def validate_profile_conditions(
         scan = conditions.get("scan_range_deg")
         if scan and not 0 <= scan["start"] < scan["end"] <= 180:
             raise ValueError("2theta scan range must be within 0 to 180 degrees")
+    if method_profile == "Raman":
+        if "power_setting" in conditions:
+            unit = conditions.get("power_setting_unit")
+            if unit not in {"percent", "mW", "level"}:
+                raise ValueError("power setting requires its instrument unit")
+            if unit != "level":
+                try:
+                    power = float(conditions["power_setting"])
+                except ValueError as exc:
+                    raise ValueError("power setting must be numeric") from exc
+                if not isfinite(power) or power <= 0 or (unit == "percent" and power > 100):
+                    raise ValueError("power setting is out of range")
 
 
 class AnalysisRunCreate(BaseModel):
@@ -2347,6 +2437,37 @@ class MeasurementBundleCreate(BaseModel):
                 raise ValueError(f"{item.property_code} does not apply to mode {mode}")
             if item.property_code == "spectral_peaks":
                 series = item.structured_value
+                if self.measurement.method_profile == "Raman":
+                    source_id = series.get("source_file_id")
+                    units = self.measurement.file_intensity_units
+                    file_unit = units.get(UUID(source_id)) if source_id else None
+                    if any("height" in peak or "area" in peak for peak in series["peaks"]):
+                        if file_unit and series.get("intensity_unit") != file_unit:
+                            raise ValueError("peak intensity units must match their source file")
+                    scan = conditions.get("raman_shift_range_cm1")
+                    if scan and any(
+                        not scan["start"] <= peak["position"] <= scan["end"]
+                        for peak in series["peaks"]
+                    ):
+                        raise ValueError("peak position lies outside the Raman shift range")
+                    if conditions.get("acquisition_kind") in {
+                        "mapping",
+                        "series",
+                    } and not series.get("source_locator"):
+                        raise ValueError(
+                            "scan peaks require a spectrum locator or aggregation range"
+                        )
+                    if (
+                        conditions.get("acquisition_kind")
+                        or self.measurement.instrument_configuration
+                    ) and any(
+                        any(k in peak for k in ["fwhm", "height", "area"])
+                        for peak in series["peaks"]
+                    ):
+                        if not series.get("extraction_method") or not series.get("baseline_method"):
+                            raise ValueError(
+                                "peak width and intensity require extraction and baseline methods"
+                            )
                 if series["position_unit"] not in profile.get("peak_position_units", []):
                     raise ValueError("peak position unit does not apply to this method")
                 if self.measurement.method_profile == "XRD":
@@ -2490,6 +2611,7 @@ class MeasurementAnalysisRead(BaseModel):
 
 
 class MeasurementRawFileRead(BaseModel):
+    image_metadata: dict[str, Any] = Field(default_factory=dict)
     id: UUID
     original_name: str
     sha256: str
@@ -2501,6 +2623,10 @@ class MeasurementRawFileRead(BaseModel):
 
 
 class MeasurementDetailRead(MeasurementSummaryRead):
+    instrument_configuration: dict[str, str] = Field(default_factory=dict)
+    scan_file_id: UUID | None = None
+    variable_conditions: list[str] = Field(default_factory=list)
+    file_intensity_units: dict[str, str] = Field(default_factory=dict)
     supplementary_files: list[MeasurementRawFileRead] = Field(default_factory=list)
     file_contexts: list[MeasurementSupplementaryFile] = Field(default_factory=list)
     operator_name: str | None = None

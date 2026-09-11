@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select'
 
 export type MeasurementFileDraft = {
+  intensityUnit?: string
   role: 'raw' | 'processed' | 'supporting'
   sourceIndices: number[]
   description: string
@@ -30,12 +31,14 @@ export const emptyFileMetadata = (): MeasurementFileDraft => ({
 })
 
 export function MeasurementFileEditor({
+  method,
   files,
   metadata,
   onChange,
   onRemove,
   disabled,
 }: {
+  method?: string
   files: File[]
   metadata: MeasurementFileDraft[]
   onChange: (index: number, update: Partial<MeasurementFileDraft>) => void
@@ -91,6 +94,41 @@ export function MeasurementFileEditor({
                     </SelectContent>
                   </Select>
                 </Field>
+                {method === 'Raman' && item.role !== 'supporting' ? (
+                  <Field>
+                    <FieldLabel htmlFor={`file-intensity-${index}`}>
+                      {t('raman.fileIntensity')}
+                    </FieldLabel>
+                    <Select
+                      value={item.intensityUnit || '__empty'}
+                      disabled={disabled}
+                      onValueChange={(value) =>
+                        onChange(index, {
+                          intensityUnit: value === '__empty' ? '' : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger
+                        id={`file-intensity-${index}`}
+                        className="w-full"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="__empty">
+                            {t('raman.notRecorded')}
+                          </SelectItem>
+                          {['counts', 'counts/s', 'a.u.'].map((unit) => (
+                            <SelectItem key={unit} value={unit}>
+                              {unit}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                ) : null}
                 {item.role !== 'raw' ? (
                   <>
                     {item.role === 'processed' ? (

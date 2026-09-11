@@ -134,6 +134,11 @@ async function chooseSampleAndMethod(
   await user.click(screen.getByRole('option', { name: /S01/ }))
   await user.click(selectors[1])
   await user.click(screen.getByRole('option', { name: method }))
+  await fillSharedMeasurementInfo(user)
+  if (method === 'OM') {
+    await user.click(screen.getByLabelText(/^记录方式/))
+    await user.click(screen.getByRole('option', { name: '目视观察' }))
+  }
 }
 
 async function fillSharedMeasurementInfo(
@@ -182,8 +187,87 @@ async function fillRequiredCondition(
 }
 
 describe('SimpleCharacterizationWorkspace', () => {
+  it('applies OM acquisition presets without clearing observations and clears hardware on instrument change', async () => {
+    const user = userEvent.setup()
+    entityApi.listEntityVersions.mockResolvedValue({
+      items: [
+        {
+          id: 'om-v2',
+          entity_id: 'instrument-1',
+          version: 2,
+          data: {
+            capabilities: [
+              {
+                code: 'optical_microscopy',
+                configuration: {
+                  om: {
+                    objectives: [
+                      {
+                        name: '50x',
+                        conditions: {
+                          objective_magnification: 50,
+                          objective_na: 0.8,
+                          objective_immersion: 'air',
+                        },
+                      },
+                    ],
+                    cameras: [
+                      {
+                        name: 'Camera A',
+                        conditions: {
+                          image_color_mode: 'color',
+                          detector_gain: '1x',
+                        },
+                      },
+                    ],
+                    optics: [
+                      {
+                        name: 'BF',
+                        conditions: {
+                          optical_path: 'reflection',
+                          contrast_method: 'bright_field',
+                          illumination_source: 'LED',
+                        },
+                      },
+                    ],
+                  },
+                  presets: [
+                    {
+                      name: '10ms',
+                      conditions: {
+                        exposure_mode: 'manual',
+                        exposure_time_ms: 10,
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+    renderWorkspace()
+    await chooseSampleAndMethod(user, 'OM')
+    await user.click(screen.getByRole('button', { name: '选择表征仪器' }))
+    await user.click(screen.getByLabelText(/^仪器版本/))
+    await user.click(screen.getByRole('option', { name: /^v2/ }))
+    await user.click(screen.getByLabelText(/^记录方式/))
+    await user.click(screen.getByRole('option', { name: '数字图像' }))
+    await user.type(screen.getByLabelText('观察说明'), 'retain observation')
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await user.click(screen.getByLabelText('仪器配置预设'))
+    await user.click(screen.getByRole('option', { name: '10ms' }))
+    expect(screen.getByLabelText(/^曝光时间/)).toHaveValue(10)
+    expect(screen.getByLabelText('观察说明')).toHaveValue('retain observation')
+    expect(screen.queryByLabelText(/^相机增益/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: '选择表征仪器' }))
+    expect(screen.getByLabelText(/^曝光时间/)).toHaveValue(null)
+    expect(screen.getByLabelText('观察说明')).toHaveValue('retain observation')
+    confirm.mockRestore()
+  }, 20_000)
   beforeEach(async () => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     await i18n.changeLanguage('zh')
     api.listSamples.mockResolvedValue({
       items: [
@@ -275,6 +359,7 @@ describe('SimpleCharacterizationWorkspace', () => {
 
   it('applies the selected instrument version preset and allows actual settings to differ', async () => {
     const user = userEvent.setup()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     entityApi.listEntityVersions.mockResolvedValue({
       items: [
         {
@@ -289,10 +374,9 @@ describe('SimpleCharacterizationWorkspace', () => {
                 configuration: {
                   presets: [
                     {
-                      name: '532 nm / 50x',
+                      name: '10 s',
                       conditions: {
-                        laser_wavelength_nm: 532,
-                        objective: '50x',
+                        integration_time_s: 10,
                       },
                     },
                   ],
@@ -308,17 +392,22 @@ describe('SimpleCharacterizationWorkspace', () => {
     await user.click(screen.getByRole('button', { name: '选择表征仪器' }))
     await user.click(screen.getByLabelText(/^仪器版本/))
     await user.click(screen.getByRole('option', { name: /^v2/ }))
+    await user.type(screen.getByLabelText('观察说明'), '光谱有荧光背景')
+    await user.click(screen.getByRole('button', { name: '添加峰' }))
+    await user.type(screen.getByLabelText('峰 1 峰位 (cm⁻¹)'), '380')
     await user.click(screen.getByLabelText('仪器配置预设'))
-    await user.click(screen.getByRole('option', { name: '532 nm / 50x' }))
-    expect(screen.getByLabelText(/^激光波长/)).toHaveValue(532)
-    await user.clear(screen.getByLabelText(/^激光波长/))
-    await user.type(screen.getByLabelText(/^激光波长/), '633')
-    expect(screen.getByLabelText(/^激光波长/)).toHaveValue(633)
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await user.click(screen.getByRole('option', { name: '10 s' }))
+    expect(screen.getByLabelText(/^积分时间/)).toHaveValue(10)
+    expect(screen.getByLabelText('观察说明')).toHaveValue('光谱有荧光背景')
+    expect(screen.getByLabelText('峰 1 峰位 (cm⁻¹)')).toHaveValue(380)
+    await user.clear(screen.getByLabelText(/^积分时间/))
+    await user.type(screen.getByLabelText(/^积分时间/), '12.5')
+    expect(screen.getByLabelText(/^积分时间/)).toHaveValue(12.5)
+    confirm.mockReturnValue(false)
     await user.click(screen.getByLabelText('仪器配置预设'))
-    await user.click(screen.getByRole('option', { name: '532 nm / 50x' }))
+    await user.click(screen.getByRole('option', { name: '10 s' }))
     expect(confirm).toHaveBeenCalled()
-    expect(screen.getByLabelText(/^激光波长/)).toHaveValue(633)
+    expect(screen.getByLabelText(/^积分时间/)).toHaveValue(12.5)
     confirm.mockRestore()
   }, 20_000)
 
@@ -428,7 +517,7 @@ describe('SimpleCharacterizationWorkspace', () => {
 
     expect(screen.getAllByText('请选择样品')).not.toHaveLength(0)
     expect(screen.getByRole('button', { name: '保存表征记录' })).toBeDisabled()
-    expect(screen.getByLabelText(/^测量时间/)).not.toHaveValue('')
+    expect(screen.getByLabelText(/^测量时间/)).toHaveValue('')
     expect(screen.queryByText('分析软件信息')).not.toBeInTheDocument()
     expect(screen.queryByText('添加材料结论')).not.toBeInTheDocument()
     expect(screen.queryByText('不确定度')).not.toBeInTheDocument()
@@ -463,6 +552,8 @@ describe('SimpleCharacterizationWorkspace', () => {
     await user.click(screen.getByRole('button', { name: '添加峰' }))
     await user.type(screen.getByLabelText('峰 2 峰位 (cm⁻¹)'), '405')
     await user.type(screen.getByLabelText('峰 2 半高全宽 (cm⁻¹)'), '6')
+    await user.type(screen.getByLabelText('峰提取或拟合依据'), 'Lorentzian fit')
+    await user.type(screen.getByLabelText('基线处理'), '未扣除')
     await user.click(screen.getByRole('button', { name: '保存表征记录' }))
     await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
     const payload = api.createMeasurement.mock.calls[0][0]
@@ -860,29 +951,26 @@ describe('SimpleCharacterizationWorkspace', () => {
     const { container } = renderWorkspace()
     await chooseSampleAndMethod(user, 'OM')
     await chooseInstrument(user)
-    await user.click(screen.getByLabelText('记录方式'))
+    await user.click(screen.getByLabelText(/^记录方式/))
     await user.click(screen.getByRole('option', { name: '数字图像' }))
-    await user.type(screen.getByLabelText(/^实际曝光时间/), '12.5')
-    await user.type(screen.getByLabelText(/^探测器增益/), '6 dB')
-    await user.click(screen.getByLabelText('图像颜色类型'))
+    await user.type(screen.getByLabelText(/^曝光时间/), '12.5')
+    await user.type(screen.getByLabelText(/^相机增益/), '6 dB')
+    await user.click(screen.getByLabelText('采集颜色模式'))
     await user.click(screen.getByRole('option', { name: '彩色' }))
     await user.click(screen.getByLabelText('白平衡模式'))
     await user.click(screen.getByRole('option', { name: /^手动$/ }))
-    await user.type(
-      screen.getByLabelText('实际白平衡配置/RGB 增益'),
-      'R=1.2 G=1 B=1.4',
-    )
-    await user.click(screen.getByLabelText('图像颜色类型'))
-    await user.click(screen.getByRole('option', { name: '黑白' }))
+    await user.type(screen.getByLabelText('白平衡参数'), 'R=1.2 G=1 B=1.4')
+    await user.click(screen.getByLabelText('采集颜色模式'))
+    await user.click(screen.getByRole('option', { name: '单色' }))
     expect(screen.queryByLabelText('白平衡模式')).toBeNull()
-    await user.click(screen.getByLabelText('图像颜色类型'))
+    await user.click(screen.getByLabelText('采集颜色模式'))
     await user.click(screen.getByRole('option', { name: '彩色' }))
     expect(screen.getByLabelText('白平衡模式')).not.toHaveTextContent('手动')
     await user.upload(
       container.querySelector<HTMLInputElement>('#characterization-raw-files')!,
       new File(['image'], 'image.tif'),
     )
-    await user.type(screen.getByLabelText('实际测试人'), '测试中心操作员')
+    await user.type(screen.getByLabelText('测试人'), '测试中心操作员')
     await user.click(screen.getByRole('button', { name: '保存表征记录' }))
     await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
     expect(api.createMeasurement.mock.calls[0][0].measurement).toMatchObject({

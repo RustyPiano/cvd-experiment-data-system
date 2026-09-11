@@ -333,26 +333,116 @@ describe('EntityForm — multi-select values', () => {
       },
     })
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Raman' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PL' }))
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(onSubmit.mock.calls[0][0].capabilities).toEqual([
-      { code: 'Raman', configuration: {} },
+      { code: 'PL', configuration: {} },
     ])
-    expect(onSubmit.mock.calls[0][0].name_type).toBe('Raman')
+    expect(onSubmit.mock.calls[0][0].name_type).toBe('PL')
     expect(screen.queryByRole('combobox', { name: /表征方法/ })).toBeNull()
   })
 
-  it('edits and saves structured instrument presets without changing the original version', async () => {
+  it('registers Raman objectives with NA and saves acquisition presets separately', async () => {
+    const user = userEvent.setup()
     const onSubmit = vi.fn()
+    renderForm({
+      kind: 'instrument',
+      onSubmit,
+      defaultData: {
+        instrument_code: 'R46',
+        capabilities: [
+          {
+            code: 'Raman',
+            configuration: {
+              raman: {
+                lasers: [
+                  {
+                    name: 'Green',
+                    conditions: {
+                      laser_wavelength_nm: 532,
+                      power_setting_unit: 'percent',
+                    },
+                  },
+                ],
+                objectives: [
+                  {
+                    name: '100x',
+                    conditions: {
+                      sampling_optic: 'microscope',
+                      objective_magnification: 100,
+                      objective_immersion: 'air',
+                    },
+                  },
+                ],
+                spectrometers: [
+                  {
+                    name: 'CCD1800',
+                    references: { lasers: 'Green' },
+                    conditions: {
+                      grating_lines_per_mm: 1800,
+                      detector: 'CCD',
+                      collection_geometry: 'reflection',
+                      filter_configuration: '532 edge',
+                    },
+                  },
+                ],
+              },
+              presets: [
+                { name: '10s', conditions: { integration_time_s: 10 } },
+              ],
+            },
+          },
+        ],
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+    await user.type(screen.getByLabelText(/^物镜数值孔径 NA/), '0.9')
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(
+      onSubmit.mock.calls[0][0].capabilities[0].configuration.raman
+        .objectives[0].conditions.objective_na,
+    ).toBe(0.9)
+    expect(
+      onSubmit.mock.calls[0][0].capabilities[0].configuration.presets[0]
+        .conditions,
+    ).toEqual({ integration_time_s: 10 })
+  })
+
+  it('requires objective NA and preserves the previous hardware version', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
     const defaultData = {
       instrument_code: 'OM-1',
       capabilities: [
         {
           code: 'optical_microscopy',
           configuration: {
-            presets: [{ name: '50x', conditions: { objective: '50x' } }],
+            om: {
+              objectives: [
+                {
+                  name: '50x',
+                  conditions: {
+                    objective_magnification: 50,
+                    objective_na: 0.8,
+                    objective_immersion: 'air',
+                  },
+                },
+              ],
+              optics: [
+                {
+                  name: '反射明场',
+                  conditions: {
+                    optical_path: 'reflection',
+                    contrast_method: 'bright_field',
+                    illumination_source: 'LED',
+                  },
+                },
+              ],
+            },
           },
         },
       ],
@@ -364,24 +454,21 @@ describe('EntityForm — multi-select values', () => {
       defaultData,
       onSubmit,
     })
-    fireEvent.change(screen.getByLabelText('物镜规格'), {
-      target: { value: '100x' },
-    })
-    fireEvent.change(screen.getByLabelText('预设名称'), {
-      target: { value: '100x' },
-    })
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText('物镜数值孔径 NA'), '0.75')
+    const na = screen.getByLabelText(/^物镜数值孔径 NA/)
+    await user.clear(na)
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+    await user.type(na, '0.75')
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(
-      onSubmit.mock.calls[0][0].capabilities[0].configuration.presets,
-    ).toEqual([
-      { name: '100x', conditions: { objective: '100x', objective_na: 0.75 } },
-    ])
+      onSubmit.mock.calls[0][0].capabilities[0].configuration.om.objectives[0]
+        .conditions.objective_na,
+    ).toBe(0.75)
     expect(
-      defaultData.capabilities[0].configuration.presets[0].conditions.objective,
-    ).toBe('50x')
+      defaultData.capabilities[0].configuration.om.objectives[0].conditions
+        .objective_na,
+    ).toBe(0.8)
   })
 
   it('adds, validates, removes and saves multiple other instrument methods', async () => {
@@ -414,12 +501,12 @@ describe('EntityForm — multi-select values', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: '添加方法' }))
     fireEvent.click(screen.getByRole('button', { name: '删除方法 3' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Raman' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PL' }))
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(onSubmit.mock.calls[0][0].capabilities).toEqual([
       { code: 'other', configuration: { method_names: ['XPS', 'FTIR'] } },
-      { code: 'Raman', configuration: {} },
+      { code: 'PL', configuration: {} },
     ])
   })
 

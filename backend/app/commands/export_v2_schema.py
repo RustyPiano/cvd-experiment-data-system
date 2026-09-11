@@ -112,6 +112,8 @@ def build_v2_json_schema(doc: dict[str, Any] | None = None) -> dict[str, Any]:
         "module_payload_schema_version": V2_MODULE_PAYLOAD_SCHEMA_VERSION,
         "scientific_contract": source["scientific_contract"],
         "substrate_orientation": source["substrate_orientation"],
+        "om_configuration": source["om_configuration"],
+        "raman_configuration": source["raman_configuration"],
         "characterization_properties": source["characterization_properties"],
         "characterization_profiles": source["characterization_profiles"],
         "modules": modules,
@@ -557,6 +559,11 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
         },
     }
     typed_schema = measurement_properties["typed_conditions"]
+    typed_schema["dependentRequired"] = {
+        field["key"]: field["requires"]
+        for field in profile["condition_fields"]
+        if field.get("requires")
+    }
     typed_schema["allOf"] = [
         {
             "if": {
@@ -572,7 +579,34 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
         if field.get("when")
     ]
     for field in profile["condition_fields"]:
-        if when := field.get("required_when"):
+        for rule in field.get("conditional_validation", []):
+            typed_schema["allOf"].append(
+                {
+                    "if": {
+                        "required": list(rule["when"]),
+                        "properties": {
+                            key: {"enum": values} for key, values in rule["when"].items()
+                        },
+                    },
+                    "then": {
+                        "properties": {
+                            field["key"]: {
+                                {
+                                    "ge": "minimum",
+                                    "gt": "exclusiveMinimum",
+                                    "le": "maximum",
+                                    "lt": "exclusiveMaximum",
+                                }[key]: value
+                                for key, value in rule["validation"].items()
+                            }
+                        }
+                    },
+                }
+            )
+        if (when := field.get("required_when")) and not (
+            code == "Raman"
+            and field["key"] in load_field_source()["raman_configuration"]["series_fields"]
+        ):
             typed_schema["allOf"].append(
                 {
                     "if": {
@@ -647,6 +681,102 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
     }
 
     constraints = []
+    if code == "Raman":
+        spec = load_field_source()["raman_configuration"]
+        measurement_properties["variable_conditions"] = {
+            "type": "array",
+            "items": {"enum": spec["series_fields"]},
+            "uniqueItems": True,
+        }
+        rules = result["properties"]["measurement"].setdefault("allOf", [])
+        for field in profile["condition_fields"]:
+            key = field["key"]
+            if key not in spec["series_fields"]:
+                continue
+            variable = {
+                "required": ["variable_conditions"],
+                "properties": {"variable_conditions": {"contains": {"const": key}}},
+            }
+            rules.append(
+                {
+                    "if": variable,
+                    "then": {"properties": {"typed_conditions": {"not": {"required": [key]}}}},
+                }
+            )
+            if field.get("requires"):
+                rules.append(
+                    {
+                        "if": variable,
+                        "then": {
+                            "properties": {"typed_conditions": {"required": field["requires"]}}
+                        },
+                    }
+                )
+            if when := field.get("required_when"):
+                rules.append(
+                    {
+                        "if": {
+                            "allOf": [
+                                {
+                                    "properties": {
+                                        "typed_conditions": {
+                                            "required": list(when),
+                                            "properties": {k: {"enum": v} for k, v in when.items()},
+                                        }
+                                    }
+                                },
+                                {"not": variable},
+                            ]
+                        },
+                        "then": {"properties": {"typed_conditions": {"required": [key]}}},
+                    }
+                )
+            if when := field.get("when"):
+                rules.append(
+                    {
+                        "if": variable,
+                        "then": {
+                            "properties": {
+                                "typed_conditions": {
+                                    "required": list(when),
+                                    "properties": {k: {"enum": v} for k, v in when.items()},
+                                }
+                            }
+                        },
+                    }
+                )
+        rules.append(
+            {
+                "if": {
+                    "properties": {
+                        "typed_conditions": {
+                            "required": ["acquisition_kind"],
+                            "properties": {"acquisition_kind": {"enum": ["mapping", "series"]}},
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["scan_file_id"],
+                    "properties": {"scan_file_id": {"type": "string", "format": "uuid"}},
+                },
+            }
+        )
+        rules.append(
+            {
+                "if": {
+                    "properties": {
+                        "typed_conditions": {
+                            "required": ["acquisition_kind"],
+                            "properties": {"acquisition_kind": {"const": "series"}},
+                        }
+                    }
+                },
+                "then": {
+                    "required": ["variable_conditions"],
+                    "properties": {"variable_conditions": {"minItems": 1}},
+                },
+            }
+        )
     if code == "optical_microscopy":
         constraints.append(
             {
@@ -883,6 +1013,8 @@ def _condition_field_schema(field: dict[str, Any]) -> dict[str, Any]:
             component["key"]: {"type": "number", **bounds} for component in field["components"]
         }
         result["required"] = [component["key"] for component in field["components"]]
+        if field["value_type"] == "range":
+            result["x-cvd-ordered"] = result["required"]
     if field["value_type"] == "text":
         result["pattern"] = r"\S"
     if field["value_type"] == "select":

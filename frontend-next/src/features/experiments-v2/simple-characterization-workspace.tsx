@@ -1,10 +1,30 @@
 import { recoverUploads } from './upload-recovery'
+import {
+  omCatalog,
+  omDefaultSelection,
+  omEntryConditions,
+  omFixedConditions,
+  omSelectionComplete,
+  omVisibleFields,
+} from '@/shared/om-configuration'
+import type { OMSelection } from '@/shared/om-configuration'
+import {
+  OMConfigurationSelect,
+  OMSelect,
+} from '@/features/entity-library/om-configuration-editor'
+import {
+  omConfiguration,
+  ramanConfiguration,
+  characterizationProfiles,
+  characterizationProperties,
+} from '@/shared/generated/field-metadata'
 import type { PendingUpload } from './upload-recovery'
 import { invalidateRunQueries } from './status-logic'
 import { useRef, useState } from 'react'
 import {
   conditionDraft,
   instrumentPresets,
+  presetPowerUnitMatches,
   reconcileConditions,
 } from '@/shared/instrument-presets'
 import {
@@ -23,6 +43,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import {
   MeasurementFileEditor,
@@ -40,10 +61,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  characterizationProfiles,
-  characterizationProperties,
-} from '@/shared/generated/field-metadata'
 import { HttpError, resolveErrorMessage } from '@/shared/api/http-error'
 import { isEnglish, localizedUnit } from '@/shared/field-i18n'
 import i18nInstance from '@/shared/i18n'
@@ -111,11 +128,6 @@ type ResultMetadataDraft = {
 const DEFAULT_RESULT_METADATA: ResultMetadataDraft = {
   quality: 'valid',
   qualityNote: '',
-}
-
-function localDateTimeValue(date = new Date()) {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 16)
 }
 
 function resultFieldLabel(field: ResultDefinition, language: string) {
@@ -430,7 +442,10 @@ export function SimpleCharacterizationWorkspace({
     string,
     unknown
   > | null>(null)
-  const [measuredAt, setMeasuredAt] = useState(localDateTimeValue)
+  const [measuredAt, setMeasuredAt] = useState('')
+  const [omSelection, setOmSelection] = useState<OMSelection>({})
+  const [scanFileIndex, setScanFileIndex] = useState<number | null>(null)
+  const [variableConditions, setVariableConditions] = useState<string[]>([])
   const [conditions, setConditions] = useState<Record<string, string>>({})
   const [results, setResults] = useState<Record<string, string>>({})
   const [peakSeries, setPeakSeries] = useState<PeakSeriesDraft>(() =>
@@ -573,6 +588,13 @@ export function SimpleCharacterizationWorkspace({
         return
       setPeakSeries(emptyPeakSeries(peakSeries.positionUnit))
     }
+    setScanFileIndex((current) =>
+      current === removedIndex
+        ? null
+        : current !== null && current > removedIndex
+          ? current - 1
+          : current,
+    )
     setRawFiles((current) =>
       current.filter((_, index) => index !== removedIndex),
     )
@@ -614,6 +636,17 @@ export function SimpleCharacterizationWorkspace({
   }
   const updateCondition = (key: string, value: string) => {
     let next = { ...conditions, [key]: value }
+    if (method === 'Raman') {
+      if (
+        key === 'power_setting_unit' &&
+        value !== conditions.power_setting_unit
+      )
+        delete next.power_setting
+      if (key === 'acquisition_kind' && value === 'single') {
+        setVariableConditions([])
+        setScanFileIndex(null)
+      }
+    }
     if (
       key === 'excitation_power_basis' &&
       conditions.excitation_power_basis &&
@@ -630,7 +663,45 @@ export function SimpleCharacterizationWorkspace({
         return
       delete next.excitation_power_value
     }
+    if (method === 'optical_microscopy' && catalog) {
+      if (key === 'observation_mode') {
+        const selected = omDefaultSelection(catalog, value === 'digital')
+        setOmSelection(selected)
+        next = omEntryConditions(catalog, selected, next)
+      }
+      if (key === 'binning' && omSelection.scales) {
+        const selected = { ...omSelection }
+        delete selected.scales
+        setOmSelection(selected)
+        next = { ...omEntryConditions(catalog, selected, next), binning: value }
+      }
+    }
+    if (
+      method === 'optical_microscopy' &&
+      key === 'exposure_mode' &&
+      value !== conditions.exposure_mode
+    )
+      delete next.exposure_time_ms
+    if (
+      method === 'optical_microscopy' &&
+      key === 'white_balance_mode' &&
+      value !== conditions.white_balance_mode
+    ) {
+      delete next.white_balance_settings
+      delete next.white_balance_temperature_K
+    }
     next = reconcileConditions(method, next)
+    if (method === 'Raman')
+      setVariableConditions((current) =>
+        current.filter((conditionKey) =>
+          conditionMatches(
+            characterizationProfiles.Raman.condition_fields.find(
+              (field) => field.key === conditionKey,
+            )?.when,
+            next,
+          ),
+        ),
+      )
     if (
       [
         'data_type',
@@ -725,12 +796,102 @@ export function SimpleCharacterizationWorkspace({
     Array.isArray(instrumentSnapshot?.capabilities)
       ? instrumentSnapshot.capabilities
       : []
-  ).find((item) => item && typeof item === 'object' && item.code === method)
+  ).find(
+    (item) =>
+      item &&
+      typeof item === 'object' &&
+      (item.code === method ||
+        (method === 'Raman' && item.code === 'low_frequency_raman')),
+  )
   const presets = selectedInstrumentSupportsMethod
     ? instrumentPresets(capability?.configuration)
     : []
+  const catalog = ['optical_microscopy', 'Raman'].includes(method)
+    ? omCatalog(capability?.configuration, method)
+    : undefined
+  const selectableOMFields = ['optical_microscopy', 'Raman'].includes(method)
+    ? omVisibleFields(catalog, omSelection, conditions, method)
+    : null
+  const changeInstrument = (
+    id: string,
+    version: number | null,
+    snapshot: Record<string, unknown> | null,
+  ) => {
+    setInstrumentId(id)
+    setInstrumentVersion(version)
+    setInstrumentSnapshot(snapshot)
+    setOmSelection({})
+    if (method === 'Raman') {
+      setVariableConditions([])
+      const nextCatalog = omCatalog(
+        (Array.isArray(snapshot?.capabilities)
+          ? snapshot.capabilities
+          : []
+        ).find((item) => ['Raman', 'low_frequency_raman'].includes(item?.code))
+          ?.configuration,
+        method,
+      )
+      const retained = Object.fromEntries(
+        Object.entries(conditions).filter(([key]) =>
+          [
+            'acquisition_kind',
+            'scan_coordinates',
+            'environment_kind',
+            'measurement_environment',
+            'temperature_control',
+            'temperature_K',
+            'temperature_basis',
+            'sample_preparation',
+            'acquisition_note',
+          ].includes(key),
+        ),
+      )
+      const selected = nextCatalog
+        ? omDefaultSelection(nextCatalog, true, method)
+        : {}
+      setOmSelection(selected)
+      setConditions(
+        nextCatalog
+          ? omEntryConditions(nextCatalog, selected, retained, method)
+          : retained,
+      )
+    }
+    if (method === 'optical_microscopy') {
+      const nextCatalog = omCatalog(
+        (Array.isArray(snapshot?.capabilities)
+          ? snapshot.capabilities
+          : []
+        ).find((item) => item?.code === 'optical_microscopy')?.configuration,
+      )
+      const retained = Object.fromEntries(
+        Object.entries(conditions).filter(([key]) =>
+          [
+            'observation_mode',
+            'acquisition_note',
+            'sample_preparation',
+          ].includes(key),
+        ),
+      )
+      if (nextCatalog) {
+        const selected = omDefaultSelection(
+          nextCatalog,
+          retained.observation_mode === 'digital',
+        )
+        setOmSelection(selected)
+        setConditions(omEntryConditions(nextCatalog, selected, retained))
+      } else setConditions(retained)
+    }
+  }
   const requiredConditionKeys = [
     ...(profile?.required_condition_keys ?? []),
+    ...(profile?.condition_fields ?? []).flatMap((field) =>
+      conditions[field.key]?.trim() || variableConditions.includes(field.key)
+        ? (field.requires ?? [])
+        : [],
+    ),
+    ...(method === 'Raman' && catalog
+      ? (ramanConfiguration.required_acquisition_keys ?? [])
+      : []),
     ...(profile?.condition_fields ?? [])
       .filter(
         (field) =>
@@ -738,14 +899,32 @@ export function SimpleCharacterizationWorkspace({
           conditionMatches(field.required_when, conditions),
       )
       .map((field) => field.key),
-  ]
+  ].filter((key) => !variableConditions.includes(key))
   const digitalOM =
     method === 'optical_microscopy' && conditions.observation_mode === 'digital'
   const instrumentRequired = Boolean(profile?.instrument_required || digitalOM)
   const rawRequired = Boolean(profile?.raw_files_required || digitalOM)
-  const visibleConditions = (profile?.condition_fields ?? []).filter(
-    (field) => !field.legacy_only && conditionMatches(field.when, conditions),
-  )
+  const visibleConditions = (profile?.condition_fields ?? [])
+    .filter(
+      (field) =>
+        !field.legacy_only &&
+        !variableConditions.includes(field.key) &&
+        conditionMatches(field.when, conditions) &&
+        (!selectableOMFields || selectableOMFields.includes(field.key)),
+    )
+    .map((field) => {
+      const options = catalog?.cameras?.find(
+        (camera) => camera.name === omSelection.cameras,
+      )?.mode_options?.[field.key]
+      return options
+        ? {
+            ...field,
+            options: field.options?.filter((option) =>
+              options.includes(option.value),
+            ),
+          }
+        : field
+    })
   const requiredConditions = visibleConditions.filter((field) =>
     requiredConditionKeys.includes(field.key),
   )
@@ -758,6 +937,12 @@ export function SimpleCharacterizationWorkspace({
       (requiredConditionKeys.includes(field.key) ||
         profile?.common_condition_keys?.includes(field.key)),
   )
+  if (method === 'Raman')
+    commonConditions.sort(
+      (left, right) =>
+        (profile.common_condition_keys?.indexOf(left.key) ?? -1) -
+        (profile.common_condition_keys?.indexOf(right.key) ?? -1),
+    )
   const extraConditions = optionalConditions.filter(
     (field) => field.section !== 'results' && !commonConditions.includes(field),
   )
@@ -801,6 +986,53 @@ export function SimpleCharacterizationWorkspace({
   const spectralIssue = peakUnits.length
     ? peakSeriesIssue(peakSeries, rawIndexes, method)
     : null
+  if (method === 'Raman') {
+    if (
+      ['mapping', 'series'].includes(conditions.acquisition_kind) &&
+      (scanFileIndex === null || !originalIndexes.includes(scanFileIndex))
+    )
+      fileIssues.push(t('raman.scanSourceRequired'))
+    if (conditions.acquisition_kind === 'series' && !variableConditions.length)
+      fileIssues.push(t('raman.variablesRequired'))
+    if (
+      ['incident_polarization_angle_deg', 'analyzer_angle_deg'].some(
+        (key) => conditions[key]?.trim() || variableConditions.includes(key),
+      ) &&
+      !conditions.polarization_reference?.trim()
+    )
+      fileIssues.push(t('raman.polarizationReferenceRequired'))
+    if (
+      peakSeries.status &&
+      ['mapping', 'series'].includes(conditions.acquisition_kind) &&
+      !peakSeries.sourceLocator?.trim()
+    )
+      fileIssues.push(t('raman.peakLocatorRequired'))
+    const rangeStart = conditions['raman_shift_range_cm1.start'],
+      rangeEnd = conditions['raman_shift_range_cm1.end']
+    if (
+      rangeStart &&
+      rangeEnd &&
+      peakSeries.peaks.some(
+        (peak) =>
+          peak.position.trim() &&
+          (Number(peak.position) < Number(rangeStart) ||
+            Number(peak.position) > Number(rangeEnd)),
+      )
+    )
+      fileIssues.push(t('raman.peakRange'))
+    const source =
+      peakSeries.sourceFileIndex ??
+      (rawIndexes.length === 1 ? rawIndexes[0] : null)
+    const unit =
+      source === null ? undefined : fileMetadata[source]?.intensityUnit
+    if (
+      unit &&
+      peakSeries.intensityUnit &&
+      peakSeries.peaks.some((peak) => peak.height || peak.area) &&
+      unit !== peakSeries.intensityUnit
+    )
+      fileIssues.push(t('raman.intensityMismatch'))
+  }
   const evidencePresent =
     rawFileCount > 0 ||
     allResultDefinitions.some((field) => results[field.key]?.trim()) ||
@@ -875,12 +1107,15 @@ export function SimpleCharacterizationWorkspace({
   )
   const hasUnsavedChanges = Boolean(method || hasMethodDraft || recoveryBlocked)
   const resetDraft = (keepSample = true) => {
+    setScanFileIndex(null)
+    setVariableConditions([])
     if (!keepSample) setSampleId('')
     setMethod('')
     setInstrumentId('')
     setInstrumentVersion(null)
     setInstrumentSnapshot(null)
-    setMeasuredAt(localDateTimeValue())
+    setMeasuredAt('')
+    setOmSelection({})
 
     setConditions({})
     setResults({})
@@ -893,6 +1128,13 @@ export function SimpleCharacterizationWorkspace({
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
   const canSubmit = Boolean(
+    (!catalog ||
+      omSelectionComplete(
+        catalog,
+        omSelection,
+        method === 'Raman' || conditions.observation_mode === 'digital',
+        method,
+      )) &&
     !readOnly &&
     !recoveryBlocked &&
     sampleId &&
@@ -1011,6 +1253,22 @@ export function SimpleCharacterizationWorkspace({
         }
         const payload = {
           measurement: {
+            ...(catalog ? { instrument_configuration: omSelection } : {}),
+            ...(method === 'Raman'
+              ? {
+                  ...(scanFileIndex !== null
+                    ? { scan_file_id: uploadedFileIds[scanFileIndex] }
+                    : {}),
+                  variable_conditions: variableConditions,
+                  file_intensity_units: Object.fromEntries(
+                    fileMetadata.flatMap((item, index) =>
+                      item.role !== 'supporting' && item.intensityUnit
+                        ? [[uploadedFileIds[index], item.intensityUnit]]
+                        : [],
+                    ),
+                  ),
+                }
+              : {}),
             sample_id: sampleId,
             method_profile: METHOD_ORDER.find((item) => item === method)!,
             ...(instrumentId
@@ -1020,7 +1278,17 @@ export function SimpleCharacterizationWorkspace({
                 }
               : {}),
             measured_at: new Date(measuredAt).toISOString(),
-            typed_conditions: typedConditions(visibleConditions, conditions),
+            typed_conditions: typedConditions(
+              ['optical_microscopy', 'Raman'].includes(method)
+                ? profile.condition_fields.filter(
+                    (field) =>
+                      !field.legacy_only &&
+                      !variableConditions.includes(field.key) &&
+                      conditionMatches(field.when, conditions),
+                  )
+                : visibleConditions,
+              conditions,
+            ),
             raw_file_ids: originalIndexes.map(
               (index) => uploadedFileIds[index],
             ),
@@ -1302,6 +1570,7 @@ export function SimpleCharacterizationWorkspace({
                           emptyPeakSeries(
                             characterizationProfiles[value]
                               ?.peak_position_units?.[0] ?? '',
+                            value === 'Raman' ? '' : 'a.u.',
                           ),
                         )
                       }}
@@ -1368,11 +1637,9 @@ export function SimpleCharacterizationWorkspace({
                         selectedVersion={instrumentVersion}
                         selectedSnapshot={instrumentSnapshot}
                         onChange={(id, entity) => {
-                          setInstrumentId(id)
-                          setInstrumentVersion(
+                          changeInstrument(
+                            id,
                             entity?.latest_version?.version ?? null,
-                          )
-                          setInstrumentSnapshot(
                             entity?.latest_version?.data ?? null,
                           )
                         }}
@@ -1402,8 +1669,11 @@ export function SimpleCharacterizationWorkspace({
                                   (item) => item.version === Number(value),
                                 )
                               if (!version) return
-                              setInstrumentVersion(version.version)
-                              setInstrumentSnapshot(version.data)
+                              changeInstrument(
+                                instrumentId,
+                                version.version,
+                                version.data,
+                              )
                             }}
                           >
                             <SelectTrigger
@@ -1481,6 +1751,91 @@ export function SimpleCharacterizationWorkspace({
                   ) : null}
                 </div>
 
+                {['optical_microscopy', 'Raman'].includes(method) &&
+                eligibleSamples.find((sample) => sample.id === sampleId)
+                  ?.current_carrier ? (
+                  <p className="text-sm">
+                    {t('om.currentCarrier')}
+                    {
+                      eligibleSamples.find((sample) => sample.id === sampleId)
+                        ?.current_carrier
+                    }
+                  </p>
+                ) : null}
+                {catalog ? (
+                  <OMConfigurationSelect
+                    method={method}
+                    catalog={catalog}
+                    selection={omSelection}
+                    digital={
+                      method === 'Raman' ||
+                      conditions.observation_mode === 'digital'
+                    }
+                    disabled={controlsDisabled}
+                    onChange={(selected) => {
+                      setOmSelection(selected)
+                      if (method === 'Raman') {
+                        setVariableConditions([])
+                        const retained = Object.fromEntries(
+                          Object.entries(conditions).filter(([key]) =>
+                            [
+                              'acquisition_kind',
+                              'scan_coordinates',
+                              'environment_kind',
+                              'measurement_environment',
+                              'temperature_control',
+                              'temperature_K',
+                              'temperature_basis',
+                              'sample_preparation',
+                              'acquisition_note',
+                            ].includes(key),
+                          ),
+                        )
+                        setConditions(
+                          omEntryConditions(
+                            catalog,
+                            selected,
+                            retained,
+                            method,
+                          ),
+                        )
+                        return
+                      }
+                      const retained = ['objectives', 'cameras', 'optics'].some(
+                        (key) => selected[key] !== omSelection[key],
+                      )
+                        ? Object.fromEntries(
+                            Object.entries(conditions).filter(([key]) =>
+                              [
+                                'observation_mode',
+                                'acquisition_note',
+                                'sample_preparation',
+                              ].includes(key),
+                            ),
+                          )
+                        : conditions
+                      setConditions(
+                        omEntryConditions(catalog, selected, retained),
+                      )
+                    }}
+                  />
+                ) : null}
+                {catalog &&
+                !omSelectionComplete(
+                  catalog,
+                  omSelection,
+                  method === 'Raman' ||
+                    conditions.observation_mode === 'digital',
+                  method,
+                ) ? (
+                  <p className="text-sm text-destructive">
+                    {t(
+                      method === 'Raman'
+                        ? 'raman.selectionRequired'
+                        : 'om.selectionRequired',
+                    )}
+                  </p>
+                ) : null}
                 {presets.length ? (
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="measurement-preset">
@@ -1496,9 +1851,115 @@ export function SimpleCharacterizationWorkspace({
                           (Object.values(conditions).some(Boolean) ||
                             peakSeries.status ||
                             Object.values(results).some(Boolean)) &&
-                          !window.confirm(t('instrumentPresets.replaceConfirm'))
+                          !window.confirm(
+                            t(
+                              ['optical_microscopy', 'Raman'].includes(method)
+                                ? 'om.applyPresetConfirm'
+                                : 'instrumentPresets.replaceConfirm',
+                            ),
+                          )
                         )
                           return
+                        if (method === 'Raman') {
+                          if (
+                            !presetPowerUnitMatches(
+                              preset.conditions,
+                              catalog
+                                ? conditions.power_setting_unit
+                                : undefined,
+                            )
+                          ) {
+                            toast.error(t('raman.presetPowerUnitMismatch'))
+                            return
+                          }
+                          const fixed = catalog
+                            ? omFixedConditions(catalog, omSelection, method)
+                            : { values: {}, adjustable: new Set<string>() }
+                          const incoming = Object.fromEntries(
+                            Object.entries(
+                              conditionDraft(preset.conditions),
+                            ).filter(
+                              ([key]) =>
+                                ramanConfiguration.preset_fields.includes(
+                                  key.split('.')[0],
+                                ) &&
+                                !variableConditions.includes(key) &&
+                                (!(key in fixed.values) ||
+                                  fixed.adjustable.has(key)),
+                            ),
+                          )
+                          const next = { ...conditions, ...incoming }
+                          if (
+                            incoming.power_setting_unit &&
+                            incoming.power_setting_unit !==
+                              conditions.power_setting_unit &&
+                            !incoming.power_setting
+                          )
+                            delete next.power_setting
+                          setConditions(reconcileConditions(method, next))
+                          toast.success(t('instrumentPresets.applied'))
+                          return
+                        }
+                        if (method === 'optical_microscopy') {
+                          const adjustable = catalog
+                            ? omFixedConditions(catalog, omSelection).adjustable
+                            : new Set(omConfiguration.preset_fields)
+                          const incoming = Object.fromEntries(
+                            Object.entries(
+                              conditionDraft(preset.conditions),
+                            ).filter(
+                              ([key]) =>
+                                omConfiguration.preset_fields.includes(key) &&
+                                (['exposure_time_ms', 'exposure_mode'].includes(
+                                  key,
+                                ) ||
+                                  adjustable.has(key)),
+                            ),
+                          )
+                          if (
+                            incoming.exposure_mode &&
+                            incoming.exposure_mode !== 'manual'
+                          )
+                            delete incoming.exposure_time_ms
+                          if (
+                            incoming.white_balance_mode &&
+                            incoming.white_balance_mode !== 'manual'
+                          ) {
+                            delete incoming.white_balance_settings
+                            delete incoming.white_balance_temperature_K
+                          }
+                          const next = { ...conditions, ...incoming }
+                          if (
+                            incoming.exposure_mode &&
+                            incoming.exposure_mode !== 'manual'
+                          )
+                            delete next.exposure_time_ms
+                          if (
+                            incoming.white_balance_mode &&
+                            incoming.white_balance_mode !== 'manual'
+                          ) {
+                            delete next.white_balance_settings
+                            delete next.white_balance_temperature_K
+                          }
+                          if (
+                            incoming.binning &&
+                            incoming.binning !== conditions.binning &&
+                            catalog
+                          ) {
+                            const selected = { ...omSelection }
+                            delete selected.scales
+                            setOmSelection(selected)
+                            setConditions(
+                              reconcileConditions(method, {
+                                ...omEntryConditions(catalog, selected, next),
+                                ...incoming,
+                              }),
+                            )
+                          } else
+                            setConditions(reconcileConditions(method, next))
+                          toast.success(t('instrumentPresets.applied'))
+                          return
+                        }
                         setConditions(
                           reconcileConditions(
                             method,
@@ -1532,8 +1993,8 @@ export function SimpleCharacterizationWorkspace({
                   <Field>
                     <FieldLabel htmlFor="measurement-operator">
                       {isEnglish(i18n.language)
-                        ? 'Actual measurement operator'
-                        : '实际测试人'}
+                        ? 'Measurement operator'
+                        : '测试人'}
                     </FieldLabel>
                     <Input
                       id="measurement-operator"
@@ -1655,16 +2116,97 @@ export function SimpleCharacterizationWorkspace({
                 />
                 <p className="text-sm text-muted-foreground">
                   {isEnglish(i18n.language)
-                    ? 'Original files in one record share acquisition settings. Keep per-point values in scan files; use separate records for different settings.'
-                    : '同一记录的原始文件共用采集条件；扫描文件保留逐点参数，不同曝光/功率/倍率请分别记录。'}
+                    ? 'Group files with the same settings. For scans and series, retain per-spectrum parameters in the data file.'
+                    : '相同设置的文件可共用一条记录；扫描及参数序列在数据文件中保留逐谱参数。'}
                 </p>
                 <MeasurementFileEditor
+                  method={method}
                   files={rawFiles}
                   metadata={fileMetadata}
                   onChange={changeFileMetadata}
                   onRemove={removeRawFile}
                   disabled={controlsDisabled}
                 />
+                {method === 'Raman' &&
+                ['mapping', 'series'].includes(conditions.acquisition_kind) ? (
+                  <FieldGroup>
+                    <OMSelect
+                      label={t('raman.scanSource')}
+                      value={
+                        scanFileIndex === null ? '' : String(scanFileIndex)
+                      }
+                      options={originalIndexes.map(String)}
+                      labels={Object.fromEntries(
+                        originalIndexes.map((index) => [
+                          String(index),
+                          rawFiles[index].name,
+                        ]),
+                      )}
+                      disabled={controlsDisabled}
+                      onChange={(value) =>
+                        setScanFileIndex(value === '' ? null : Number(value))
+                      }
+                    />
+                    <fieldset className="flex flex-wrap gap-3">
+                      <legend className="mb-2 text-sm font-medium">
+                        {t('raman.variables')}
+                      </legend>
+                      {ramanConfiguration
+                        .series_fields!.filter((key) => {
+                          const field = profile.condition_fields.find(
+                            (item) => item.key === key,
+                          )!
+                          if (
+                            key !== 'temperature_K' &&
+                            !conditionMatches(field.when, conditions)
+                          )
+                            return false
+                          const fixed = catalog
+                            ? omFixedConditions(catalog, omSelection, method)
+                            : null
+                          return (
+                            !fixed ||
+                            !(key in fixed.values) ||
+                            fixed.adjustable.has(key)
+                          )
+                        })
+                        .map((key) => {
+                          const field = profile.condition_fields.find(
+                            (item) => item.key === key,
+                          )!
+                          return (
+                            <label
+                              key={key}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              <Checkbox
+                                disabled={controlsDisabled}
+                                checked={variableConditions.includes(key)}
+                                onCheckedChange={(checked) => {
+                                  setVariableConditions((current) =>
+                                    checked
+                                      ? [...current, key]
+                                      : current.filter((item) => item !== key),
+                                  )
+                                  if (checked)
+                                    setConditions((current) => {
+                                      const next = { ...current }
+                                      delete next[key]
+                                      if (key === 'temperature_K')
+                                        next.temperature_control = 'recorded'
+                                      return next
+                                    })
+                                }}
+                              />
+                              {isEnglish(i18n.language)
+                                ? field.label_en
+                                : field.label_zh}
+                            </label>
+                          )
+                        })}
+                    </fieldset>
+                  </FieldGroup>
+                ) : null}
               </section>
 
               <section className="flex flex-col gap-4 rounded-lg border p-4">
@@ -1852,9 +2394,7 @@ export function SimpleCharacterizationWorkspace({
                 {missingRecommended.length ? (
                   <Alert>
                     <AlertDescription>
-                      {isEnglish(i18n.language)
-                        ? 'Not recorded (retain missing values if unavailable): '
-                        : '尚未记录（无法获取时可保留缺项）：'}
+                      {isEnglish(i18n.language) ? 'Not recorded: ' : '未记录：'}
                       {missingRecommended
                         .map((field) =>
                           isEnglish(i18n.language)

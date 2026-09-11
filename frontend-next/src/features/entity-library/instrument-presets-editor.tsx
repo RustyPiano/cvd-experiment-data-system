@@ -14,6 +14,7 @@ import {
   instrumentPresets,
   instrumentPresetsAreValid,
   presetConditions,
+  presetFields,
   reconcileConditions,
 } from '@/shared/instrument-presets'
 
@@ -28,6 +29,7 @@ export function InstrumentPresetsEditor({
   disabled: boolean
   onChange: (configuration: Record<string, unknown>) => void
 }) {
+  if (method === 'low_frequency_raman') method = 'Raman'
   const { t, i18n } = useTranslation()
   const prefix = useId()
   const presets = instrumentPresets(configuration)
@@ -35,11 +37,28 @@ export function InstrumentPresetsEditor({
     presets.map((preset) => conditionDraft(preset.conditions)),
   )
   const update = (next: typeof presets) =>
-    onChange({ ...configuration, presets: next })
+    onChange({
+      ...configuration,
+      presets: presetFields(method)
+        ? next.map((preset) => ({
+            ...preset,
+            conditions: Object.fromEntries(
+              Object.entries(preset.conditions).filter(([key]) =>
+                presetFields(method)!.includes(key),
+              ),
+            ),
+          }))
+        : next,
+    })
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {presets.map((preset, index) => {
-        const draft = drafts[index] ?? conditionDraft(preset.conditions)
+        const draft: Record<string, string> = {
+          ...(method === 'optical_microscopy'
+            ? { observation_mode: 'digital', image_color_mode: 'color' }
+            : {}),
+          ...(drafts[index] ?? conditionDraft(preset.conditions)),
+        }
         return (
           <details key={index} open className="min-w-0 rounded-md border p-3">
             <summary className="cursor-pointer break-words font-medium">
@@ -68,7 +87,10 @@ export function InstrumentPresetsEditor({
                 {characterizationProfiles[method].condition_fields
                   .filter(
                     (field) =>
-                      !field.legacy_only && conditionMatches(field.when, draft),
+                      !field.legacy_only &&
+                      conditionMatches(field.when, draft) &&
+                      (!presetFields(method) ||
+                        presetFields(method)!.includes(field.key)),
                   )
                   .map((field) => (
                     <ConditionInput
@@ -85,6 +107,11 @@ export function InstrumentPresetsEditor({
                       )}
                       onChange={(key, value) => {
                         const next = { ...draft, [key]: value }
+                        if (
+                          key === 'power_setting_unit' &&
+                          draft[key] !== value
+                        )
+                          delete next.power_setting
                         if (
                           key === 'excitation_power_basis' &&
                           draft[key] !== value

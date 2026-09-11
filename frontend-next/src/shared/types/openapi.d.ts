@@ -1851,27 +1851,29 @@ export interface components {
                     image_object_type?: string;
                     /** @enum {string} */
                     image_size_metric?: "maximum_length" | "equivalent_diameter" | "width";
+                    objective_magnification?: number;
                     objective?: string;
                     illumination_mode?: string;
                     image_scale_um_per_px?: number;
                     /** @enum {string} */
-                    observation_mode?: "visual" | "digital";
+                    observation_mode: "visual" | "digital";
                     /** @enum {string} */
                     optical_path?: "reflection" | "transmission";
                     /** @enum {string} */
                     contrast_method?: "bright_field" | "dark_field" | "dic" | "phase_contrast" | "fluorescence" | "other";
                     contrast_method_other?: string;
                     objective_na?: number;
-                    objective_immersion?: string;
+                    /** @enum {string} */
+                    objective_immersion?: "air" | "oil" | "water" | "other";
                     detector?: string;
                     exposure_time_ms?: number;
                     /** @enum {string} */
-                    exposure_mode?: "manual" | "one_shot" | "continuous_auto";
+                    exposure_mode?: "manual" | "auto" | "one_shot" | "continuous_auto";
                     detector_gain?: string;
                     /** @enum {string} */
                     image_color_mode?: "color" | "monochrome";
                     /** @enum {string} */
-                    white_balance_mode?: "off" | "manual" | "one_shot" | "continuous_auto";
+                    white_balance_mode?: "unapplied" | "manual" | "auto" | "one_shot" | "continuous_auto";
                     white_balance_settings?: string;
                     white_balance_temperature_K?: number;
                     white_balance_reference?: string;
@@ -1898,7 +1900,7 @@ export interface components {
                     polarization_reference?: string;
                     sample_preparation?: string;
                     acquisition_note?: string;
-                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "whole_sample" | "selected_area";
@@ -1955,12 +1957,27 @@ export interface components {
                     /** @enum {string} */
                     intensity_processing?: "unscaled" | "count_rate" | "normalized";
                     /** @enum {string} */
-                    accumulation_method?: "sum" | "mean" | "separate";
+                    accumulation_method?: "sum" | "mean";
                     confocal_aperture_um?: number;
                     filter_cutoff?: string;
                     sample_preparation?: string;
                     acquisition_note?: string;
-                } & (unknown & unknown & unknown & unknown & unknown);
+                    objective_magnification?: number;
+                    /** @enum {string} */
+                    objective_immersion?: "air" | "oil" | "water" | "other";
+                    /** @enum {string} */
+                    sampling_optic?: "microscope" | "probe";
+                    /** @enum {string} */
+                    power_setting_unit?: "percent" | "mW" | "level";
+                    power_setting?: string;
+                    sample_power_mW?: number;
+                    /** @enum {string} */
+                    temperature_control?: "ambient" | "recorded";
+                    /** @enum {string} */
+                    environment_kind?: "air" | "vacuum" | "gas" | "liquid" | "other";
+                    wavenumber_calibration?: string;
+                    relative_intensity_calibration?: string;
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "line" | "whole_sample" | "selected_area";
@@ -1969,7 +1986,8 @@ export interface components {
                 /** Format: uuid */
                 instrument_id: string;
                 instrument_version: number;
-            };
+                variable_conditions?: ("power_setting" | "sample_power_mW" | "integration_time_s" | "temperature_K" | "incident_polarization_angle_deg" | "analyzer_angle_deg")[];
+            } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
             properties?: unknown;
             assertions?: unknown;
         } & {
@@ -2406,6 +2424,20 @@ export interface components {
         }));
         /** MeasurementConditions */
         MeasurementConditions: {
+            /** Sampling Optic */
+            sampling_optic?: string | null;
+            /** Power Setting Unit */
+            power_setting_unit?: string | null;
+            /** Sample Power Mw */
+            sample_power_mW?: number | null;
+            /** Environment Kind */
+            environment_kind?: string | null;
+            /** Temperature Control */
+            temperature_control?: string | null;
+            /** Wavenumber Calibration */
+            wavenumber_calibration?: string | null;
+            /** Relative Intensity Calibration */
+            relative_intensity_calibration?: string | null;
             /** Observation Mode */
             observation_mode?: string | null;
             /** Optical Path */
@@ -2414,6 +2446,8 @@ export interface components {
             contrast_method?: string | null;
             /** Contrast Method Other */
             contrast_method_other?: string | null;
+            /** Objective Magnification */
+            objective_magnification?: number | null;
             /** Objective Na */
             objective_na?: number | null;
             /** Objective Immersion */
@@ -2756,6 +2790,18 @@ export interface components {
             property_count: number;
             /** Assertion Count */
             assertion_count: number;
+            /** Instrument Configuration */
+            instrument_configuration?: {
+                [key: string]: string;
+            };
+            /** Scan File Id */
+            scan_file_id?: string | null;
+            /** Variable Conditions */
+            variable_conditions?: string[];
+            /** File Intensity Units */
+            file_intensity_units?: {
+                [key: string]: string;
+            };
             /** Supplementary Files */
             supplementary_files?: components["schemas"]["MeasurementRawFileRead"][];
             /** File Contexts */
@@ -2837,6 +2883,10 @@ export interface components {
         };
         /** MeasurementRawFileRead */
         MeasurementRawFileRead: {
+            /** Image Metadata */
+            image_metadata?: {
+                [key: string]: unknown;
+            };
             /**
              * Id
              * Format: uuid
@@ -2877,6 +2927,18 @@ export interface components {
             measured_at: string;
             sample_region?: components["schemas"]["SampleRegion"] | null;
             typed_conditions: components["schemas"]["MeasurementConditions"];
+            /** Instrument Configuration */
+            instrument_configuration?: {
+                [key: string]: string;
+            };
+            /** Scan File Id */
+            scan_file_id?: string | null;
+            /** Variable Conditions */
+            variable_conditions?: string[];
+            /** File Intensity Units */
+            file_intensity_units?: {
+                [key: string]: "a.u." | "counts" | "counts/s";
+            };
             /** Raw File Ids */
             raw_file_ids?: string[];
             /** Supplementary Files */
@@ -3042,7 +3104,7 @@ export interface components {
                 /** @enum {unknown} */
                 position_unit: "cm⁻¹" | "nm" | "eV" | "° 2θ" | "° ω" | "° φ" | "° χ";
                 /** @enum {unknown} */
-                intensity_unit: "a.u." | "counts" | "counts/s";
+                intensity_unit?: "a.u." | "counts" | "counts/s";
                 /** Format: uuid */
                 source_file_id?: string;
                 extraction_method?: string;
@@ -3056,7 +3118,7 @@ export interface components {
                     d_spacing_nm?: number;
                 }[];
                 source_locator?: string;
-            } & (unknown & unknown & unknown & unknown);
+            } & (unknown & unknown & unknown & unknown & unknown);
             unit?: null;
             uncertainty_value?: null;
             uncertainty_type?: null;

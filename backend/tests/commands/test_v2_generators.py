@@ -167,7 +167,7 @@ def test_measurement_json_schema_enforces_property_and_profile_contract() -> Non
                 "label": "whole sample",
                 "coordinate_system": "sample_local",
             },
-            "typed_conditions": {},
+            "typed_conditions": {"observation_mode": "visual"},
         },
         "properties": [
             {
@@ -261,7 +261,7 @@ def test_measurement_json_schema_and_openapi_reject_runtime_invalid_shapes() -> 
                 "label": "whole sample",
                 "coordinate_system": "sample_local",
             },
-            "typed_conditions": {},
+            "typed_conditions": {"observation_mode": "visual"},
         },
         "properties": [
             {
@@ -376,7 +376,7 @@ def test_characterization_field_source_matches_runtime_discriminators() -> None:
     profile_condition_fields = {
         field["key"] for profile in profiles for field in profile["condition_fields"]
     }
-    assert profile_condition_fields == set(MeasurementConditions.model_fields) - {"power_setting"}
+    assert profile_condition_fields == set(MeasurementConditions.model_fields)
     assert {
         assertion for profile in profiles for assertion in profile["allowed_assertion_types"]
     } == set()
@@ -482,7 +482,7 @@ def test_standard_schema_exports_current_scientific_and_result_models() -> None:
         "transformation",
         "dataset_query",
     }
-    assert schema["version"] == "v4.0-alpha.44"
+    assert schema["version"] == "v4.0-alpha.46"
     assert schema["status"] == "INTERNAL_VALIDATION"
     tilt_schema = schema["modules"]["substrates"]["$defs"]["SubstrateSizePlacementPayload"]
     assert tilt_schema["properties"]["tilt_angle_deg"]["anyOf"][0]["not"] == {"const": 0}

@@ -1,6 +1,8 @@
 import { capabilityNamesAreValid } from '@/shared/additional-capabilities'
 import { instrumentPresetsAreValid } from '@/shared/instrument-presets'
 import { InstrumentPresetsEditor } from './instrument-presets-editor'
+import { omCatalog, omCatalogValid } from '@/shared/om-configuration'
+import { OMCatalogEditor } from './om-configuration-editor'
 import {
   substrateOrientationPayload,
   substratePlaneLabel,
@@ -139,6 +141,17 @@ function instrumentCapabilitiesAreValid(value: string | string[]): boolean {
         capability &&
         typeof capability === 'object' &&
         INSTRUMENT_CAPABILITY_CODES.has(capability.code) &&
+        omCatalogValid(
+          omCatalog(
+            capability.configuration,
+            ['Raman', 'low_frequency_raman'].includes(capability.code)
+              ? 'Raman'
+              : 'optical_microscopy',
+          ),
+          ['Raman', 'low_frequency_raman'].includes(capability.code)
+            ? 'Raman'
+            : 'optical_microscopy',
+        ) &&
         instrumentPresetsAreValid(capability.code, capability.configuration) &&
         (capability.configuration === undefined ||
           (capability.configuration !== null &&
@@ -977,6 +990,13 @@ function EntityFieldControl({
                       item.code === code ||
                       (code === 'Raman' && item.code === 'low_frequency_raman'),
                   )
+                  const catalogMethod =
+                    code === 'Raman' ? 'Raman' : 'optical_microscopy'
+                  const catalogKey = code === 'Raman' ? 'raman' : 'om'
+                  const catalog = omCatalog(
+                    capability?.configuration,
+                    catalogMethod,
+                  )
                   const methodNames = instrumentOtherMethodNames(
                     capability?.configuration,
                   )
@@ -1025,7 +1045,11 @@ function EntityFieldControl({
                                         configuration:
                                           code === 'other'
                                             ? { method_names: [''] }
-                                            : {},
+                                            : code === 'optical_microscopy'
+                                              ? { om: {} }
+                                              : code === 'Raman'
+                                                ? { raman: {} }
+                                                : {},
                                       },
                                     ]
                                   : capabilities.filter(
@@ -1046,6 +1070,62 @@ function EntityFieldControl({
                             : profile.label_zh}
                         </span>
                       </label>
+                      {selected &&
+                      ['optical_microscopy', 'Raman'].includes(code) ? (
+                        catalog ? (
+                          <OMCatalogEditor
+                            method={catalogMethod}
+                            catalog={catalog}
+                            disabled={disabled}
+                            onChange={(om) =>
+                              rhf.onChange(
+                                JSON.stringify(
+                                  capabilities.map((item) =>
+                                    item === capability
+                                      ? {
+                                          ...item,
+                                          configuration: {
+                                            ...item.configuration,
+                                            [catalogKey]: om,
+                                          },
+                                        }
+                                      : item,
+                                  ),
+                                ),
+                              )
+                            }
+                          />
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={disabled}
+                            onClick={() =>
+                              rhf.onChange(
+                                JSON.stringify(
+                                  capabilities.map((item) =>
+                                    item === capability
+                                      ? {
+                                          ...item,
+                                          configuration: {
+                                            ...item.configuration,
+                                            [catalogKey]: {},
+                                          },
+                                        }
+                                      : item,
+                                  ),
+                                ),
+                              )
+                            }
+                          >
+                            {t(
+                              code === 'Raman'
+                                ? 'raman.register'
+                                : 'om.register',
+                            )}
+                          </Button>
+                        )
+                      ) : null}
                       {selected ? (
                         <InstrumentPresetsEditor
                           method={code}

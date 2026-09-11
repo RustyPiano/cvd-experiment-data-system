@@ -149,9 +149,29 @@ export function instrumentCapabilitiesSummary(
       const method = names.length
         ? names.join(' · ')
         : localizedOption(String(item.code ?? ''), language)
-      const presets = item.configuration?.presets
+      const presets = [
+        ...(Array.isArray(item.configuration?.presets)
+          ? item.configuration.presets
+          : []),
+        ...Object.values(
+          item.configuration?.om ?? item.configuration?.raman ?? {},
+        ).flatMap((entries) =>
+          Array.isArray(entries)
+            ? entries.map((entry) => ({
+                ...entry,
+                name: [
+                  entry.name,
+                  ...Object.values(entry.references ?? {}),
+                ].join(' · '),
+              }))
+            : [],
+        ),
+      ]
       if (!Array.isArray(presets) || !presets.length) return method
-      const fields = characterizationProfiles[item.code]?.condition_fields ?? []
+      const fields =
+        characterizationProfiles[
+          item.code === 'low_frequency_raman' ? 'Raman' : item.code
+        ]?.condition_fields ?? []
       return (
         method +
         '\n' +

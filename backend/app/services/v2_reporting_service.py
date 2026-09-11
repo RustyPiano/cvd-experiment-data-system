@@ -984,6 +984,12 @@ class V2ReportingService:
                     "measured_at": _iso(record.measured_at),
                     "sample_region": record.sample_region,
                     "typed_conditions": record.typed_conditions,
+                    "instrument_configuration": (record.attrs or {}).get(
+                        "instrument_configuration", {}
+                    ),
+                    "scan_file_id": (record.attrs or {}).get("scan_file_id"),
+                    "variable_conditions": (record.attrs or {}).get("variable_conditions", []),
+                    "file_intensity_units": (record.attrs or {}).get("file_intensity_units", {}),
                     "quality_flag": record.quality_flag,
                     "quality_note": (record.attrs or {}).get("quality_note"),
                     "attrs": record.attrs,

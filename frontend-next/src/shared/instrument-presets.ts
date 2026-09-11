@@ -1,4 +1,8 @@
-import { characterizationProfiles } from '@/shared/generated/field-metadata'
+import {
+  characterizationProfiles,
+  omConfiguration,
+  ramanConfiguration,
+} from '@/shared/generated/field-metadata'
 import {
   characterizationConditionIssue,
   conditionMatches,
@@ -7,6 +11,25 @@ import {
 export type InstrumentPreset = {
   name: string
   conditions: Record<string, unknown>
+}
+
+export function presetPowerUnitMatches(
+  conditions: Record<string, unknown>,
+  fixedUnit: string | undefined,
+) {
+  return (
+    !fixedUnit ||
+    conditions.power_setting == null ||
+    conditions.power_setting_unit === fixedUnit
+  )
+}
+
+export function presetFields(method: string) {
+  return method === 'optical_microscopy'
+    ? omConfiguration.preset_fields
+    : ['Raman', 'low_frequency_raman'].includes(method)
+      ? ramanConfiguration.preset_fields
+      : undefined
 }
 
 export function instrumentPresets(
@@ -87,6 +110,7 @@ export function instrumentPresetsAreValid(
   method: string,
   configuration: Record<string, unknown> | undefined,
 ) {
+  if (method === 'low_frequency_raman') method = 'Raman'
   const presets = instrumentPresets(configuration)
   const fields = characterizationProfiles[method]?.condition_fields ?? []
   return (
@@ -94,16 +118,26 @@ export function instrumentPresetsAreValid(
     new Set(presets.map((p) => p.name.trim().toLowerCase())).size ===
       presets.length &&
     presets.every((preset) => {
-      const draft = conditionDraft(preset.conditions)
+      const draft: Record<string, string> = {
+        ...(method === 'optical_microscopy'
+          ? { observation_mode: 'digital', image_color_mode: 'color' }
+          : {}),
+        ...conditionDraft(preset.conditions),
+      }
       return (
         preset.name.trim().length > 0 &&
         preset.name.trim().length <= 128 &&
         Object.keys(preset.conditions).length > 0 &&
-        Object.keys(preset.conditions).every((key) =>
-          fields.some((field) => field.key === key),
+        Object.keys(preset.conditions).every(
+          (key) =>
+            fields.some((field) => field.key === key) &&
+            (!presetFields(method) || presetFields(method)!.includes(key)),
         ) &&
         fields.every(
-          (field) => !characterizationConditionIssue(field, draft),
+          (field) =>
+            !characterizationConditionIssue(field, draft) &&
+            (conditionMatches(field.when, draft) ||
+              !preset.conditions[field.key]),
         ) &&
         Boolean(draft.excitation_power_value) ===
           Boolean(draft.excitation_power_basis)

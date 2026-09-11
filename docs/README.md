@@ -6,6 +6,9 @@
 
 | 类别 | 文档 | 作用 |
 |---|---|---|
+| Raman实施 | [reviews/2026-09-11-raman-implementation.md](reviews/2026-09-11-raman-implementation.md) | alpha.46设备配置、功率与序列、峰来源、校准适用性和验证记录；本地未部署 |
+| Raman专项审查 | [reviews/2026-09-10-raman-field-review.md](reviews/2026-09-10-raman-field-review.md) | 31项条件、设备登记、功率/偏振/扫描/峰来源及校准的逐项建议；只读探针与现有测试证据，未修改业务或发布 |
+| OM实施 | [reviews/2026-09-10-om-implementation.md](reviews/2026-09-10-om-implementation.md) | alpha.45设备目录、采集表单、图像校验及历史兼容的本地实施与验证 |
 | OM专项审查 | [`reviews/2026-09-10-om-field-review.md`](reviews/2026-09-10-om-field-review.md) | 35项OM条件、设备与预设、文件及导出的逐项建议；包含NA、白平衡及切换行为的复核证据，未实施的规则不视为已确认标准 |
 | 前端修复计划 | [`engineering/2026-09-10-frontend-design-remediation-plan.md`](engineering/2026-09-10-frontend-design-remediation-plan.md) | A～D 本地实现、426 前端用例及 PostgreSQL/浏览器/容器联调记录；生产发布前验收待执行 |
 | 前端审查复核 | [`reviews/2026-09-10-frontend-design-audit-verification.md`](reviews/2026-09-10-frontend-design-audit-verification.md) | 原审计逐项核实、误报修正与同类问题证据 |

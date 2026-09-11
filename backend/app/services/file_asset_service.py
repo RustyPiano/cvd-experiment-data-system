@@ -34,6 +34,7 @@ from app.services.experiment_guards import (
     get_visible_experiment,
 )
 from app.services.file_storage_service import FileStorageService
+from app.services.image_metadata import read_image_metadata
 from app.services.temperature_timeseries import (
     TemperatureTimeseriesError,
     ensure_temperature_timeseries_metadata,
@@ -100,6 +101,10 @@ def refresh_revision_provenance(db: Session, run_revision_id: UUID) -> None:
             break
         allowed_conditions = {item["key"] for item in profile["condition_fields"]}
         required_conditions = set(profile["required_condition_keys"])
+        if record.method_instrument == "optical_microscopy" and not (record.attrs or {}).get(
+            "condition_schema_version"
+        ):
+            required_conditions.discard("observation_mode")
         if not required_conditions.issubset(conditions) or conditions.keys() - allowed_conditions:
             complete = False
             break
@@ -372,6 +377,10 @@ class FileAssetService:
                 }
             metadata_json.update(binding_metadata)
             metadata_json.update(timeseries_metadata)
+            if resolved_method == "optical_microscopy":
+                image_info = read_image_metadata(content)
+                if image_info:
+                    metadata_json["image"] = image_info
             file_asset = FileAsset(
                 id=file_id,
                 experiment_run_id=experiment.id,

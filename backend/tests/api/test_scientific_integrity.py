@@ -459,7 +459,7 @@ def test_measurement_analysis_outputs_are_unique_and_acyclic() -> None:
                 "label": "whole sample",
                 "coordinate_system": "sample_local",
             },
-            "typed_conditions": {},
+            "typed_conditions": {"observation_mode": "visual"},
         },
         "properties": [{"property_code": "coverage_percent", "numeric_value": 10, "unit": "%"}],
     }
@@ -518,6 +518,7 @@ def test_optical_measurement_does_not_require_growth_assertion() -> None:
                     "coordinate_system": "sample_local",
                 },
                 "typed_conditions": {
+                    "observation_mode": "visual",
                     "objective": "10x",
                     "illumination_mode": "bright_field",
                 },
@@ -834,7 +835,7 @@ def test_material_assertion_values_are_canonical_and_exact() -> None:
                 "instrument_id": str(uuid4()),
                 "instrument_version": True,
                 "measured_at": "2026-08-30T12:00:00+08:00",
-                "typed_conditions": {},
+                "typed_conditions": {"observation_mode": "visual"},
             },
         ),
         (
@@ -1090,7 +1091,7 @@ def _optical_measurement(
                 "label": "whole sample",
                 "coordinate_system": "sample_local",
             },
-            "typed_conditions": {},
+            "typed_conditions": {"observation_mode": "visual"},
             "quality_flag": quality_flag,
         },
         "properties": [
@@ -1917,6 +1918,7 @@ def test_measurement_rejects_stale_growth_but_allows_current_control_and_other_p
         {
             "id": str(raw.id),
             "original_name": "ellipsometry.csv",
+            "image_metadata": {},
             "sha256": "a" * 64,
             "content_type": "text/csv",
             "size_bytes": 4,
@@ -2232,7 +2234,7 @@ def test_transformation_acl_provenance_and_cross_run_lineage(
     assert still_visible.status_code == 200
 
 
-def test_measurement_freezes_calibration_state(active_user, db_session) -> None:
+def test_raman_does_not_claim_an_unscoped_calibration_applies(active_user, db_session) -> None:
     run, sample = _locked_sample(db_session, active_user, "03")
     instrument = Instrument()
     db_session.add(instrument)
@@ -2349,9 +2351,7 @@ def test_measurement_freezes_calibration_state(active_user, db_session) -> None:
     assert sample_response.status_code == 200
     assert sample_response.json()["characterization_count"] == 1
     snapshot = response.json()["instrument_snapshot_json"]["calibration_at_measurement"]
-    assert snapshot["event_id"] == str(calibration.id)
-    assert snapshot["validity_status"] == "valid"
-    assert snapshot["expanded_uncertainty"] == 0.5
+    assert snapshot == {"validity_status": "not_recorded", "quantities": {}}
     db_session.refresh(sample)
     assert sample.actual_state == "unknown"
     assert sample.identity_state == "unknown"

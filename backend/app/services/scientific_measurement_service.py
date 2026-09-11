@@ -5,6 +5,7 @@ import binascii
 import hashlib
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -44,6 +45,9 @@ from app.services.experiment_guards import (
     get_visible_experiment,
 )
 from app.services.file_asset_service import refresh_revision_provenance
+from app.services.file_storage_service import FileStorageService
+from app.services.image_metadata import read_image_metadata
+from app.services.om_configuration import resolve_om_configuration
 from app.services.sample_service import ensure_sample_revision_association
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import instrument_version_snapshot
@@ -232,6 +236,118 @@ class ScientificMeasurementService:
             measurement.method_profile,
             measurement.measured_at,
         )
+        if measurement.method_profile == "Raman":
+            instrument_snapshot["calibration_at_measurement"] = self._raman_calibration_snapshot(
+                measurement.instrument_id,
+                measurement.measured_at,
+                measurement.instrument_configuration,
+                measurement.instrument_version,
+            )
+            attrs = (instrument_snapshot or {}).get("attrs_snapshot", {})
+            capability = next(
+                (
+                    item
+                    for item in attrs.get("capabilities", [])
+                    if isinstance(item, dict)
+                    and item.get("code") in {"Raman", "low_frequency_raman"}
+                ),
+                {},
+            )
+            catalog = capability.get("configuration", {}).get("raman")
+            try:
+                if catalog:
+                    fixed, adjustable = resolve_om_configuration(
+                        catalog, measurement.instrument_configuration, method="Raman"
+                    )
+                    actual = measurement.typed_conditions.model_dump(exclude_none=True)
+                    for key, value in fixed.items():
+                        if key not in adjustable and actual.get(key) != value:
+                            raise ValueError(
+                                "Raman conditions must match the selected instrument configuration"
+                            )
+                    required = set(
+                        self.entities.doc["raman_configuration"]["required_acquisition_keys"]
+                    )
+                    if required - actual.keys() - set(measurement.variable_conditions):
+                        raise ValueError("complete the Raman acquisition settings")
+                    if (set(measurement.variable_conditions) & fixed.keys()) - adjustable:
+                        raise ValueError("a fixed instrument setting cannot vary in this scan")
+                elif measurement.instrument_configuration:
+                    raise ValueError("Raman catalog is absent from this instrument version")
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if measurement.method_profile == "optical_microscopy":
+            attrs = (instrument_snapshot or {}).get("attrs_snapshot", {})
+            capability = next(
+                (
+                    item
+                    for item in attrs.get("capabilities", [])
+                    if isinstance(item, dict) and item.get("code") == "optical_microscopy"
+                ),
+                {},
+            )
+            catalog = capability.get("configuration", {}).get("om")
+            try:
+                if catalog:
+                    fixed, adjustable = resolve_om_configuration(
+                        catalog,
+                        measurement.instrument_configuration,
+                        measurement.typed_conditions.observation_mode == "digital",
+                    )
+                    actual = measurement.typed_conditions.model_dump(exclude_none=True)
+                    for key, value in fixed.items():
+                        if key not in adjustable and actual.get(key) != value:
+                            raise ValueError(
+                                "OM conditions must match the selected instrument configuration"
+                            )
+                elif measurement.instrument_configuration:
+                    raise ValueError("OM catalog is absent from this instrument version")
+                if measurement.typed_conditions.observation_mode == "digital":
+                    camera = next(
+                        (
+                            item
+                            for item in (catalog or {}).get("cameras", [])
+                            if item["name"] == measurement.instrument_configuration.get("cameras")
+                        ),
+                        {},
+                    )
+                    native_extensions = camera.get("native_extensions", [])
+                    for key, options in camera.get("mode_options", {}).items():
+                        value = getattr(measurement.typed_conditions, key)
+                        if value is not None and value not in options:
+                            raise ValueError(
+                                "acquisition mode is not supported by the selected camera"
+                            )
+                    for file in raw_files:
+                        if not (file.metadata_json or {}).get("image"):
+                            image_info = read_image_metadata(
+                                FileStorageService().resolve(file.storage_path).read_bytes()
+                            )
+                            if image_info:
+                                file.metadata_json = {
+                                    **(file.metadata_json or {}),
+                                    "image": image_info,
+                                }
+                        image_info = (file.metadata_json or {}).get("image", {})
+                        dimensions = measurement.typed_conditions.resolution_px
+                        if (
+                            image_info
+                            and dimensions
+                            and (
+                                dimensions.width != image_info["width"]
+                                or dimensions.height != image_info["height"]
+                            )
+                        ):
+                            raise ValueError("OM image dimensions do not match the source file")
+                        if (
+                            not (file.metadata_json or {}).get("image")
+                            and Path(file.original_name).suffix.lower() not in native_extensions
+                        ):
+                            raise ValueError(
+                                "OM原始文件须为有效图像；原生采集格式请在相机配置中登记。"
+                            )
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
         if any(file.characterization_record_id is not None for file in raw_files):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -267,6 +383,22 @@ class ScientificMeasurementService:
             test_conditions=None,
             raw_data=None,
             attrs={
+                "condition_schema_version": self.entities.doc["meta"]["version"],
+                "instrument_configuration": measurement.instrument_configuration,
+                **(
+                    {
+                        "scan_file_id": str(measurement.scan_file_id)
+                        if measurement.scan_file_id
+                        else None,
+                        "variable_conditions": measurement.variable_conditions,
+                        "file_intensity_units": {
+                            str(key): value
+                            for key, value in measurement.file_intensity_units.items()
+                        },
+                    }
+                    if measurement.method_profile == "Raman"
+                    else {}
+                ),
                 **(
                     {"quality_note": measurement.quality_note}
                     if measurement.quality_note is not None
@@ -770,6 +902,7 @@ class ScientificMeasurementService:
 
         def file_read(file: FileAsset) -> MeasurementRawFileRead:
             return MeasurementRawFileRead(
+                image_metadata=(file.metadata_json or {}).get("image", {}),
                 id=file.id,
                 original_name=file.original_name,
                 sha256=file.sha256,
@@ -794,6 +927,10 @@ class ScientificMeasurementService:
                 )
             ),
             raw_files=[file_read(file) for file in raw_files],
+            instrument_configuration=(record.attrs or {}).get("instrument_configuration", {}),
+            scan_file_id=(record.attrs or {}).get("scan_file_id"),
+            variable_conditions=(record.attrs or {}).get("variable_conditions", []),
+            file_intensity_units=(record.attrs or {}).get("file_intensity_units", {}),
             supplementary_files=[file_read(file) for file in supplementary_files],
             file_contexts=attrs.get("file_contexts", []),
             operator_name=attrs.get("operator_name"),
@@ -946,8 +1083,62 @@ class ScientificMeasurementService:
         )
         return snapshot
 
-    def _calibration_snapshot(self, instrument_id: UUID, measured_at: datetime) -> dict:
-        event = self.db.scalar(
+    def _raman_calibration_snapshot(
+        self, instrument_id: UUID, measured_at: datetime, selection: dict, version: int
+    ) -> dict:
+        events = self.db.scalars(
+            select(InstrumentLifecycleEvent)
+            .where(
+                InstrumentLifecycleEvent.instrument_id == instrument_id,
+                InstrumentLifecycleEvent.event_type == "calibration",
+                InstrumentLifecycleEvent.occurred_at <= measured_at,
+            )
+            .order_by(
+                InstrumentLifecycleEvent.occurred_at.desc(), InstrumentLifecycleEvent.id.desc()
+            )
+        )
+        matched = {}
+        for event in events:
+            scope_version = (event.details_json or {}).get("instrument_version")
+            if type(scope_version) is not int or scope_version != version:
+                continue
+            quantity = (event.quantity or "").strip().lower().replace(" ", "_")
+            if quantity not in {"raman_shift", "relative_intensity", "laser_power"}:
+                continue
+            refs = (event.details_json or {}).get("configuration", {})
+            required = {
+                "lasers",
+                "objectives" if quantity == "laser_power" else "spectrometers",
+            }
+            if (
+                not isinstance(refs, dict)
+                or not required <= refs.keys()
+                or any(
+                    not isinstance(value, str)
+                    or not value.strip()
+                    or key not in selection
+                    or selection[key] != value
+                    for key, value in refs.items()
+                )
+            ):
+                continue
+            if quantity not in matched:
+                matched[quantity] = self._calibration_snapshot(
+                    instrument_id, measured_at, event=event
+                )
+        return {
+            "validity_status": "scoped_records" if matched else "not_recorded",
+            "quantities": matched,
+        }
+
+    def _calibration_snapshot(
+        self,
+        instrument_id: UUID,
+        measured_at: datetime,
+        *,
+        event: InstrumentLifecycleEvent | None = None,
+    ) -> dict:
+        event = event or self.db.scalar(
             select(InstrumentLifecycleEvent)
             .where(
                 InstrumentLifecycleEvent.instrument_id == instrument_id,

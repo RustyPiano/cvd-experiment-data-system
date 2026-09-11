@@ -1,6 +1,48 @@
 // en locale. Mirrors the key shape of zh/common.ts (the authoritative default).
 // English UI polish is a post-v2.0 task (D12); keep keys in sync as文案 lands.
 export const common = {
+  raman: {
+    presetPowerUnitMismatch:
+      'The preset power unit does not match the selected laser configuration.',
+    dependencyRequired: 'Enter {{name}}.',
+    powerInvalid: 'Enter a valid power setting and unit.',
+    register: 'Register Raman configurations',
+    invalidCatalog:
+      'Complete the lasers, objectives or probes and spectral configurations. Names must be unique; spectral configurations must reference a laser.',
+    selectionRequired:
+      'Select a laser, objective or probe and spectral configuration.',
+    scanSource: 'Scan data file',
+    scanSourceRequired: 'Select the raw data file for this scan.',
+    variables: 'Parameters varying across the series',
+    variablesRequired: 'Select the varying parameters.',
+    polarizationReferenceRequired: 'Enter the polarization angle reference.',
+    peakLocatorRequired: 'Identify the source spectrum or aggregation range.',
+    peakRange: 'A peak lies outside the acquired Raman shift range.',
+    fileIntensity: 'Spectrum intensity unit',
+    intensityMismatch: 'Peak intensity units do not match the source file.',
+    notRecorded: 'Not recorded',
+    extractionRequired: 'Enter the peak extraction and baseline methods.',
+    intensityRequired: 'Select the peak intensity unit.',
+  },
+  om: {
+    configurationParameters: 'Configuration parameters',
+    applyPresetConfirm: 'Replace matching acquisition settings?',
+    supportedModes: 'Supported {{name}}',
+    currentCarrier: 'Current carrier: ',
+    nativeExtensions: 'Native acquisition file extensions',
+    select: 'Select',
+    name: 'Name',
+    unnamed: 'Unnamed configuration',
+    adjustable: 'Settings adjustable at acquisition',
+    add: 'Add {{name}}',
+    remove: 'Remove configuration',
+    removeConfirm: 'Remove this configuration?',
+    register: 'Register OM hardware',
+    invalid:
+      'Complete objective magnification, NA, immersion and optical configuration. Use unique names and link scale calibrations to their imaging configuration.',
+    selectionRequired:
+      'Select an objective, optical configuration and a camera for digital imaging.',
+  },
   instrumentPresets: {
     selectLabel: 'Instrument configuration preset',
     selectPlaceholder: 'Select a preset to apply',
@@ -840,7 +882,7 @@ export const common = {
       software: 'Processing software',
       softwareVersion: 'Software version',
       removeFile: 'Remove file',
-      operatorLabel: 'Actual measurement operator: ',
+      operatorLabel: 'Measurement operator: ',
       notRecorded: 'Not recorded',
       missingMetadata: 'Recommended acquisition metadata not recorded: ',
       sourceLabel: 'Source: ',

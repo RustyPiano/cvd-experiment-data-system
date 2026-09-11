@@ -512,6 +512,49 @@ export function MeasurementDetails({
           </div>
         ) : null}
       </dl>
+      {measurement.method_profile === 'Raman' ? (
+        <dl className="grid gap-3 text-sm sm:grid-cols-2 [&_dd]:break-words [&_dt]:break-words">
+          {measurement.scan_file_id ? (
+            <div>
+              <dt className="text-muted-foreground">{t('raman.scanSource')}</dt>
+              <dd>
+                {allEvidenceFiles.find(
+                  (file) => file.id === measurement.scan_file_id,
+                )?.original_name ?? measurement.scan_file_id}
+              </dd>
+            </div>
+          ) : null}
+          {measurement.variable_conditions?.length ? (
+            <div>
+              <dt className="text-muted-foreground">{t('raman.variables')}</dt>
+              <dd>
+                {measurement.variable_conditions
+                  .map((key) => {
+                    const field = conditionFields.get(key)
+                    return field
+                      ? english
+                        ? field.label_en
+                        : field.label_zh
+                      : key
+                  })
+                  .join(english ? ', ' : '、')}
+              </dd>
+            </div>
+          ) : null}
+          {Object.entries(measurement.file_intensity_units ?? {}).map(
+            ([id, unit]) => (
+              <div key={id}>
+                <dt className="text-muted-foreground">
+                  {allEvidenceFiles.find((file) => file.id === id)
+                    ?.original_name ?? id}{' '}
+                  · {t('raman.fileIntensity')}
+                </dt>
+                <dd>{unit}</dd>
+              </div>
+            ),
+          )}
+        </dl>
+      ) : null}
       <p className="text-sm">
         {t('characterizations.metadata.operatorLabel')}
         {measurement.operator_name ??
@@ -787,6 +830,12 @@ export function MeasurementDetails({
               >
                 <span className="min-w-0 break-all">
                   {file.original_name} ·{' '}
+                  {file.image_metadata?.width && file.image_metadata?.height ? (
+                    <span>
+                      {String(file.image_metadata.width)} ×{' '}
+                      {String(file.image_metadata.height)} px ·{' '}
+                    </span>
+                  ) : null}
                   {file.content_type ??
                     t('characterizations.details.unknownContentType')}{' '}
                   · {formatFileSize(file.size_bytes)} · SHA-256 {file.sha256}

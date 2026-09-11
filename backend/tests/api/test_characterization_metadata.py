@@ -1,7 +1,9 @@
+from io import BytesIO
 from uuid import uuid4
 
 import pytest
 from jsonschema import Draft202012Validator
+from PIL import Image
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -14,7 +16,7 @@ from tests.api.test_scientific_integrity import _headers, _locked_sample, client
 
 def test_instrument_presets_round_trip_and_preserve_old_versions(admin_user, db_session):
     headers = _headers(admin_user.email)
-    preset = {"name": " 50x ", "conditions": {"objective": "50x"}}
+    preset = {"name": " 10ms ", "conditions": {"exposure_time_ms": 10}}
     payload = {
         "instrument_code": "OM-PRESET",
         "name_type": "optical_microscopy",
@@ -24,8 +26,8 @@ def test_instrument_presets_round_trip_and_preserve_old_versions(admin_user, db_
     assert response.status_code == 201, response.text
     entity = response.json()
     stored = entity["latest_version"]["data"]["capabilities"][0]["configuration"]["presets"][0]
-    assert stored == {"name": "50x", "conditions": {"objective": "50x"}}
-    preset["conditions"]["objective"] = "100x"
+    assert stored == {"name": "10ms", "conditions": {"exposure_time_ms": 10}}
+    preset["conditions"]["exposure_time_ms"] = 20
     response = client.post(
         f"/api/v1/instruments/{entity['id']}/versions", json=payload, headers=headers
     )
@@ -163,6 +165,8 @@ def test_metadata_file_provenance_survives_save_detail_export_and_rejects_bad_so
     db_session.commit()
     headers = _headers(active_user.email)
     files = []
+    buffer = BytesIO()
+    Image.new("RGB", (16, 12)).save(buffer, format="PNG")
     for name, category in [("original.txt", "raw"), ("processed.txt", "processed")]:
         response = client.post(
             f"/api/v1/experiments/{run.id}/files",
@@ -173,7 +177,13 @@ def test_metadata_file_provenance_survives_save_detail_export_and_rejects_bad_so
                 "asset_role": "characterization_file",
                 "file_category": category,
             },
-            files={"file": (name, b"measurement data", "text/plain")},
+            files={
+                "file": (
+                    name,
+                    buffer.getvalue() if method == "optical_microscopy" else b"measurement data",
+                    "application/octet-stream",
+                )
+            },
         )
         assert response.status_code == 201, response.text
         files.append(response.json()["id"])

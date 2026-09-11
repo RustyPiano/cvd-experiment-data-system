@@ -40,11 +40,14 @@ export type PeakSeriesDraft = {
   peaks: PeakDraft[]
 }
 
-export function emptyPeakSeries(positionUnit = ''): PeakSeriesDraft {
+export function emptyPeakSeries(
+  positionUnit = '',
+  intensityUnit = 'a.u.',
+): PeakSeriesDraft {
   return {
     status: '',
     positionUnit,
-    intensityUnit: 'a.u.',
+    intensityUnit,
     sourceFileIndex: null,
     peaks: [],
   }
@@ -56,6 +59,20 @@ export function peakSeriesIssue(
   method: string,
 ): string | null {
   if (!value.status) return null
+  if (
+    method === 'Raman' &&
+    value.peaks.some((peak) => peak.height.trim() || peak.area.trim()) &&
+    !value.intensityUnit
+  )
+    return 'intensityRequired'
+  if (
+    method === 'Raman' &&
+    value.peaks.some(
+      (peak) => peak.fwhm.trim() || peak.height.trim() || peak.area.trim(),
+    ) &&
+    (!value.extractionMethod?.trim() || !value.baselineMethod?.trim())
+  )
+    return 'extractionRequired'
   if (
     (method !== 'XRD' || value.positionUnit !== '° 2θ') &&
     value.peaks.some((peak) => peak.d_spacing_nm.trim())
@@ -107,7 +124,12 @@ export function peakSeriesValue(
   return {
     status: value.status as SpectralValue['status'],
     position_unit: value.positionUnit as SpectralValue['position_unit'],
-    intensity_unit: value.intensityUnit as SpectralValue['intensity_unit'],
+    ...(value.intensityUnit
+      ? {
+          intensity_unit:
+            value.intensityUnit as SpectralValue['intensity_unit'],
+        }
+      : {}),
     ...(value.sourceLocator?.trim()
       ? { source_locator: value.sourceLocator.trim() }
       : {}),
@@ -168,7 +190,9 @@ export function SpectralPeaksEditor({
       : key === 'height'
         ? value.intensityUnit
         : key === 'area'
-          ? `${value.intensityUnit} · ${value.positionUnit}`
+          ? value.intensityUnit
+            ? `${value.intensityUnit} · ${value.positionUnit}`
+            : ''
           : value.positionUnit
   return (
     <fieldset className="flex min-w-0 flex-col gap-4" disabled={disabled}>
@@ -323,9 +347,11 @@ export function SpectralPeaksEditor({
                 <div key={key} className="flex min-w-0 flex-col gap-2">
                   <Label htmlFor={id}>
                     {tr(key)}
-                    {isEnglish(i18n.language)
-                      ? ` (${unitFor(key)})`
-                      : `（${unitFor(key)}）`}
+                    {unitFor(key)
+                      ? isEnglish(i18n.language)
+                        ? ` (${unitFor(key)})`
+                        : `（${unitFor(key)}）`
+                      : ''}
                   </Label>
                   <Input
                     id={id}
@@ -406,7 +432,9 @@ export function SpectralPeaksEditor({
       >
         {tr('add')}
       </Button>
-      {value.status === 'recorded' ? (
+      {value.status === 'recorded' &&
+      (method !== 'Raman' ||
+        value.peaks.some((peak) => peak.height || peak.area)) ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="peak-intensity-unit">{tr('intensityUnit')}</Label>
@@ -431,7 +459,11 @@ export function SpectralPeaksEditor({
               }}
             >
               <SelectTrigger id="peak-intensity-unit" className="w-full">
-                <SelectValue />
+                <SelectValue
+                  placeholder={t(
+                    'characterizations.workspace.placeholders.select',
+                  )}
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
@@ -448,7 +480,11 @@ export function SpectralPeaksEditor({
       ) : null}
       {issue ? (
         <p role="alert" className="text-sm text-destructive">
-          {tr(issue)}
+          {issue === 'intensityRequired'
+            ? t('raman.intensityRequired')
+            : issue === 'extractionRequired'
+              ? t('raman.extractionRequired')
+              : tr(issue)}
         </p>
       ) : null}
     </fieldset>

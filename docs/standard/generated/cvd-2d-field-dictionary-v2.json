@@ -1,6 +1,6 @@
 {
   "standard_id": "cvd-2d-process",
-  "version": "v4.0-alpha.44",
+  "version": "v4.0-alpha.46",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "characterization_properties": {
@@ -15,7 +15,6 @@
         "required": [
           "status",
           "position_unit",
-          "intensity_unit",
           "peaks"
         ],
         "properties": {
@@ -105,6 +104,33 @@
           }
         },
         "allOf": [
+          {
+            "if": {
+              "properties": {
+                "peaks": {
+                  "contains": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "height"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "area"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "intensity_unit"
+              ]
+            }
+          },
           {
             "if": {
               "properties": {
@@ -484,21 +510,23 @@
       "instrument_required": false,
       "raw_files_required": false,
       "show_growth_presence": false,
-      "raw_file_guidance_zh": "可上传原始图像。",
+      "raw_file_guidance_zh": "上传原始图像或已登记的原生采集文件。",
       "allowed_region_types": [
         "point",
         "area",
         "whole_sample",
         "selected_area"
       ],
-      "required_condition_keys": [],
+      "required_condition_keys": [
+        "observation_mode"
+      ],
       "optional_condition_keys": [
+        "objective_magnification",
         "image_object_type",
         "image_size_metric",
         "objective",
         "illumination_mode",
         "image_scale_um_per_px",
-        "observation_mode",
         "optical_path",
         "contrast_method",
         "contrast_method_other",
@@ -570,6 +598,13 @@
           "section": "results"
         },
         {
+          "key": "objective_magnification",
+          "label_zh": "物镜倍率",
+          "label_en": "Objective magnification",
+          "value_type": "number",
+          "unit": "×"
+        },
+        {
           "key": "objective",
           "label_zh": "物镜规格",
           "label_en": "Objective specification",
@@ -577,8 +612,8 @@
           "validation": {
             "max_length": 128
           },
-          "placeholder_zh": "100×，NA 0.9",
-          "placeholder_en": "100×, NA 0.9"
+          "placeholder_zh": "物镜型号或名称",
+          "placeholder_en": "Objective model or name"
         },
         {
           "key": "illumination_mode",
@@ -596,7 +631,6 @@
           "label_en": "X pixel scale",
           "value_type": "number",
           "unit": "μm/px",
-          "section": "results",
           "when": {
             "observation_mode": [
               "digital"
@@ -700,20 +734,51 @@
           "key": "objective_na",
           "label_zh": "物镜数值孔径 NA",
           "label_en": "Objective numerical aperture",
-          "value_type": "number"
+          "value_type": "number",
+          "conditional_validation": [
+            {
+              "when": {
+                "objective_immersion": [
+                  "air"
+                ]
+              },
+              "validation": {
+                "lt": 1
+              }
+            }
+          ]
         },
         {
           "key": "objective_immersion",
-          "label_zh": "物镜浸没介质",
-          "label_en": "Objective immersion medium",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          }
+          "label_zh": "浸没介质",
+          "label_en": "Immersion medium",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "air",
+              "label_zh": "干式",
+              "label_en": "Dry"
+            },
+            {
+              "value": "oil",
+              "label_zh": "油浸",
+              "label_en": "Oil"
+            },
+            {
+              "value": "water",
+              "label_zh": "水浸",
+              "label_en": "Water"
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "Other"
+            }
+          ]
         },
         {
           "key": "detector",
-          "label_zh": "实际探测器/相机",
+          "label_zh": "相机",
           "label_en": "Detector / camera used",
           "value_type": "text",
           "validation": {
@@ -727,7 +792,7 @@
         },
         {
           "key": "exposure_time_ms",
-          "label_zh": "实际曝光时间",
+          "label_zh": "曝光时间",
           "label_en": "Actual exposure time",
           "value_type": "number",
           "unit": "ms",
@@ -750,6 +815,11 @@
               "label_en": "Manual"
             },
             {
+              "value": "auto",
+              "label_zh": "自动",
+              "label_en": "Auto"
+            },
+            {
               "value": "one_shot",
               "label_zh": "一次自动后锁定",
               "label_en": "One-shot auto / locked"
@@ -769,7 +839,7 @@
         },
         {
           "key": "detector_gain",
-          "label_zh": "探测器增益及单位/档位",
+          "label_zh": "相机增益",
           "label_en": "Detector gain and unit/setting",
           "value_type": "text",
           "validation": {
@@ -786,7 +856,7 @@
         },
         {
           "key": "image_color_mode",
-          "label_zh": "图像颜色类型",
+          "label_zh": "采集颜色模式",
           "label_en": "Image color type",
           "value_type": "select",
           "options": [
@@ -797,7 +867,7 @@
             },
             {
               "value": "monochrome",
-              "label_zh": "黑白",
+              "label_zh": "单色",
               "label_en": "Monochrome"
             }
           ],
@@ -815,14 +885,19 @@
           "value_type": "select",
           "options": [
             {
-              "value": "off",
-              "label_zh": "关闭",
-              "label_en": "Off"
+              "value": "unapplied",
+              "label_zh": "未应用",
+              "label_en": "Not applied"
             },
             {
               "value": "manual",
               "label_zh": "手动",
               "label_en": "Manual"
+            },
+            {
+              "value": "auto",
+              "label_zh": "自动",
+              "label_en": "Auto"
             },
             {
               "value": "one_shot",
@@ -844,7 +919,7 @@
         },
         {
           "key": "white_balance_settings",
-          "label_zh": "实际白平衡配置/RGB 增益",
+          "label_zh": "白平衡参数",
           "label_en": "White balance configuration / RGB gains",
           "value_type": "text",
           "validation": {
@@ -853,6 +928,7 @@
           "when": {
             "white_balance_mode": [
               "manual",
+              "auto",
               "one_shot",
               "continuous_auto"
             ]
@@ -861,13 +937,16 @@
         },
         {
           "key": "white_balance_temperature_K",
-          "label_zh": "软件显示白平衡色温",
+          "label_zh": "白平衡色温",
           "label_en": "Reported white balance color temperature",
           "value_type": "number",
           "unit": "K",
           "when": {
-            "image_color_mode": [
-              "color"
+            "white_balance_mode": [
+              "manual",
+              "auto",
+              "one_shot",
+              "continuous_auto"
             ]
           }
         },
@@ -887,7 +966,7 @@
         },
         {
           "key": "illumination_source",
-          "label_zh": "实际照明光源",
+          "label_zh": "光源",
           "label_en": "Illumination source used",
           "value_type": "text",
           "validation": {
@@ -897,7 +976,7 @@
         },
         {
           "key": "illumination_setting",
-          "label_zh": "照明亮度及原机单位",
+          "label_zh": "光源设置",
           "label_en": "Illumination setting and instrument unit",
           "value_type": "text",
           "validation": {
@@ -907,7 +986,7 @@
         },
         {
           "key": "filter_configuration",
-          "label_zh": "实际滤光配置",
+          "label_zh": "滤光片",
           "label_en": "Filter configuration used",
           "value_type": "text",
           "validation": {
@@ -918,7 +997,7 @@
         },
         {
           "key": "aperture_setting",
-          "label_zh": "照明孔径设置",
+          "label_zh": "孔径光阑",
           "label_en": "Illumination aperture setting",
           "value_type": "text",
           "validation": {
@@ -939,7 +1018,7 @@
         },
         {
           "key": "resolution_px",
-          "label_zh": "采样点数",
+          "label_zh": "图像尺寸",
           "label_en": "Sampling points",
           "value_type": "resolution",
           "components": [
@@ -962,7 +1041,7 @@
         },
         {
           "key": "scale_calibration",
-          "label_zh": "图像/衍射尺度校准来源",
+          "label_zh": "像素尺度校准依据",
           "label_en": "Image / diffraction scale calibration source",
           "value_type": "text",
           "validation": {
@@ -1079,13 +1158,23 @@
             },
             {
               "value": "parallel",
-              "label_zh": "随动保持平行",
-              "label_en": "Parallel tracking"
+              "label_zh": "平行",
+              "label_en": "Parallel",
+              "when": {
+                "incident_polarization_state": [
+                  "linear"
+                ]
+              }
             },
             {
               "value": "crossed",
-              "label_zh": "随动保持交叉",
-              "label_en": "Crossed tracking"
+              "label_zh": "正交",
+              "label_en": "Crossed",
+              "when": {
+                "incident_polarization_state": [
+                  "linear"
+                ]
+              }
             }
           ]
         },
@@ -1107,6 +1196,11 @@
         },
         {
           "key": "analyzer_angle_deg",
+          "required_when": {
+            "analyzer_mode": [
+              "fixed"
+            ]
+          },
           "label_zh": "检偏器角度",
           "label_en": "Analyzer angle",
           "value_type": "number",
@@ -1144,15 +1238,13 @@
         },
         {
           "key": "acquisition_note",
-          "label_zh": "采集条件来源/缺项说明",
+          "label_zh": "备注",
           "label_en": "Acquisition metadata source / missing information",
           "value_type": "text",
           "validation": {
             "max_length": 1000
           },
-          "multiline": true,
-          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
-          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
+          "multiline": true
         }
       ],
       "allowed_property_codes": [
@@ -1202,7 +1294,7 @@
       "instrument_required": true,
       "raw_files_required": true,
       "show_growth_presence": false,
-      "raw_file_guidance_zh": "请上传原始光谱或仪器导出文件。",
+      "raw_file_guidance_zh": "上传原始光谱或仪器采集文件。",
       "allowed_region_types": [
         "point",
         "line",
@@ -1242,7 +1334,17 @@
         "confocal_aperture_um",
         "filter_cutoff",
         "sample_preparation",
-        "acquisition_note"
+        "acquisition_note",
+        "objective_magnification",
+        "objective_immersion",
+        "sampling_optic",
+        "power_setting_unit",
+        "power_setting",
+        "sample_power_mW",
+        "temperature_control",
+        "environment_kind",
+        "wavenumber_calibration",
+        "relative_intensity_calibration"
       ],
       "condition_fields": [
         {
@@ -1257,7 +1359,7 @@
           "label_zh": "激光功率",
           "label_en": "Laser power",
           "value_type": "number",
-          "recommended": true
+          "legacy_only": true
         },
         {
           "key": "excitation_power_basis",
@@ -1275,39 +1377,35 @@
               "label_zh": "仪器设置（%）",
               "label_en": "Instrument setting (%)"
             }
-          ]
+          ],
+          "legacy_only": true
         },
         {
           "key": "objective",
-          "label_zh": "物镜规格",
-          "label_en": "Objective specification",
+          "label_zh": "物镜/探头",
+          "label_en": "Objective / probe",
           "value_type": "text",
           "validation": {
             "max_length": 128
-          },
-          "placeholder_zh": "100×，NA 0.9",
-          "placeholder_en": "100×, NA 0.9",
-          "recommended": true
+          }
         },
         {
           "key": "integration_time_s",
-          "label_zh": "单次采集时间",
-          "label_en": "Time per acquisition",
+          "label_zh": "积分时间",
+          "label_en": "Integration time",
           "value_type": "number",
-          "unit": "s",
-          "recommended": true
+          "unit": "s"
         },
         {
           "key": "accumulations",
-          "label_zh": "光谱累积次数",
-          "label_en": "Spectral accumulations",
-          "value_type": "integer",
-          "recommended": true
+          "label_zh": "累积次数",
+          "label_en": "Accumulations",
+          "value_type": "integer"
         },
         {
           "key": "raman_shift_range_cm1",
-          "label_zh": "采集范围",
-          "label_en": "Acquired Raman shift range",
+          "label_zh": "Raman 位移范围",
+          "label_en": "Raman shift range",
           "value_type": "range",
           "unit": "cm⁻¹",
           "components": [
@@ -1326,32 +1424,62 @@
         },
         {
           "key": "filter_configuration",
-          "label_zh": "实际滤光配置",
-          "label_en": "Filter configuration used",
+          "label_zh": "滤光配置",
+          "label_en": "Filter configuration",
           "value_type": "text",
           "validation": {
             "max_length": 128
-          },
-          "placeholder_zh": "滤光片型号/通带/截止范围",
-          "placeholder_en": "Filter model / passband / cutoff"
+          }
         },
         {
           "key": "temperature_K",
           "label_zh": "测量温度",
           "label_en": "Measurement temperature",
           "value_type": "number",
-          "unit": "K"
+          "unit": "K",
+          "when": {
+            "temperature_control": [
+              "recorded"
+            ]
+          },
+          "required_when": {
+            "temperature_control": [
+              "recorded"
+            ]
+          }
         },
         {
           "key": "objective_na",
           "label_zh": "物镜数值孔径 NA",
           "label_en": "Objective numerical aperture",
-          "value_type": "number"
+          "value_type": "number",
+          "when": {
+            "sampling_optic": [
+              "microscope"
+            ]
+          },
+          "required_when": {
+            "sampling_optic": [
+              "microscope"
+            ]
+          },
+          "conditional_validation": [
+            {
+              "when": {
+                "objective_immersion": [
+                  "air"
+                ]
+              },
+              "validation": {
+                "lt": 1
+              }
+            }
+          ]
         },
         {
           "key": "grating_lines_per_mm",
-          "label_zh": "实际光栅刻线密度",
-          "label_en": "Grating groove density",
+          "label_zh": "光栅",
+          "label_en": "Grating",
           "value_type": "number",
           "unit": "lines/mm"
         },
@@ -1364,8 +1492,8 @@
         },
         {
           "key": "detector",
-          "label_zh": "实际探测器/相机",
-          "label_en": "Detector / camera used",
+          "label_zh": "光谱探测器",
+          "label_en": "Spectral detector",
           "value_type": "text",
           "validation": {
             "max_length": 128
@@ -1373,30 +1501,28 @@
         },
         {
           "key": "detector_gain",
-          "label_zh": "探测器增益及单位/档位",
-          "label_en": "Detector gain and unit/setting",
+          "label_zh": "探测器增益",
+          "label_en": "Detector gain",
           "value_type": "text",
           "validation": {
             "max_length": 128
-          },
-          "placeholder_zh": "例如 1×、6 dB；按仪器显示填写",
-          "placeholder_en": "e.g. 1× or 6 dB, as reported"
+          }
         },
         {
           "key": "collection_geometry",
-          "label_zh": "光学收集几何",
-          "label_en": "Optical collection geometry",
+          "label_zh": "收集几何",
+          "label_en": "Collection geometry",
           "value_type": "select",
           "options": [
             {
               "value": "reflection",
-              "label_zh": "反射/背散射",
-              "label_en": "Reflection / backscattering"
+              "label_zh": "背散射",
+              "label_en": "Backscattering"
             },
             {
               "value": "transmission",
-              "label_zh": "透射",
-              "label_en": "Transmission"
+              "label_zh": "前向收集",
+              "label_en": "Forward collection"
             },
             {
               "value": "other",
@@ -1441,25 +1567,37 @@
           "options": [
             {
               "value": "none",
-              "label_zh": "未加检偏器",
-              "label_en": "No analyzer"
+              "label_zh": "未使用",
+              "label_en": "Not used"
             },
             {
               "value": "fixed",
-              "label_zh": "固定角度",
-              "label_en": "Fixed angle"
+              "label_zh": "自定角度",
+              "label_en": "Custom angle"
             },
             {
               "value": "parallel",
-              "label_zh": "随动保持平行",
-              "label_en": "Parallel tracking"
+              "label_zh": "平行",
+              "label_en": "Parallel",
+              "when": {
+                "incident_polarization_state": [
+                  "linear"
+                ]
+              }
             },
             {
               "value": "crossed",
-              "label_zh": "随动保持交叉",
-              "label_en": "Crossed tracking"
+              "label_zh": "正交",
+              "label_en": "Crossed",
+              "when": {
+                "incident_polarization_state": [
+                  "linear"
+                ]
+              }
             }
-          ]
+          ],
+          "help_zh": "平行、正交相对于入射偏振方向。",
+          "help_en": "Parallel and crossed are relative to incident polarization."
         },
         {
           "key": "incident_polarization_angle_deg",
@@ -1475,7 +1613,10 @@
             "incident_polarization_state": [
               "linear"
             ]
-          }
+          },
+          "requires": [
+            "polarization_reference"
+          ]
         },
         {
           "key": "analyzer_angle_deg",
@@ -1491,12 +1632,20 @@
             "analyzer_mode": [
               "fixed"
             ]
-          }
+          },
+          "required_when": {
+            "analyzer_mode": [
+              "fixed"
+            ]
+          },
+          "requires": [
+            "polarization_reference"
+          ]
         },
         {
           "key": "polarization_reference",
-          "label_zh": "偏振角参照/正方向",
-          "label_en": "Polarization reference / positive direction",
+          "label_zh": "偏振角参照",
+          "label_en": "Polarization reference",
           "value_type": "text",
           "validation": {
             "max_length": 128
@@ -1529,13 +1678,13 @@
           "options": [
             {
               "value": "single",
-              "label_zh": "单次采集",
-              "label_en": "Single acquisition"
+              "label_zh": "单点光谱",
+              "label_en": "Single-point spectrum"
             },
             {
               "value": "mapping",
-              "label_zh": "映射",
-              "label_en": "Mapping"
+              "label_zh": "空间扫描",
+              "label_en": "Spatial scan"
             },
             {
               "value": "series",
@@ -1546,8 +1695,8 @@
         },
         {
           "key": "scan_coordinates",
-          "label_zh": "扫描轴/步距/逐点参数来源",
-          "label_en": "Scan axes / spacing / per-point metadata",
+          "label_zh": "扫描参数",
+          "label_en": "Scan parameters",
           "value_type": "text",
           "validation": {
             "max_length": 1000
@@ -1559,24 +1708,42 @@
               "series"
             ]
           },
-          "placeholder_zh": "填写文件名及坐标/时间/功率等列名；参数变化不共用一个数值",
-          "placeholder_en": "File and coordinate/time/power columns; retain varying values per point"
+          "required_when": {
+            "acquisition_kind": [
+              "mapping",
+              "series"
+            ]
+          },
+          "help_zh": "文件中的轴名、单位及坐标或参数列。",
+          "help_en": "Axes, units and coordinate or parameter columns in the file."
         },
         {
           "key": "measurement_environment",
-          "label_zh": "测量环境",
-          "label_en": "Measurement environment",
+          "label_zh": "环境名称",
+          "label_en": "Environment name",
           "value_type": "text",
           "validation": {
             "max_length": 128
           },
-          "placeholder_zh": "空气、真空、氮气、液体等实际环境",
-          "placeholder_en": "Actual environment: air, vacuum, nitrogen, liquid…"
+          "when": {
+            "environment_kind": [
+              "gas",
+              "liquid",
+              "other"
+            ]
+          },
+          "required_when": {
+            "environment_kind": [
+              "gas",
+              "liquid",
+              "other"
+            ]
+          }
         },
         {
           "key": "temperature_basis",
-          "label_zh": "温度口径",
-          "label_en": "Temperature basis",
+          "label_zh": "温度来源",
+          "label_en": "Temperature source",
           "value_type": "select",
           "options": [
             {
@@ -1594,7 +1761,17 @@
               "label_zh": "样品实测",
               "label_en": "Measured at sample"
             }
-          ]
+          ],
+          "when": {
+            "temperature_control": [
+              "recorded"
+            ]
+          },
+          "required_when": {
+            "temperature_control": [
+              "recorded"
+            ]
+          }
         },
         {
           "key": "intensity_processing",
@@ -1618,12 +1795,13 @@
               "label_en": "Normalized relative intensity"
             }
           ],
-          "section": "results"
+          "section": "results",
+          "legacy_only": true
         },
         {
           "key": "accumulation_method",
-          "label_zh": "光谱累积处理",
-          "label_en": "Spectral accumulation method",
+          "label_zh": "累积方式",
+          "label_en": "Accumulation method",
           "value_type": "select",
           "options": [
             {
@@ -1635,11 +1813,6 @@
               "value": "mean",
               "label_zh": "平均",
               "label_en": "Mean"
-            },
-            {
-              "value": "separate",
-              "label_zh": "分别保存",
-              "label_en": "Kept separately"
             }
           ]
         },
@@ -1652,8 +1825,8 @@
         },
         {
           "key": "filter_cutoff",
-          "label_zh": "实际可测低频范围/截止依据",
-          "label_en": "Accessible low-frequency range / filter cutoff source",
+          "label_zh": "低频范围及依据",
+          "label_en": "Low-frequency range and reference",
           "value_type": "text",
           "validation": {
             "max_length": 128
@@ -1661,27 +1834,206 @@
         },
         {
           "key": "sample_preparation",
-          "label_zh": "表征前制样/处理记录",
+          "label_zh": "表征前处理",
           "label_en": "Preparation before measurement",
           "value_type": "text",
           "validation": {
             "max_length": 1000
           },
-          "multiline": true,
-          "placeholder_zh": "处理时间、操作、载体/支撑膜；已有记录填写编号",
-          "placeholder_en": "Time, treatment, carrier/support; reference an existing record"
+          "multiline": true
         },
         {
           "key": "acquisition_note",
-          "label_zh": "采集条件来源/缺项说明",
-          "label_en": "Acquisition metadata source / missing information",
+          "label_zh": "备注",
+          "label_en": "Notes",
           "value_type": "text",
           "validation": {
             "max_length": 1000
           },
-          "multiline": true,
-          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
-          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
+          "multiline": true
+        },
+        {
+          "key": "objective_magnification",
+          "label_zh": "物镜倍率",
+          "label_en": "Objective magnification",
+          "value_type": "number",
+          "unit": "×",
+          "when": {
+            "sampling_optic": [
+              "microscope"
+            ]
+          },
+          "required_when": {
+            "sampling_optic": [
+              "microscope"
+            ]
+          }
+        },
+        {
+          "key": "objective_immersion",
+          "label_zh": "浸没介质",
+          "label_en": "Immersion medium",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "air",
+              "label_zh": "干式",
+              "label_en": "Dry"
+            },
+            {
+              "value": "oil",
+              "label_zh": "油浸",
+              "label_en": "Oil"
+            },
+            {
+              "value": "water",
+              "label_zh": "水浸",
+              "label_en": "Water"
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "Other"
+            }
+          ],
+          "when": {
+            "sampling_optic": [
+              "microscope"
+            ]
+          },
+          "required_when": {
+            "sampling_optic": [
+              "microscope"
+            ]
+          }
+        },
+        {
+          "key": "sampling_optic",
+          "label_zh": "采样光学部件",
+          "label_en": "Sampling optic",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "microscope",
+              "label_zh": "显微物镜",
+              "label_en": "Microscope objective"
+            },
+            {
+              "value": "probe",
+              "label_zh": "采样探头",
+              "label_en": "Sampling probe"
+            }
+          ]
+        },
+        {
+          "key": "power_setting_unit",
+          "label_zh": "功率设置单位",
+          "label_en": "Power setting unit",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "percent",
+              "label_zh": "%",
+              "label_en": "%"
+            },
+            {
+              "value": "mW",
+              "label_zh": "mW（仪器设置）",
+              "label_en": "mW (instrument setting)"
+            },
+            {
+              "value": "level",
+              "label_zh": "档位",
+              "label_en": "Setting"
+            }
+          ]
+        },
+        {
+          "key": "power_setting",
+          "label_zh": "功率设置",
+          "label_en": "Power setting",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "sample_power_mW",
+          "label_zh": "样品处功率",
+          "label_en": "Power at sample",
+          "value_type": "number",
+          "unit": "mW"
+        },
+        {
+          "key": "temperature_control",
+          "label_zh": "温度条件",
+          "label_en": "Temperature conditions",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "ambient",
+              "label_zh": "室温、未控温",
+              "label_en": "Ambient, uncontrolled"
+            },
+            {
+              "value": "recorded",
+              "label_zh": "记录温度",
+              "label_en": "Recorded temperature"
+            }
+          ]
+        },
+        {
+          "key": "environment_kind",
+          "label_zh": "测量环境",
+          "label_en": "Measurement environment",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "air",
+              "label_zh": "空气",
+              "label_en": "Air"
+            },
+            {
+              "value": "vacuum",
+              "label_zh": "真空",
+              "label_en": "Vacuum"
+            },
+            {
+              "value": "gas",
+              "label_zh": "其他气氛",
+              "label_en": "Other gas atmosphere"
+            },
+            {
+              "value": "liquid",
+              "label_zh": "液体",
+              "label_en": "Liquid"
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "Other"
+            }
+          ]
+        },
+        {
+          "key": "wavenumber_calibration",
+          "label_zh": "位移校准记录",
+          "label_en": "Raman shift calibration record",
+          "value_type": "text",
+          "validation": {
+            "max_length": 1000
+          },
+          "multiline": true
+        },
+        {
+          "key": "relative_intensity_calibration",
+          "label_zh": "相对强度校准记录",
+          "label_en": "Relative intensity calibration record",
+          "value_type": "text",
+          "validation": {
+            "max_length": 1000
+          },
+          "multiline": true
         }
       ],
       "allowed_property_codes": [
@@ -1694,10 +2046,25 @@
         "cm⁻¹"
       ],
       "common_condition_keys": [
-        "excitation_power_value",
-        "excitation_power_basis",
+        "acquisition_kind",
+        "objective",
+        "sampling_optic",
+        "objective_magnification",
+        "objective_na",
+        "objective_immersion",
+        "grating_lines_per_mm",
+        "power_setting_unit",
+        "power_setting",
+        "sample_power_mW",
         "integration_time_s",
-        "accumulations"
+        "accumulations",
+        "raman_shift_range_cm1",
+        "environment_kind",
+        "temperature_control",
+        "temperature_K",
+        "temperature_basis",
+        "measurement_environment",
+        "scan_coordinates"
       ]
     },
     "low_frequency_raman": {
