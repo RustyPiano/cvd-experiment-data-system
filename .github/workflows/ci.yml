@@ -26,7 +26,7 @@ jobs:
 
       - name: Reject local tooling artifacts
         run: |
-          forbidden="$(git ls-files | grep -E '^(\.agents/|\.claude/(launch\.json|skills/)|\.codex/|\.impeccable/|\.opencode/|\.superpowers/|skills-lock\.json$|[^/]+\.xlsx$)' || true)"
+          forbidden="$(git ls-files | grep -E '^(\.agents/|\.claude/(launch\.json|skills/)|\.codex/|\.impeccable/|\.opencode/|\.superpowers/|\.workbuddy/|skills-lock\.json$|[^/]+\.xlsx$)' || true)"
           test -z "$forbidden" || { echo "$forbidden"; exit 1; }
 
       - uses: actions/setup-python@v7

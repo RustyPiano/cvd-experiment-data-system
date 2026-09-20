@@ -1,5 +1,13 @@
 .git
 .github
+.agents
+.claude
+.codex
+.impeccable
+.opencode
+.superpowers
+.workbuddy
+skills-lock.json
 .DS_Store
 .env
 **/.env
@@ -10,9 +18,10 @@ backend/.pytest_cache
 backend/.ruff_cache
 backend/htmlcov
 backend/storage
-frontend/node_modules
-frontend/dist
 frontend-next/node_modules
 frontend-next/dist
+docs/**
+!docs/standard/
+!docs/standard/field-source.yaml
 **/._*
 storage
