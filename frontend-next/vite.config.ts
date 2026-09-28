@@ -29,6 +29,10 @@ const config = defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: false,
     passWithNoTests: true,
+    // CI runners are several times slower than local machines for the
+    // userEvent-heavy workspace tests; a timed-out test keeps running and
+    // leaks mock calls into the next one.
+    testTimeout: 20_000,
   },
 })
 
