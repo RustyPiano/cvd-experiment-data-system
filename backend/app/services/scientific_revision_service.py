@@ -27,7 +27,6 @@ from app.models.scientific import (
     TargetSpec,
 )
 from app.models.user import User, UserRole
-from app.models.v2_entities import ContainerInstance
 from app.schemas.scientific import (
     ProcessTimelinePayload,
     RunRevisionListResponse,
@@ -307,29 +306,6 @@ class ScientificRevisionService:
                         "category",
                         expected_category=expected_category,
                     )
-            container_id = source_load.get("container_instance_id")
-            if not container_id:
-                continue
-            container = self.db.get(ContainerInstance, UUID(container_id))
-            ingredient_lot_ids = {
-                UUID(item["material_lot_id"]) for item in source_load["ingredients"]
-            }
-            if (
-                container is None
-                or container.status not in {"available", "in_use"}
-                or container.material_lot_id not in ingredient_lot_ids
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={
-                        "invalid": [
-                            {
-                                "key": "container_instance_id",
-                                "reason": "container_or_lot",
-                            }
-                        ]
-                    },
-                )
 
     @staticmethod
     def _invalid_source_reference(
@@ -671,34 +647,9 @@ class ScientificRevisionService:
 
     def _project_source_loads(self, revision: RunRevision, payload: dict[str, Any]) -> None:
         for item in payload["items"]:
-            container = (
-                self.db.get(ContainerInstance, UUID(item["container_instance_id"]))
-                if item.get("container_instance_id")
-                else None
-            )
             load = SourceLoad(
                 run_revision_id=revision.id,
                 load_key=item["load_key"],
-                container_instance_id=container.id if container else None,
-                container_snapshot_json=(
-                    {
-                        "id": str(container.id),
-                        "material_lot_id": str(container.material_lot_id),
-                        "container_code": container.container_code,
-                        "container_type": container.container_type,
-                        "opened_date": (
-                            container.opened_date.isoformat() if container.opened_date else None
-                        ),
-                        "storage_history": container.storage_history,
-                        "remaining_amount": container.remaining_amount,
-                        "remaining_unit": container.remaining_unit,
-                        "status": container.status,
-                        "attrs": container.attrs,
-                    }
-                    if container
-                    else None
-                ),
-                container_state_at_loading=container.status if container else None,
                 loading_method=item["loading_method"],
                 preparation_steps=item.get("preparation_steps") or [],
                 initial_position=item.get("initial_position"),

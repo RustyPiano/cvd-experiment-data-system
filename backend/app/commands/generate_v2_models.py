@@ -1214,8 +1214,6 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "list[dict[str, Any]]"
     if key in {"load_key", "event_key"}:
         return "NonBlankStr"
-    if key in {"container_instance_id"}:
-        return "UUID"
     if key in {"initial_position"}:
         return "dict[str, Any]"
     if key in {"excluded_time_ranges"}:

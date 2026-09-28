@@ -1241,7 +1241,6 @@ class SetupVersionPayload(V2PayloadBase):
     field_device_other_name: str | None = None
     field_device_other_names: list[NonBlankStr] | None = None
     setup_diagram: FileAssetReferencePayload | None = None
-    component_bindings: list[dict[str, Any]] | None = None
 
     @model_validator(mode="after")
     def _additional_capabilities(self) -> Self:

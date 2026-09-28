@@ -114,11 +114,7 @@ export function materialLotFormulaIsCompatible(
  * 版本号和坐标系由系统管理；部件绑定尚无可用的前端维护流程。
  * 这些字段不进入普通实体表单或详情。
  */
-export const SYSTEM_FIELD_KEYS = new Set([
-  'version',
-  'coordinate_system',
-  'component_bindings',
-])
+export const SYSTEM_FIELD_KEYS = new Set(['version', 'coordinate_system'])
 const JSON_ARRAY_FIELD_KEYS = new Set([
   'temperature_sensors',
   'gas_components',

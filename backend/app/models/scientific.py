@@ -313,20 +313,6 @@ class SourceLoad(Base):
         index=True,
     )
     load_key: Mapped[str] = mapped_column(String(64), nullable=False)
-    container_instance_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("container_instances.id"),
-        nullable=True,
-        index=True,
-    )
-    container_snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(
-        json_payload_type,
-        nullable=True,
-    )
-    container_state_at_loading: Mapped[str | None] = mapped_column(
-        String(32),
-        nullable=True,
-    )
     loading_method: Mapped[str] = mapped_column(String(64), nullable=False)
     preparation_steps: Mapped[list[dict[str, Any]]] = mapped_column(
         json_payload_type,
@@ -815,36 +801,6 @@ class DataDerivationEdge(Base):
     )
     direction: Mapped[str] = mapped_column(String(16), nullable=False)
     role: Mapped[str | None] = mapped_column(String(64), nullable=True)
-
-
-class ParserResult(Base):
-    __tablename__ = "parser_results"
-    __table_args__ = (
-        UniqueConstraint(
-            "file_asset_id", "parser_name", "parser_version", name="uq_parser_results"
-        ),
-        CheckConstraint(
-            "status IN ('pending', 'parsed', 'failed', 'unsupported')",
-            name="ck_parser_results_status",
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    file_asset_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("file_assets.id"),
-        nullable=False,
-        index=True,
-    )
-    parser_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    parser_version: Mapped[str] = mapped_column(String(64), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), nullable=False)
-    schema_json: Mapped[dict[str, Any] | None] = mapped_column(json_payload_type, nullable=True)
-    columns_json: Mapped[list[dict[str, Any]] | None] = mapped_column(
-        json_payload_type,
-        nullable=True,
-    )
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class RunFeature(Base):

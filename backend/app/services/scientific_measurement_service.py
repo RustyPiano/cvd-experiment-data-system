@@ -24,7 +24,7 @@ from app.models.scientific import (
     SampleRevisionState,
 )
 from app.models.user import User, UserRole
-from app.models.v2_entities import InstrumentCapability, InstrumentLifecycleEvent
+from app.models.v2_entities import InstrumentCapability
 from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
 from app.schemas.scientific import (
@@ -236,17 +236,8 @@ class ScientificMeasurementService:
             measurement.instrument_id,
             measurement.instrument_version,
             measurement.method_profile,
-            measurement.measured_at,
         )
         if measurement.method_profile in SCAN_METHODS:
-            instrument_snapshot["calibration_at_measurement"] = self._raman_calibration_snapshot(
-                measurement.instrument_id,
-                measurement.measured_at,
-                measurement.instrument_configuration,
-                measurement.instrument_version,
-                method=measurement.method_profile,
-                conditions=measurement.typed_conditions.model_dump(exclude_none=True),
-            )
             attrs = (instrument_snapshot or {}).get("attrs_snapshot", {})
             capability = next(
                 (
@@ -1058,7 +1049,6 @@ class ScientificMeasurementService:
         instrument_id: UUID | None,
         version_number: int | None,
         method_profile: str,
-        measured_at: datetime,
     ) -> dict | None:
         profile = characterization_profiles().get(method_profile)
         if profile is None:
@@ -1097,163 +1087,7 @@ class ScientificMeasurementService:
             )
         snapshot = instrument_version_snapshot(version)
         snapshot["capabilities"] = sorted(capabilities or {legacy_capability})
-        snapshot["calibration_at_measurement"] = self._calibration_snapshot(
-            instrument_id,
-            measured_at,
-        )
         return snapshot
-
-    def _raman_calibration_snapshot(
-        self,
-        instrument_id: UUID,
-        measured_at: datetime,
-        selection: dict,
-        version: int,
-        method: str = "Raman",
-        conditions: dict | None = None,
-    ) -> dict:
-        events = self.db.scalars(
-            select(InstrumentLifecycleEvent)
-            .where(
-                InstrumentLifecycleEvent.instrument_id == instrument_id,
-                InstrumentLifecycleEvent.event_type == "calibration",
-                InstrumentLifecycleEvent.occurred_at <= measured_at,
-            )
-            .order_by(
-                InstrumentLifecycleEvent.occurred_at.desc(), InstrumentLifecycleEvent.id.desc()
-            )
-        )
-        matched = {}
-        for event in events:
-            scope_version = (event.details_json or {}).get("instrument_version")
-            if type(scope_version) is not int or scope_version != version:
-                continue
-            quantity = (event.quantity or "").strip().lower().replace(" ", "_")
-            allowed = {
-                "PL": {"wavelength", "emission_response", "laser_power"},
-                "SHG": {"polarization", "laser_power"},
-            }.get(method, {"raman_shift", "relative_intensity", "laser_power"})
-            if quantity not in allowed:
-                continue
-            if (
-                method in {"PL", "SHG"}
-                and (event.details_json or {}).get("method_profile") != method
-            ):
-                continue
-            if method in {"PL", "SHG"} and quantity == "laser_power":
-                measured = conditions or {}
-                calibrated = (event.details_json or {}).get("conditions", {})
-                keys = {
-                    "excitation_wavelength_nm",
-                    "pulse_width_fs",
-                    "repetition_rate_MHz",
-                } & measured.keys()
-                if (
-                    not keys
-                    or not isinstance(calibrated, dict)
-                    or any(calibrated.get(key) != measured[key] for key in keys)
-                ):
-                    continue
-            if method == "PL" and quantity == "emission_response":
-                covered = (event.details_json or {}).get("spectral_range_nm", {})
-                used = (conditions or {}).get("spectral_range_nm", {})
-                if (
-                    not isinstance(covered, dict)
-                    or not used
-                    or not all(type(covered.get(key)) in {int, float} for key in ["min", "max"])
-                ):
-                    continue
-                if not 0 < covered["min"] <= used["min"] < used["max"] <= covered["max"]:
-                    continue
-            refs = (event.details_json or {}).get("configuration", {})
-            required = {
-                "lasers",
-                "objectives"
-                if quantity == "laser_power"
-                else "detections"
-                if method == "SHG"
-                else "spectrometers",
-            }
-            if (
-                not isinstance(refs, dict)
-                or not required <= refs.keys()
-                or any(
-                    not isinstance(value, str)
-                    or not value.strip()
-                    or key not in selection
-                    or selection[key] != value
-                    for key, value in refs.items()
-                )
-            ):
-                continue
-            if quantity not in matched:
-                matched[quantity] = self._calibration_snapshot(
-                    instrument_id, measured_at, event=event
-                )
-        return {
-            "validity_status": "scoped_records" if matched else "not_recorded",
-            "quantities": matched,
-        }
-
-    def _calibration_snapshot(
-        self,
-        instrument_id: UUID,
-        measured_at: datetime,
-        *,
-        event: InstrumentLifecycleEvent | None = None,
-    ) -> dict:
-        event = event or self.db.scalar(
-            select(InstrumentLifecycleEvent)
-            .where(
-                InstrumentLifecycleEvent.instrument_id == instrument_id,
-                InstrumentLifecycleEvent.event_type == "calibration",
-                InstrumentLifecycleEvent.occurred_at <= measured_at,
-            )
-            .order_by(
-                InstrumentLifecycleEvent.occurred_at.desc(),
-                InstrumentLifecycleEvent.id.desc(),
-            )
-            .limit(1)
-        )
-        if event is None:
-            return {
-                "measured_at": measured_at.isoformat(),
-                "validity_status": "not_recorded",
-            }
-        certificate = (
-            self.db.get(FileAsset, event.certificate_file_id) if event.certificate_file_id else None
-        )
-        validity = (
-            "validity_not_declared"
-            if event.valid_until is None
-            else "valid"
-            if normalize_offset_datetime(event.valid_until) >= measured_at
-            else "expired"
-        )
-        return {
-            "event_id": str(event.id),
-            "occurred_at": normalize_offset_datetime(event.occurred_at).isoformat(),
-            "valid_until": (
-                normalize_offset_datetime(event.valid_until).isoformat()
-                if event.valid_until
-                else None
-            ),
-            "validity_status": validity,
-            "affected_component": event.affected_component,
-            "quantity": event.quantity,
-            "correction": event.correction,
-            "expanded_uncertainty": event.expanded_uncertainty,
-            "details": event.details_json,
-            "certificate": (
-                {
-                    "file_asset_id": str(certificate.id),
-                    "original_name": certificate.original_name,
-                    "sha256": certificate.sha256,
-                }
-                if certificate
-                else None
-            ),
-        }
 
     def _active_files(
         self,

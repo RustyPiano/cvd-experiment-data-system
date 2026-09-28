@@ -5,7 +5,7 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v4.0-alpha.48
+  version: v4.0-alpha.49
   status: INTERNAL_VALIDATION
   updated: '2026-09-13'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
@@ -137,8 +137,6 @@ scientific_contract:
         items: {type: named_parameter_list, required: true}
     parameter_template_status: internal_validation
     owns:
-    - container_instance
-    - container_snapshot_at_lock
     - preparation_steps
     - position_program
     - heating_zone_ref
@@ -6489,22 +6487,6 @@ experiment_record:
       source: 2026-08-12师兄试填复核
       note: 使用 source_id 关联，界面显示样片标记、温区和位置；删除或重排衬底时关联不得暗中转向其他片
     - module: 前驱体
-      label: 源容器
-      label_en: Source container
-      key: container_instance_id
-      ui:
-        visibility_gated: true
-      meaning: 需要追溯具体舟、坩埚或其他源容器时，引用已登记容器实例
-      input: 容器实例引用
-      options: ContainerInstance UUID
-      unit: mm
-      requirement:
-        raw: 选填
-        level: optional
-      example: 550e8400-e29b-41d4-a716-446655440000
-      source: 科学修订契约
-      note: 不为普通试填增加容器尺寸和履历负担；仅在课题组确实管理具体容器时引用
-    - module: 前驱体
       label: 相对测温点位置
       label_en: Precursor source position
       key: initial_position
@@ -8737,20 +8719,6 @@ entities:
       example: setup.png
       source: 会议
       note: ''
-    - module: 装置Setup
-      label: 可更换部件绑定
-      label_en: Replaceable component bindings
-      key: component_bindings
-      meaning: 当前Setup版本实际安装的炉管、传感器、MFC、压力计等部件
-      input: JSON数组
-      options: '[{component_id,role,position?}]'
-      unit: —
-      requirement:
-        raw: 推荐
-        level: recommended
-      example: '[{"component_id":"UUID","role":"furnace_tube"}]'
-      source: 2026-07-28深度审查
-      note: 部件身份、校准和维护走独立生命周期事件
   - title: 实体③ 表征仪器 Instrument（实验 §7 表征引用；对标 NeXus NXfabrication 仪器溯源）
     fields:
     - module: 表征仪器
@@ -8910,6 +8878,10 @@ changelog:
   - 改动
   - 类型
   rows:
+  - - v4.0-alpha.49
+    - 前驱体源容器、装置部件绑定
+    - 删除无录入入口的源容器实例引用与装置可更换部件绑定，以及仪器校准事件快照。
+    - 用户确认
   - - v4.0-alpha.41
     - 制备目标、附加能力与溶液/衬底处理
     - 目标按区域独立组成、掺杂、晶相和层数；几何形态与成膜形式分开；附加能力逐项具名并引用到使用参数；溶液用量按处理步骤记录一次，衬底补适用的可选参数。实验字段125、实体字段63；新增20260909_0016仅增形态投影列，旧载荷保留。

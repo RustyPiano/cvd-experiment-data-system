@@ -821,11 +821,6 @@ class V2ReportingService:
                     "id": str(item.id),
                     "run_revision_id": str(item.run_revision_id),
                     "load_key": item.load_key,
-                    "container_instance_id": (
-                        str(item.container_instance_id) if item.container_instance_id else None
-                    ),
-                    "container_snapshot": item.container_snapshot_json,
-                    "container_state_at_loading": item.container_state_at_loading,
                     "loading_method": item.loading_method,
                     "preparation_steps": item.preparation_steps,
                     "initial_position": item.initial_position,

@@ -23,10 +23,8 @@ from app.models.scientific import (
 )
 from app.models.v2_entities import Instrument, InstrumentVersion
 from app.models.v2_results import CharacterizationRecord
-from app.schemas.scientific import LifecycleEventCreate, TransformationRunCreate
-from app.services.entity_file_service import EntityFileService
+from app.schemas.scientific import TransformationRunCreate
 from app.services.file_asset_service import FileAssetService, refresh_revision_provenance
-from app.services.reference_data_service import ReferenceDataService
 from app.services.sample_service import SampleService, ensure_sample_revision_association
 from app.services.scientific_measurement_service import ScientificMeasurementService
 from app.services.scientific_sample_service import ScientificSampleService
@@ -127,7 +125,6 @@ def _bind_instrument(db_session, record, code: str) -> None:
         "name_type_snapshot": record.method_instrument,
         "attrs_snapshot": {},
         "capabilities": [record.method_instrument],
-        "calibration_at_measurement": {"validity_status": "not_recorded"},
     }
 
 
@@ -232,16 +229,6 @@ def test_provenance_uses_current_valid_profile_evidence(db_session, active_user)
 
     _bind_instrument(db_session, raman, "RAMAN-TRACE-1")
     db_session.flush()
-    snapshot = dict(raman.instrument_snapshot_json)
-    raman.instrument_snapshot_json = {
-        key: value for key, value in snapshot.items() if key != "calibration_at_measurement"
-    }
-    db_session.flush()
-    refresh_revision_provenance(db_session, revision.id)
-    assert feature.boolean_value is False
-
-    raman.instrument_snapshot_json = snapshot
-    db_session.flush()
     refresh_revision_provenance(db_session, revision.id)
     assert feature.boolean_value is True
 
@@ -295,17 +282,6 @@ def test_provenance_uses_current_valid_profile_evidence(db_session, active_user)
     assert feature.boolean_value is True
 
     _bind_instrument(db_session, other, "OTHER-TRACE-1")
-    optional_snapshot = dict(other.instrument_snapshot_json)
-    other.instrument_snapshot_json = {
-        key: value
-        for key, value in optional_snapshot.items()
-        if key != "calibration_at_measurement"
-    }
-    db_session.flush()
-    refresh_revision_provenance(db_session, revision.id)
-    assert feature.boolean_value is False
-
-    other.instrument_snapshot_json = optional_snapshot
     db_session.flush()
     refresh_revision_provenance(db_session, revision.id)
     assert feature.boolean_value is True
@@ -1093,103 +1069,3 @@ def test_cross_run_transformation_exports_frozen_external_sample_snapshots(
         ]
         assert transformation["outputs"][0]["sample_code"]
         assert transformation["outputs"][0]["sample_snapshot"]
-
-
-def test_instrument_certificate_is_bound_once_and_scoped_to_instrument(
-    db_session,
-    admin_user,
-) -> None:
-    first = Instrument()
-    second = Instrument()
-    db_session.add_all([first, second])
-    db_session.flush()
-    db_session.add_all(
-        [
-            InstrumentVersion(
-                entity_id=first.id,
-                version=1,
-                instrument_code="RAMAN-CERT-1",
-                name_type="Raman",
-                attrs={},
-            ),
-            InstrumentVersion(
-                entity_id=second.id,
-                version=1,
-                instrument_code="RAMAN-CERT-2",
-                name_type="Raman",
-                attrs={},
-            ),
-        ]
-    )
-    db_session.commit()
-
-    entity_files = EntityFileService(db_session)
-    certificate = entity_files.upload(
-        upload=UploadFile(file=BytesIO(b"calibration certificate"), filename="cert.pdf"),
-        current_user=admin_user,
-    )
-    event = LifecycleEventCreate(
-        event_type="calibration",
-        occurred_at="2026-08-30T12:00:00+08:00",
-        certificate_file_id=certificate.id,
-    )
-    ReferenceDataService(db_session).create_instrument_event(first.id, event, admin_user)
-    bound = db_session.get(FileAsset, certificate.id)
-    assert (bound.entity_type, bound.entity_id, bound.entity_version) == (
-        "instrument",
-        first.id,
-        1,
-    )
-    bind_audits = (
-        db_session.query(AuditEvent)
-        .filter_by(
-            entity_type="file_asset",
-            entity_id=certificate.id,
-            action="bind_instrument_certificate",
-        )
-        .all()
-    )
-    assert len(bind_audits) == 1
-    assert bind_audits[0].before_json["entity_id"] is None
-    assert bind_audits[0].after_json["entity_id"] == str(first.id)
-    calibration_audit = (
-        db_session.query(AuditEvent)
-        .filter_by(entity_type="instrument", entity_id=first.id, action="calibration")
-        .one()
-    )
-    assert calibration_audit.after_json["certificate_file_id"] == str(certificate.id)
-    same_instrument_event = ReferenceDataService(db_session).create_instrument_event(
-        first.id,
-        event.model_copy(update={"event_type": "maintenance"}),
-        admin_user,
-    )
-    assert same_instrument_event.certificate_file_id == certificate.id
-    assert (
-        db_session.query(AuditEvent)
-        .filter_by(
-            entity_type="file_asset",
-            entity_id=certificate.id,
-            action="bind_instrument_certificate",
-        )
-        .count()
-        == 1
-    )
-    with pytest.raises(HTTPException) as wrong_instrument:
-        ReferenceDataService(db_session).create_instrument_event(second.id, event, admin_user)
-    assert wrong_instrument.value.status_code == 422
-    with pytest.raises(HTTPException) as immutable:
-        entity_files.delete(certificate.id, admin_user)
-    assert immutable.value.status_code == 409
-
-    deleted = entity_files.upload(
-        upload=UploadFile(file=BytesIO(b"deleted"), filename="deleted.pdf"),
-        current_user=admin_user,
-    )
-    entity_files.delete(deleted.id, admin_user)
-    with pytest.raises(HTTPException) as unavailable:
-        ReferenceDataService(db_session).create_instrument_event(
-            first.id,
-            event.model_copy(update={"certificate_file_id": deleted.id}),
-            admin_user,
-        )
-    assert unavailable.value.status_code == 422

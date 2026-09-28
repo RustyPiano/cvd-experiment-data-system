@@ -22,8 +22,6 @@ from app.schemas.scientific import (
     DatasetQuery,
     DatasetQueryResponse,
     InvalidateMeasurementRequest,
-    LifecycleEventCreate,
-    LifecycleEventRead,
     MeasurementBundleCreate,
     MeasurementDetailRead,
     MeasurementListResponse,
@@ -52,7 +50,6 @@ from app.schemas.v2 import (
     V2SetupReferenceRequest,
 )
 from app.services.dataset_query_service import DatasetQueryService
-from app.services.reference_data_service import ReferenceDataService
 from app.services.scientific_measurement_service import ScientificMeasurementService
 from app.services.scientific_sample_service import ScientificSampleService
 from app.services.v2_entity_service import V2EntityService
@@ -68,24 +65,6 @@ CurrentAdmin = Annotated[User, Depends(get_current_admin_user)]
 @router.get("/contributors", response_model=list[UserRead])
 def list_contributors(db: DbSession, _current_user: CurrentUser) -> list[User]:
     return list(db.scalars(select(User).where(User.is_active.is_(True)).order_by(User.name)))
-
-
-@router.post(
-    "/instruments/{instrument_id}/events",
-    response_model=LifecycleEventRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_instrument_lifecycle_event(
-    instrument_id: UUID,
-    payload: LifecycleEventCreate,
-    db: DbSession,
-    current_user: CurrentAdmin,
-) -> LifecycleEventRead:
-    return ReferenceDataService(db).create_instrument_event(
-        instrument_id,
-        payload,
-        current_user,
-    )
 
 
 @router.post("/datasets/query", response_model=DatasetQueryResponse)

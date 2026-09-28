@@ -113,7 +113,6 @@ def refresh_revision_provenance(db: Session, run_revision_id: UUID) -> None:
         )
         if profile["instrument_required"] or instrument_selected:
             snapshot = record.instrument_snapshot_json or {}
-            calibration = snapshot.get("calibration_at_measurement")
             if (
                 record.instrument_id is None
                 or record.instrument_version is None
@@ -124,8 +123,6 @@ def refresh_revision_provenance(db: Session, run_revision_id: UUID) -> None:
                 or not isinstance(snapshot.get("attrs_snapshot"), dict)
                 or not isinstance(snapshot.get("capabilities"), list)
                 or not snapshot["capabilities"]
-                or not isinstance(calibration, dict)
-                or not calibration.get("validity_status")
             ):
                 complete = False
                 break

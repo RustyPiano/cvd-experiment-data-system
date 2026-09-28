@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 from app.models.user import User, UserRole
 from app.models.v2_entities import (
     CommercialProduct,
-    EquipmentComponentInstance,
     Instrument,
     InstrumentCapability,
     InstrumentVersion,
@@ -23,7 +22,6 @@ from app.models.v2_entities import (
     MaterialLotVersion,
     Setup,
     SetupVersion,
-    SetupVersionComponent,
     Substance,
     SubstrateLayer,
     SubstrateStack,
@@ -435,26 +433,6 @@ class V2EntityService:
                     self._raise_invalid("substrate_stack_layers", "supplier_lot")
             return
         if kind == "setup":
-            bindings = data.get("component_bindings") or []
-            identities: set[tuple[UUID, str]] = set()
-            for binding in bindings:
-                try:
-                    identity = (
-                        UUID(str(binding["component_id"])),
-                        str(binding["role"]).strip(),
-                    )
-                except (KeyError, TypeError, ValueError) as exc:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                        detail={"invalid": [{"key": "component_bindings", "reason": "value"}]},
-                    ) from exc
-                if (
-                    not identity[1]
-                    or identity in identities
-                    or self.db.get(EquipmentComponentInstance, identity[0]) is None
-                ):
-                    self._raise_invalid("component_bindings", "reference_or_duplicate")
-                identities.add(identity)
             return
         capabilities = data.get("capabilities") or []
         allowed = field_option_values("method_instrument", self.doc)
@@ -677,16 +655,6 @@ class V2EntityService:
                             if layer.get("supplier_lot_id")
                             else None
                         ),
-                    )
-                )
-        elif kind == "setup":
-            for binding in attrs.get("component_bindings") or []:
-                self.db.add(
-                    SetupVersionComponent(
-                        setup_version_id=version.id,
-                        component_id=UUID(str(binding["component_id"])),
-                        role=binding["role"],
-                        position_json=binding.get("position"),
                     )
                 )
         elif kind == "instrument":

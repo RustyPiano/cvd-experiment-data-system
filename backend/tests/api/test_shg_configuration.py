@@ -1,16 +1,12 @@
 from copy import deepcopy
-from datetime import datetime
-from types import SimpleNamespace
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
 from app.commands.export_v2_schema import export_v2_schema
 from app.core.scientific_json_schema import ScientificJSONValidator
-from app.models.v2_entities import InstrumentLifecycleEvent
 from app.schemas.scientific import MeasurementBundleCreate
 from app.services.om_configuration import resolve_om_configuration, validate_om_catalog
-from app.services.scientific_measurement_service import ScientificMeasurementService
 from app.services.v2_entity_service import V2EntityService
 from tests.api.test_scientific_integrity import _headers, _locked_sample, client
 
@@ -138,25 +134,6 @@ def test_shg_polarization_series_save_detail_and_export(admin_user, db_session):
     response = client.post("/api/v1/instruments", json=instrument_payload, headers=headers)
     assert response.status_code == 201, response.text
     instrument = response.json()
-    for day, method, quantity, correction in [
-        (8, "SHG", "polarization", 0.5),
-        (9, "PL", "polarization", 0.9),
-    ]:
-        db_session.add(
-            InstrumentLifecycleEvent(
-                instrument_id=UUID(instrument["id"]),
-                event_type="calibration",
-                occurred_at=datetime.fromisoformat(f"2026-09-{day:02d}T00:00:00+00:00"),
-                quantity=quantity,
-                correction=correction,
-                details_json={
-                    "instrument_version": 1,
-                    "method_profile": method,
-                    "configuration": {"lasers": "Ti:S 800", "detections": "PMT 400"},
-                },
-            )
-        )
-    db_session.commit()
     uploaded = client.post(
         f"/api/v1/experiments/{run.id}/files",
         headers=headers,
@@ -216,12 +193,6 @@ def test_shg_polarization_series_save_detail_and_export(admin_user, db_session):
     assert detail["typed_conditions"]["objective_na"] == 0.75
     assert detail["scan_file_id"] == file_id
     assert detail["variable_conditions"] == ["waveplate_angle_deg"]
-    assert (
-        detail["instrument_snapshot_json"]["calibration_at_measurement"]["quantities"][
-            "polarization"
-        ]["correction"]
-        == 0.5
-    )
     exported = client.get(
         f"/api/v1/experiments/{run.id}/export",
         headers=headers,
@@ -355,42 +326,3 @@ def test_shg_condition_and_schema_boundaries():
     legacy["measurement"]["typed_conditions"]["data_type"] = "spectrum"
     MeasurementBundleCreate.model_validate(legacy)
     assert schema.is_valid(legacy)
-
-
-def test_shg_calibration_matches_method_quantity_and_laser_conditions():
-    instrument_id = uuid4()
-    events = [
-        InstrumentLifecycleEvent(
-            id=uuid4(),
-            instrument_id=instrument_id,
-            event_type="calibration",
-            occurred_at=datetime.fromisoformat("2026-09-10T00:00:00+00:00"),
-            quantity=quantity,
-            correction=correction,
-            details_json={
-                "instrument_version": 1,
-                "method_profile": "SHG",
-                "configuration": configuration,
-                **scope,
-            },
-        )
-        for quantity, configuration, scope, correction in [
-            ("laser_power", SELECTION, {"conditions": {"excitation_wavelength_nm": 1040}}, 9),
-            ("laser_power", SELECTION, {"conditions": {"excitation_wavelength_nm": 800}}, 1),
-            ("polarization", {"lasers": "Ti:S 800", "detections": "other"}, {}, 9),
-            ("polarization", {"lasers": "Ti:S 800", "detections": "PMT 400"}, {}, 2),
-            ("raman_shift", SELECTION, {}, 9),
-        ]
-    ]
-    service = ScientificMeasurementService(SimpleNamespace(scalars=lambda _: events))
-    result = service._raman_calibration_snapshot(
-        instrument_id,
-        datetime.fromisoformat("2026-09-11T00:00:00+00:00"),
-        SELECTION,
-        1,
-        method="SHG",
-        conditions={"excitation_wavelength_nm": 800},
-    )
-    assert result["quantities"]["laser_power"]["correction"] == 1
-    assert result["quantities"]["polarization"]["correction"] == 2
-    assert "raman_shift" not in result["quantities"]

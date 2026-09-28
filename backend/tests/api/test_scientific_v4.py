@@ -1,5 +1,4 @@
 import json
-from datetime import date
 from uuid import UUID, uuid4
 
 import pytest
@@ -18,7 +17,6 @@ from app.models.scientific import (
     TargetMaterialRegion,
     TargetSpec,
 )
-from app.models.v2_entities import ContainerInstance
 from app.schemas.scientific import (
     ProcessTimelinePayload,
     SourceLoadsPayload,
@@ -575,19 +573,6 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert gas_response.status_code == 201, gas_response.text
     gas_lot = gas_response.json()
-    container_row = ContainerInstance(
-        material_lot_id=UUID(source_lot["id"]),
-        container_code="MO-V4-01-BOTTLE",
-        container_type="bottle",
-        opened_date=date(2026, 7, 1),
-        remaining_amount=40,
-        remaining_unit="g",
-        storage_history=[{"location": "desiccator_A"}],
-        status="available",
-    )
-    db_session.add(container_row)
-    db_session.commit()
-    container = {"id": str(container_row.id)}
 
     substrate_response = client.post(
         "/api/v1/material-lots",
@@ -626,7 +611,6 @@ def test_scientific_revision_measurement_and_query_chain(
             "items": [
                 {
                     "load_key": "metal_source",
-                    "container_instance_id": container["id"],
                     "loading_method": "boat",
                     "heating_zone_ref": "zone_1",
                     "initial_position": {
@@ -900,8 +884,7 @@ def test_scientific_revision_measurement_and_query_chain(
     ]
     assert "tampered" not in frozen_gas_source["snapshot"]
     projected_load = db_session.query(SourceLoad).filter_by(load_key="metal_source").one()
-    assert projected_load.container_state_at_loading == "available"
-    assert projected_load.container_snapshot_json["remaining_amount"] == 40
+    assert projected_load.loading_method == "boat"
     temperature_channel = (
         db_session.query(ProcessChannel)
         .filter_by(
@@ -1122,9 +1105,6 @@ def test_scientific_revision_measurement_and_query_chain(
     ProcessTimelinePayload.model_validate(export_json["modules"]["process_steps"])
     assert "samples" not in export_json
     assert export_json["scientific_record"]["revisions"][0]["content_sha256"]
-    assert export_json["scientific_record"]["source_loads"][0]["container_snapshot"][
-        "container_code"
-    ] == ("MO-V4-01-BOTTLE")
     assert (
         export_json["scientific_record"]["sample_revision_associations"][0]["run_revision_id"]
         == revision_1

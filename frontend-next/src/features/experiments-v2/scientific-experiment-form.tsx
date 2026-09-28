@@ -161,7 +161,6 @@ type Ingredient = {
 type SourceLoad = {
   attrs?: Record<string, unknown>
   load_key: string
-  container_instance_id?: string
   loading_method: string
   preparation_steps: Array<{
     step_type: string

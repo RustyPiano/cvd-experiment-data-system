@@ -13,7 +13,7 @@
 | 设计依据 | [`standard/metadata-v2-review-and-redesign.md`](standard/metadata-v2-review-and-redesign.md) | 国际对标、文献和字段设计理由 |
 | 产品 | [`product/run-first-workflow-and-copy-design.md`](product/run-first-workflow-and-copy-design.md) | 炉次优先工作流（2026-07-16 确认） |
 | 字段术语审核 | [`reviews/2026-09-21-field-terminology-taxonomy-review.md`](reviews/2026-09-21-field-terminology-taxonomy-review.md) | 字段名称、前端文字与分类体系的 30 项问题 |
-| SHG | [审查](reviews/2026-09-11-shg-field-review.md) · [实施](reviews/2026-09-13-shg-implementation.md) | 检测方式与变化参数、设备目录、功率、偏振角、预设、校准（alpha.48） |
+| SHG | [审查](reviews/2026-09-11-shg-field-review.md) · [实施](reviews/2026-09-13-shg-implementation.md) | 检测方式与变化参数、设备目录、功率、偏振角、预设（alpha.48） |
 | PL | [审查](reviews/2026-09-11-pl-field-review.md) · [实施](reviews/2026-09-11-pl-implementation.md) | 设备配置、扫描/偏振、光谱单位、逐文件校正（alpha.47） |
 | Raman | [审查](reviews/2026-09-10-raman-field-review.md) · [实施](reviews/2026-09-11-raman-implementation.md) | 设备配置、功率与序列、峰来源、校准适用性（alpha.46） |
 | OM | [审查](reviews/2026-09-10-om-field-review.md) · [实施](reviews/2026-09-10-om-implementation.md) | 设备目录、采集表单、图像校验（alpha.45） |

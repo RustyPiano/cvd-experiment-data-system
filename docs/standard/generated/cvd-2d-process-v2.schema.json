@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "standard_id": "cvd-2d-process",
   "title": "CVD-2D 科学数据契约 / CVD-2D Scientific Data Contract",
-  "version": "v4.0-alpha.48",
+  "version": "v4.0-alpha.49",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "module_payload_schema_version": "cvd_v2",
@@ -184,8 +184,6 @@
       },
       "parameter_template_status": "internal_validation",
       "owns": [
-        "container_instance",
-        "container_snapshot_at_lock",
         "preparation_steps",
         "position_program",
         "heating_zone_ref",
@@ -7717,7 +7715,7 @@
       ],
       "title": "EquipmentPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.48/equipment.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/equipment.schema.json"
     },
     "substrates": {
       "$defs": {
@@ -8671,7 +8669,7 @@
       },
       "title": "SubstratesPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.48/substrates.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/substrates.schema.json"
     },
     "basic_info": {
       "$defs": {
@@ -8845,7 +8843,7 @@
       ],
       "title": "ScientificBasicInfo",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.48/basic_info.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/basic_info.schema.json"
     },
     "target_product": {
       "$defs": {
@@ -9181,7 +9179,7 @@
       ],
       "title": "TargetSpecPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.48/target_product.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/target_product.schema.json"
     },
     "precursors": {
       "$defs": {
@@ -9816,19 +9814,6 @@
               "title": "Load Key",
               "type": "string"
             },
-            "container_instance_id": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Container Instance Id"
-            },
             "loading_method": {
               "enum": [
                 "boat",
@@ -10164,7 +10149,7 @@
       ],
       "title": "SourceLoadsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.48/precursors.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/precursors.schema.json"
     },
     "process_steps": {
       "$defs": {
@@ -11096,7 +11081,7 @@
       ],
       "title": "ProcessTimelinePayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.48/process_steps.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/process_steps.schema.json"
     },
     "process_events": {
       "$defs": {
@@ -11303,7 +11288,7 @@
       },
       "title": "ScientificProcessEventsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.48/process_events.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/process_events.schema.json"
     }
   },
   "entities": {
@@ -12347,22 +12332,6 @@
             }
           ],
           "default": null
-        },
-        "component_bindings": {
-          "anyOf": [
-            {
-              "items": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Component Bindings"
         }
       },
       "required": [

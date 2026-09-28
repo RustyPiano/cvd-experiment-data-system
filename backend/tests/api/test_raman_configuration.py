@@ -1,12 +1,10 @@
 from copy import deepcopy
-from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
 from app.commands.export_v2_schema import export_v2_schema
 from app.core.scientific_json_schema import ScientificJSONValidator
-from app.models.v2_entities import InstrumentLifecycleEvent
 from app.schemas.scientific import MeasurementBundleCreate
 from app.services.om_configuration import resolve_om_configuration, validate_om_catalog
 from tests.api.test_scientific_integrity import _headers, _locked_sample, client
@@ -89,34 +87,6 @@ def test_raman_selected_configuration_series_and_export(admin_user, db_session):
     response = client.post("/api/v1/instruments", json=payload, headers=headers)
     assert response.status_code == 201, response.text
     instrument = response.json()
-    for day, laser, correction in [(8, "Green", 0.1), (9, "Red", 0.2)]:
-        db_session.add(
-            InstrumentLifecycleEvent(
-                instrument_id=UUID(instrument["id"]),
-                event_type="calibration",
-                occurred_at=datetime.fromisoformat(f"2026-09-{day:02d}T00:00:00+00:00"),
-                quantity="raman_shift",
-                correction=correction,
-                details_json={
-                    "instrument_version": 1,
-                    "configuration": {"lasers": laser, "spectrometers": "1800 CCD"},
-                },
-            )
-        )
-    db_session.add(
-        InstrumentLifecycleEvent(
-            instrument_id=UUID(instrument["id"]),
-            event_type="calibration",
-            occurred_at=datetime.fromisoformat("2026-09-10T00:00:00+00:00"),
-            quantity="raman_shift",
-            correction=9,
-            details_json={
-                "instrument_version": True,
-                "configuration": {"lasers": "Green", "spectrometers": "1800 CCD"},
-            },
-        )
-    )
-    db_session.commit()
     upload = client.post(
         f"/api/v1/experiments/{run.id}/files",
         headers=headers,
@@ -192,20 +162,6 @@ def test_raman_selected_configuration_series_and_export(admin_user, db_session):
     response = client.post("/api/v1/measurements", json=bundle, headers=headers)
     assert response.status_code == 201, response.text
     record_id = response.json()["id"]
-    db_session.add(
-        InstrumentLifecycleEvent(
-            instrument_id=UUID(instrument["id"]),
-            event_type="calibration",
-            occurred_at=datetime.fromisoformat("2026-09-10T00:00:00+00:00"),
-            quantity="raman_shift",
-            correction=0.3,
-            details_json={
-                "instrument_version": 1,
-                "configuration": {"lasers": "Green", "spectrometers": "1800 CCD"},
-            },
-        )
-    )
-    db_session.commit()
     config["objectives"][0]["conditions"]["objective_na"] = 0.75
     assert (
         client.post(
@@ -215,12 +171,6 @@ def test_raman_selected_configuration_series_and_export(admin_user, db_session):
     )
     detail = client.get(f"/api/v1/measurements/{record_id}", headers=headers).json()
     assert detail["typed_conditions"]["objective_na"] == 0.9
-    assert (
-        detail["instrument_snapshot_json"]["calibration_at_measurement"]["quantities"][
-            "raman_shift"
-        ]["correction"]
-        == 0.1
-    )
     assert "power_setting" not in detail["typed_conditions"]
     assert detail["variable_conditions"] == ["power_setting"]
     assert detail["scan_file_id"] == file_id

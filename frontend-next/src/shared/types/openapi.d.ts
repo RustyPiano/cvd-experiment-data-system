@@ -296,23 +296,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/instruments/{instrument_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Instrument Lifecycle Event */
-        post: operations["create_instrument_lifecycle_event_api_v1_instruments__instrument_id__events_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/datasets/query": {
         parameters: {
             query?: never;
@@ -1106,64 +1089,6 @@ export interface components {
         InvalidateMeasurementRequest: {
             /** Reason */
             reason: string;
-        };
-        /** LifecycleEventCreate */
-        LifecycleEventCreate: {
-            /**
-             * Event Type
-             * @enum {string}
-             */
-            event_type: "install" | "remove" | "calibration" | "maintenance";
-            /**
-             * Occurred At
-             * Format: date-time
-             */
-            occurred_at: string;
-            /** Valid Until */
-            valid_until?: string | null;
-            /** Affected Component */
-            affected_component?: string | null;
-            /** Quantity */
-            quantity?: string | null;
-            /** Correction */
-            correction?: number | null;
-            /** Expanded Uncertainty */
-            expanded_uncertainty?: number | null;
-            /** Details */
-            details?: {
-                [key: string]: unknown;
-            };
-            /** Certificate File Id */
-            certificate_file_id?: string | null;
-        };
-        /** LifecycleEventRead */
-        LifecycleEventRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Event Type */
-            event_type: string;
-            /**
-             * Occurred At
-             * Format: date-time
-             */
-            occurred_at: string;
-            /** Valid Until */
-            valid_until: string | null;
-            /** Quantity */
-            quantity: string | null;
-            /** Correction */
-            correction: number | null;
-            /** Expanded Uncertainty */
-            expanded_uncertainty: number | null;
-            /** Details */
-            details: {
-                [key: string]: unknown;
-            };
-            /** Certificate File Id */
-            certificate_file_id: string | null;
         };
         /** LineageSampleRead */
         LineageSampleRead: {
@@ -3311,10 +3236,6 @@ export interface components {
             /** Field Device Other Names */
             field_device_other_names?: string[] | null;
             setup_diagram?: components["schemas"]["FileAssetReferencePayload"] | null;
-            /** Component Bindings */
-            component_bindings?: {
-                [key: string]: unknown;
-            }[] | null;
         };
         /** SignedScanRange */
         SignedScanRange: {
@@ -4370,41 +4291,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserRead"][];
-                };
-            };
-        };
-    };
-    create_instrument_lifecycle_event_api_v1_instruments__instrument_id__events_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                instrument_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LifecycleEventCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LifecycleEventRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

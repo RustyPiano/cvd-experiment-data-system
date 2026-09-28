@@ -193,7 +193,7 @@ export interface GasSpecies {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v4.0-alpha.48',
+  version: 'v4.0-alpha.49',
   status: 'INTERNAL_VALIDATION',
   source: 'docs/standard/field-source.yaml',
 }
@@ -1982,28 +1982,6 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       placeholderEn: 'Enter a value',
       helpZh: null,
       helpEn: null,
-    },
-    {
-      key: 'container_instance_id',
-      labelZh: '源容器',
-      labelEn: 'Source container',
-      input: '容器实例引用',
-      unit: 'mm',
-      options: 'ContainerInstance UUID',
-      validation: null,
-      requirement: {
-        raw: '选填',
-        level: 'optional',
-        otherwise: null,
-        condition: null,
-      },
-      r0: false,
-      group: null,
-      placeholderZh: '请输入',
-      placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
-      visibilityGated: true,
     },
     {
       key: 'initial_position',
@@ -3916,27 +3894,6 @@ export const entities: Record<string, FieldMetadata[]> = {
       input: 'FileAsset引用+自由',
       unit: null,
       options: '{file_asset_id, sha256, note}',
-      validation: null,
-      requirement: {
-        raw: '推荐',
-        level: 'recommended',
-        otherwise: null,
-        condition: null,
-      },
-      r0: false,
-      group: null,
-      placeholderZh: '请输入',
-      placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
-    },
-    {
-      key: 'component_bindings',
-      labelZh: '可更换部件绑定',
-      labelEn: 'Replaceable component bindings',
-      input: 'JSON数组',
-      unit: null,
-      options: '[{component_id,role,position?}]',
       validation: null,
       requirement: {
         raw: '推荐',

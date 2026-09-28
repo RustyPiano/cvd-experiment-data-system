@@ -1,6 +1,6 @@
 {
   "standard_id": "cvd-2d-process",
-  "version": "v4.0-alpha.48",
+  "version": "v4.0-alpha.49",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "characterization_properties": {
@@ -7604,28 +7604,6 @@
       "source_part": "experiment_record",
       "module": "前驱体",
       "module_key": "precursors",
-      "key": "container_instance_id",
-      "label": "源容器",
-      "label_en": "Source container",
-      "meaning": "需要追溯具体舟、坩埚或其他源容器时，引用已登记容器实例",
-      "input": "容器实例引用",
-      "example": "550e8400-e29b-41d4-a716-446655440000",
-      "help": null,
-      "help_en": null,
-      "machine_type": "string",
-      "schema_path": "$.modules.precursors.properties.items.items.properties.container_instance_id",
-      "r0": false,
-      "condition": null,
-      "requirement": "optional",
-      "otherwise": null,
-      "validation": null,
-      "unit": "mm",
-      "options": "ContainerInstance UUID"
-    },
-    {
-      "source_part": "experiment_record",
-      "module": "前驱体",
-      "module_key": "precursors",
       "key": "initial_position",
       "label": "相对测温点位置",
       "label_en": "Precursor source position",
@@ -9603,28 +9581,6 @@
     },
     {
       "source_part": "entity",
-      "module": "装置Setup",
-      "module_key": "setup",
-      "key": "component_bindings",
-      "label": "可更换部件绑定",
-      "label_en": "Replaceable component bindings",
-      "meaning": "当前Setup版本实际安装的炉管、传感器、MFC、压力计等部件",
-      "input": "JSON数组",
-      "example": "[{\"component_id\":\"UUID\",\"role\":\"furnace_tube\"}]",
-      "help": null,
-      "help_en": null,
-      "machine_type": "array",
-      "schema_path": "$.entities.setup.properties.component_bindings",
-      "r0": false,
-      "condition": null,
-      "requirement": "recommended",
-      "otherwise": null,
-      "validation": null,
-      "unit": null,
-      "options": "[{component_id,role,position?}]"
-    },
-    {
-      "source_part": "entity",
       "module": "表征仪器",
       "module_key": "instrument",
       "key": "instrument_code",
@@ -9844,5 +9800,5 @@
       "options": null
     }
   ],
-  "field_count": 146
+  "field_count": 144
 }

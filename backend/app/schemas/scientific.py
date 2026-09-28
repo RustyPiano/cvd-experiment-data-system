@@ -636,7 +636,6 @@ class SourceLoadPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     load_key: str = Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9_]*$")
-    container_instance_id: UUID | None = None
     loading_method: Literal[
         "boat",
         "crucible",
@@ -2953,36 +2952,3 @@ class DatasetQueryResponse(BaseModel):
     items: list[DatasetRunRead]
     next_cursor: str | None
     query_manifest: dict[str, Any]
-
-
-class LifecycleEventCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    event_type: Literal["install", "remove", "calibration", "maintenance"]
-    occurred_at: datetime
-    valid_until: datetime | None = None
-    affected_component: str | None = Field(default=None, max_length=128)
-    quantity: str | None = Field(default=None, max_length=128)
-    correction: float | None = Field(default=None, allow_inf_nan=False)
-    expanded_uncertainty: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    details: JsonObject = Field(default_factory=dict)
-    certificate_file_id: UUID | None = None
-
-    @field_validator("occurred_at", "valid_until", mode="before")
-    @classmethod
-    def normalize_event_times(cls, value: object) -> datetime | None:
-        if value is None:
-            return None
-        return normalize_offset_datetime(value)
-
-
-class LifecycleEventRead(BaseModel):
-    id: UUID
-    event_type: str
-    occurred_at: datetime
-    valid_until: datetime | None
-    quantity: str | None
-    correction: float | None
-    expanded_uncertainty: float | None
-    details: dict[str, Any]
-    certificate_file_id: UUID | None
