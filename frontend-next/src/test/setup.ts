@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
 
 const storageValues = new Map<string, string>()
@@ -29,6 +29,9 @@ if (elementProto) {
   elementProto.setPointerCapture ??= () => {}
   elementProto.releasePointerCapture ??= () => {}
 }
+
+// CI 机器较慢，waitFor/findBy 默认 1s 不够；超时的保存会串到下一个用例。
+configure({ asyncUtilTimeout: 5000 })
 
 // RTL 自动清理 DOM。
 afterEach(() => {
