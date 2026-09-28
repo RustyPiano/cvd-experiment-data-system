@@ -5,8 +5,8 @@
 ## 0. 速览
 
 - **CVD 二维材料实验数据采集系统**，v2 单轨：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`。单轨化计划与执行记录见 [`v2-single-track-plan.md`](../engineering/v2-single-track-plan.md)（批0–批8）。
-- **香港生产**：`304c96f / v4.0-alpha.43`，Alembic `20260909_0016 (head)`。2026-07-24 切换到 v2，2026-08-07 经用户授权清空测试数据。旧 v1 库离线归档为 `cvd_v1_archive_20260724`。发布证据见 [`production-deployment-report-2026-07-24.md`](../operations/production-deployment-report-2026-07-24.md)。
-- **仓库**：`v4.0-alpha.50 / INTERNAL_VALIDATION`，Alembic `20260928_0018 (head)`，未发布。alpha.44–48 为表征仪器配置整改：[OM](../reviews/2026-09-10-om-implementation.md)、[Raman](../reviews/2026-09-11-raman-implementation.md)、[PL](../reviews/2026-09-11-pl-implementation.md)、[SHG](../reviews/2026-09-13-shg-implementation.md)。
+- **香港生产**：`f7d30ef / v4.0-alpha.50`，Alembic `20260928_0018 (head)`。2026-07-24 切换到 v2，2026-08-07 经用户授权清空测试数据。旧 v1 库离线归档为 `cvd_v1_archive_20260724`。发布证据见 [`production-deployment-report-2026-07-24.md`](../operations/production-deployment-report-2026-07-24.md)。
+- **仓库**：`v4.0-alpha.50 / INTERNAL_VALIDATION`，与生产一致。alpha.44–48 为表征仪器配置整改：[OM](../reviews/2026-09-10-om-implementation.md)、[Raman](../reviews/2026-09-11-raman-implementation.md)、[PL](../reviews/2026-09-11-pl-implementation.md)、[SHG](../reviews/2026-09-13-shg-implementation.md)。
 - **字段**：100 个实验字段（89 个进入前端/JSON 契约）、3 张一等实体表 64 个字段（53 个进入前端元数据）、26 个 R0 标记。`字段草案-v3.xlsx` 已按 alpha.50 重生成。
 - **评审输入**：2026-07-07 导师书面批注（已纳入 v3.4）；2026-07-24 线上走查 M/A/F；发布后试填与终审 U-01—U-32。计划见 [`2026-07-24-meeting-remediation-plan.md`](../product/2026-07-24-meeting-remediation-plan.md)，逐项状态见 [`2026-07-24-teacher-meeting-remediation.md`](../reviews/2026-07-24-teacher-meeting-remediation.md)。
 - 已定决策见 §4，不重开。工程技术决策 D1–D12 见 [`v2-implementation-plan.md`](../engineering/v2-implementation-plan.md)。
@@ -14,7 +14,7 @@
 
 ## 1. 系统现状
 
-- **数据库**：已发布 Alembic 链 `20260711_0001`–`20260909_0016`；仓库新增 `20260928_0017`（删除旧结果、容器实例、设备组件、生命周期事件和解析结果表）与 `20260928_0018`（删除材料结论、样品结论投影、过程阶段表和前驱体工艺作用列）。只新增迁移。
+- **数据库**：已发布 Alembic 链 `20260711_0001`–`20260928_0018`；`0017` 删除旧结果、容器实例、设备组件、生命周期事件和解析结果表，`0018` 删除材料结论、样品结论投影、过程阶段表和前驱体工艺作用列。只新增迁移。
 - **制备实验记录**：六步表单（基本信息、目标材料、装置与衬底、前驱体装载、生长条件、检查并提交）。状态 `draft → locked`，锁定时按衬底生成样品；锁工艺、结果后补。过程只保留预处理、反应条件和具名其他记录；设定温度按温区录入，实测温度绑定文件与通道；每种气体引用气瓶批次并记录多段供气。
 - **目标材料**：结构形式与各区域组成、合金、掺杂、晶体结构、层数分开填写；几何形态与成膜形式分开。
 - **实验装置**：装置来源必填，商业/自制/改造各显示对应身份字段；实验室编号唯一，管理员可发新版本纠错；装置图单附件预览；附加能力支持多名称。
@@ -98,6 +98,7 @@
 | 09-28 | alpha.49：删除旧数据兼容层——旧扁平结果 `MeasuredProduct`、表征 legacy 字段与不可达属性、低波数 Raman 别名、按仪器类型推断方法；生产库核查无真实数据；另删文件 `file_kind` 重复列与单名称外场字段 |
 | 09-28 | alpha.50：删除全部旧格式读取——旧过程步字段组与过程阶段、材料结论与样品结论投影、中文写入别名、R0 旧报告、前驱体工艺作用、旧气氛置换/降温速率/外场、合并晶向抛光与无组成气瓶推断（迁移 `20260928_0018`）；溶液涂覆只记每步体积；过程总时长与置换方式必填 |
 | 09-28 | 收尾复核：后端 447、前端 407 测试与全部生成物漂移检查通过，PostgreSQL 上 `0016 → 0018` 升降级往返与冒烟通过；清除字段源与文档中已删模型的残留描述 |
+| 09-28 | alpha.50 经 PR #8 合并并发布（`f7d30ef`），生产 Alembic 前滚至 `0018`；详见[部署报告](../operations/production-deployment-report-2026-07-24.md) |
 
 ## 6. 已归档
 

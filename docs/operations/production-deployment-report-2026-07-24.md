@@ -144,6 +144,14 @@
 - 前端31项相关测试、格式/lint/typecheck/build通过。自动备份 `backups/20260909_174751` 的数据库/附件双项校验和与tar可读性通过，目录0700、文件0600；旧前端镜像以 `rollback-before-arc-labels-20260909` 保留。
 - 前后端running + healthy，近5分钟日志无ERROR/Traceback/FATAL/panic；公网健康/首页/runtime为200，匿名API保持401。线上 `edit-4eHNHJLB.js` 已验证包含等角弧、两个α及一个φ；未写入验收数据。证据 `/tmp/cvd-angle-label-release.qfN8ru/`。
 
+## 2026-09-28 v4.0-alpha.50 发布
+
+- 经用户授权，PR #8 五项 CI 全绿后合并；普通 `./deploy.sh` 从 `9b4cb1c`（alpha.43 代码）发布至 `f7d30ef`，包含 alpha.44–50。旧镜像保留为 `rollback-alpha43-20260928` 标签。
+- 发布前用生产库副本（PostgreSQL 17）演练：`0016 → 0018` 迁移通过，19 个炉次的详情、审计、修订、逐修订 JSON 导出、CSV ZIP 与基础资料读取全部成功。迁移删除的数据仅 1 条样品状态投影与 1 条容器引用。
+- 草稿 CVD-2026-0004 的目标材料仍为旧值 `dimensional_form = discrete_planar_crystal`，原样保存会被拒绝，需在界面重选形态；CVD-2026-0002 的前驱体与衬底旧字段在 alpha.43 已不可原样保存。
+- 自动备份 `backups/20260928_212500`：`database.sql` 与 `storage.tar.gz` SHA-256 校验和 tar 可读性通过，目录 0700、文件 0600。
+- 生产 Alembic `20260928_0018 (head)`；backend/frontend running + healthy，近 10 分钟后端日志无 ERROR/Traceback/FATAL/panic；公网 `/health`、首页、`runtime-config.js` 为 200，匿名 `/api/v1/auth/me` 为 401。
+
 ## 尚待真实数据验收
 
 没有为验收伪造生产实验。第一条真实炉次需要由实际实验人按真实条件完成：
