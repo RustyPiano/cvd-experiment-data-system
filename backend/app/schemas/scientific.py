@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from datetime import date, datetime
+from datetime import datetime
 from math import isfinite
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
@@ -2953,82 +2953,6 @@ class DatasetQueryResponse(BaseModel):
     items: list[DatasetRunRead]
     next_cursor: str | None
     query_manifest: dict[str, Any]
-
-
-class ContainerInstanceCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    material_lot_id: UUID
-    container_code: str = Field(min_length=1, max_length=128)
-    container_type: Literal["bottle", "gas_cylinder", "boat", "crucible", "bubbler", "other"]
-    opened_date: date | None = None
-    storage_history: list[JsonObject] = Field(default_factory=list)
-    remaining_amount: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    remaining_unit: str | None = Field(default=None, max_length=32)
-    attrs: JsonObject = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def validate_remaining_amount(self) -> Self:
-        if (self.remaining_amount is None) != (self.remaining_unit is None):
-            raise ValueError("remaining amount and unit must be provided together")
-        return self
-
-
-class ContainerInstanceRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    material_lot_id: UUID
-    container_code: str
-    container_type: str
-    opened_date: date | None
-    storage_history: list[dict[str, Any]]
-    remaining_amount: float | None
-    remaining_unit: str | None
-    status: str
-    attrs: dict[str, Any]
-
-
-class EquipmentComponentCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    component_code: str = Field(min_length=1, max_length=128)
-    component_type: Literal[
-        "furnace_tube",
-        "temperature_sensor",
-        "mfc",
-        "pressure_gauge",
-        "vacuum_pump",
-        "boat",
-        "crucible",
-        "valve",
-        "plasma_source",
-        "other",
-    ]
-    manufacturer: str | None = Field(default=None, max_length=255)
-    model: str | None = Field(default=None, max_length=128)
-    serial_number: str | None = Field(default=None, max_length=128)
-    attrs: JsonObject = Field(default_factory=dict)
-
-
-class EquipmentComponentRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    component_code: str
-    component_type: str
-    manufacturer: str | None
-    model: str | None
-    serial_number: str | None
-    attrs: dict[str, Any]
-
-
-class SetupComponentBindingCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    component_id: UUID
-    role: str = Field(min_length=1, max_length=64)
-    position: JsonObject | None = None
 
 
 class LifecycleEventCreate(BaseModel):

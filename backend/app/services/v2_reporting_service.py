@@ -48,9 +48,8 @@ from app.schemas.scientific import (
     normalize_process_preparation_for_read,
     normalize_source_loads_for_read,
 )
-from app.services.experiment_guards import get_owned_experiment, get_visible_experiment
+from app.services.experiment_guards import get_visible_experiment
 from app.services.sample_service import sample_revision_snapshot
-from app.services.v2_entity_snapshot_service import effective_run_module_payloads
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
     canonical_option_value,
@@ -287,56 +286,6 @@ class V2ReportingService:
             indent=2,
         ).encode("utf-8")
         return content, f"{run.run_code}-r{revision.revision_number}.json"
-
-    def export_draft_json(
-        self,
-        run_id: UUID,
-        current_user: User,
-    ) -> tuple[bytes, str]:
-        run = get_owned_experiment(
-            self.experiments,
-            run_id,
-            current_user,
-            schema_version=SCHEMA_VERSION,
-        )
-        if run.status != ExperimentStatus.DRAFT:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Only drafts have a working-copy export",
-            )
-        modules = canonicalize_controlled_values(effective_run_module_payloads(run))
-        if "precursors" in modules:
-            modules["precursors"] = normalize_source_loads_for_read(modules["precursors"])
-        if "process_steps" in modules:
-            modules["process_steps"] = normalize_process_preparation_for_read(
-                modules["process_steps"]
-            )
-        if "process_events" in modules:
-            modules["process_events"]["items"] = [
-                normalize_process_event_for_read(item)
-                for item in modules["process_events"].get("items", [])
-            ]
-        bundle = {
-            "export_kind": "draft_working_copy",
-            "citation_status": "NON_CITABLE",
-            "schema_version": SCHEMA_VERSION,
-            "exported_at": datetime.now(UTC).isoformat(),
-            "run": {
-                "id": str(run.id),
-                "run_code": run.run_code,
-                "status": run.status.value,
-                "based_on_revision_id": (
-                    str(run.draft_supersedes_revision_id)
-                    if run.draft_supersedes_revision_id
-                    else None
-                ),
-            },
-            "modules": modules,
-        }
-        return (
-            json.dumps(bundle, ensure_ascii=False, indent=2).encode("utf-8"),
-            f"{run.run_code}-DRAFT-NON-CITABLE.json",
-        )
 
     def export_runs_zip(
         self,

@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from uuid import UUID, uuid4
 
 import pytest
@@ -17,6 +18,7 @@ from app.models.scientific import (
     TargetMaterialRegion,
     TargetSpec,
 )
+from app.models.v2_entities import ContainerInstance
 from app.schemas.scientific import (
     ProcessTimelinePayload,
     SourceLoadsPayload,
@@ -573,21 +575,19 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert gas_response.status_code == 201, gas_response.text
     gas_lot = gas_response.json()
-    container_response = client.post(
-        "/api/v1/container-instances",
-        json={
-            "material_lot_id": source_lot["id"],
-            "container_code": "MO-V4-01-BOTTLE",
-            "container_type": "bottle",
-            "opened_date": "2026-07-01",
-            "remaining_amount": 40,
-            "remaining_unit": "g",
-            "storage_history": [{"location": "desiccator_A"}],
-        },
-        headers=admin_headers,
+    container_row = ContainerInstance(
+        material_lot_id=UUID(source_lot["id"]),
+        container_code="MO-V4-01-BOTTLE",
+        container_type="bottle",
+        opened_date=date(2026, 7, 1),
+        remaining_amount=40,
+        remaining_unit="g",
+        storage_history=[{"location": "desiccator_A"}],
+        status="available",
     )
-    assert container_response.status_code == 201, container_response.text
-    container = container_response.json()
+    db_session.add(container_row)
+    db_session.commit()
+    container = {"id": str(container_row.id)}
 
     substrate_response = client.post(
         "/api/v1/material-lots",

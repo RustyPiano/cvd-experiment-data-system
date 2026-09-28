@@ -296,76 +296,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/container-instances": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Container Instances */
-        get: operations["list_container_instances_api_v1_container_instances_get"];
-        put?: never;
-        /** Create Container Instance */
-        post: operations["create_container_instance_api_v1_container_instances_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/equipment-components": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Equipment Components */
-        get: operations["list_equipment_components_api_v1_equipment_components_get"];
-        put?: never;
-        /** Create Equipment Component */
-        post: operations["create_equipment_component_api_v1_equipment_components_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/setup-versions/{setup_version_id}/components": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Bind Setup Component */
-        post: operations["bind_setup_component_api_v1_setup_versions__setup_version_id__components_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/equipment-components/{component_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Equipment Lifecycle Event */
-        post: operations["create_equipment_lifecycle_event_api_v1_equipment_components__component_id__events_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/instruments/{instrument_id}/events": {
         parameters: {
             query?: never;
@@ -714,23 +644,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{run_id}/draft-export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Export Draft Run Json */
-        get: operations["export_draft_run_json_api_v1_experiments__run_id__draft_export_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/exports/runs": {
         parameters: {
             query?: never;
@@ -974,68 +887,6 @@ export interface components {
             /** File Kind */
             file_kind?: string | null;
         };
-        /** ContainerInstanceCreate */
-        ContainerInstanceCreate: {
-            /**
-             * Material Lot Id
-             * Format: uuid
-             */
-            material_lot_id: string;
-            /** Container Code */
-            container_code: string;
-            /**
-             * Container Type
-             * @enum {string}
-             */
-            container_type: "bottle" | "gas_cylinder" | "boat" | "crucible" | "bubbler" | "other";
-            /** Opened Date */
-            opened_date?: string | null;
-            /** Storage History */
-            storage_history?: {
-                [key: string]: unknown;
-            }[];
-            /** Remaining Amount */
-            remaining_amount?: number | null;
-            /** Remaining Unit */
-            remaining_unit?: string | null;
-            /** Attrs */
-            attrs?: {
-                [key: string]: unknown;
-            };
-        };
-        /** ContainerInstanceRead */
-        ContainerInstanceRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Material Lot Id
-             * Format: uuid
-             */
-            material_lot_id: string;
-            /** Container Code */
-            container_code: string;
-            /** Container Type */
-            container_type: string;
-            /** Opened Date */
-            opened_date: string | null;
-            /** Storage History */
-            storage_history: {
-                [key: string]: unknown;
-            }[];
-            /** Remaining Amount */
-            remaining_amount: number | null;
-            /** Remaining Unit */
-            remaining_unit: string | null;
-            /** Status */
-            status: string;
-            /** Attrs */
-            attrs: {
-                [key: string]: unknown;
-            };
-        };
         /** ControlSampleCreate */
         ControlSampleCreate: {
             /** Control Subtype */
@@ -1119,48 +970,6 @@ export interface components {
             };
             /** Provenance Complete */
             provenance_complete: boolean;
-        };
-        /** EquipmentComponentCreate */
-        EquipmentComponentCreate: {
-            /** Component Code */
-            component_code: string;
-            /**
-             * Component Type
-             * @enum {string}
-             */
-            component_type: "furnace_tube" | "temperature_sensor" | "mfc" | "pressure_gauge" | "vacuum_pump" | "boat" | "crucible" | "valve" | "plasma_source" | "other";
-            /** Manufacturer */
-            manufacturer?: string | null;
-            /** Model */
-            model?: string | null;
-            /** Serial Number */
-            serial_number?: string | null;
-            /** Attrs */
-            attrs?: {
-                [key: string]: unknown;
-            };
-        };
-        /** EquipmentComponentRead */
-        EquipmentComponentRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Component Code */
-            component_code: string;
-            /** Component Type */
-            component_type: string;
-            /** Manufacturer */
-            manufacturer: string | null;
-            /** Model */
-            model: string | null;
-            /** Serial Number */
-            serial_number: string | null;
-            /** Attrs */
-            attrs: {
-                [key: string]: unknown;
-            };
         };
         /**
          * ExperimentStatus
@@ -3461,20 +3270,6 @@ export interface components {
             /** End */
             end: number;
         };
-        /** SetupComponentBindingCreate */
-        SetupComponentBindingCreate: {
-            /**
-             * Component Id
-             * Format: uuid
-             */
-            component_id: string;
-            /** Role */
-            role: string;
-            /** Position */
-            position?: {
-                [key: string]: unknown;
-            } | null;
-        };
         /** SetupVersionPayload */
         SetupVersionPayload: {
             /** Setup Name */
@@ -4579,191 +4374,6 @@ export interface operations {
             };
         };
     };
-    list_container_instances_api_v1_container_instances_get: {
-        parameters: {
-            query?: {
-                material_lot_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContainerInstanceRead"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_container_instance_api_v1_container_instances_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ContainerInstanceCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContainerInstanceRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_equipment_components_api_v1_equipment_components_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EquipmentComponentRead"][];
-                };
-            };
-        };
-    };
-    create_equipment_component_api_v1_equipment_components_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EquipmentComponentCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EquipmentComponentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bind_setup_component_api_v1_setup_versions__setup_version_id__components_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                setup_version_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetupComponentBindingCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_equipment_lifecycle_event_api_v1_equipment_components__component_id__events_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                component_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LifecycleEventCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LifecycleEventRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     create_instrument_lifecycle_event_api_v1_instruments__instrument_id__events_post: {
         parameters: {
             query?: never;
@@ -5619,37 +5229,6 @@ export interface operations {
             query: {
                 revision_id: string;
             };
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    export_draft_run_json_api_v1_experiments__run_id__draft_export_get: {
-        parameters: {
-            query?: never;
             header?: never;
             path: {
                 run_id: string;

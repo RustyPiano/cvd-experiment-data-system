@@ -18,13 +18,9 @@ from app.schemas.generated.v2_module_payload import (
     SetupVersionPayload,
 )
 from app.schemas.scientific import (
-    ContainerInstanceCreate,
-    ContainerInstanceRead,
     CreateCorrectionDraftRequest,
     DatasetQuery,
     DatasetQueryResponse,
-    EquipmentComponentCreate,
-    EquipmentComponentRead,
     InvalidateMeasurementRequest,
     LifecycleEventCreate,
     LifecycleEventRead,
@@ -36,7 +32,6 @@ from app.schemas.scientific import (
     RunRevisionListResponse,
     RunRevisionRead,
     SampleLineageRead,
-    SetupComponentBindingCreate,
     TransformationRunCreate,
     TransformationRunRead,
 )
@@ -73,84 +68,6 @@ CurrentAdmin = Annotated[User, Depends(get_current_admin_user)]
 @router.get("/contributors", response_model=list[UserRead])
 def list_contributors(db: DbSession, _current_user: CurrentUser) -> list[User]:
     return list(db.scalars(select(User).where(User.is_active.is_(True)).order_by(User.name)))
-
-
-@router.get("/container-instances", response_model=list[ContainerInstanceRead])
-def list_container_instances(
-    db: DbSession,
-    _current_user: CurrentUser,
-    material_lot_id: UUID | None = None,
-) -> list[ContainerInstanceRead]:
-    return ReferenceDataService(db).list_containers(material_lot_id)
-
-
-@router.post(
-    "/container-instances",
-    response_model=ContainerInstanceRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_container_instance(
-    payload: ContainerInstanceCreate,
-    db: DbSession,
-    current_user: CurrentAdmin,
-) -> ContainerInstanceRead:
-    return ReferenceDataService(db).create_container(payload, current_user)
-
-
-@router.get("/equipment-components", response_model=list[EquipmentComponentRead])
-def list_equipment_components(
-    db: DbSession,
-    _current_user: CurrentUser,
-) -> list[EquipmentComponentRead]:
-    return ReferenceDataService(db).list_components()
-
-
-@router.post(
-    "/equipment-components",
-    response_model=EquipmentComponentRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_equipment_component(
-    payload: EquipmentComponentCreate,
-    db: DbSession,
-    current_user: CurrentAdmin,
-) -> EquipmentComponentRead:
-    return ReferenceDataService(db).create_component(payload, current_user)
-
-
-@router.post(
-    "/setup-versions/{setup_version_id}/components",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-def bind_setup_component(
-    setup_version_id: UUID,
-    payload: SetupComponentBindingCreate,
-    db: DbSession,
-    current_user: CurrentAdmin,
-) -> None:
-    ReferenceDataService(db).bind_setup_component(
-        setup_version_id,
-        payload,
-        current_user,
-    )
-
-
-@router.post(
-    "/equipment-components/{component_id}/events",
-    response_model=LifecycleEventRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_equipment_lifecycle_event(
-    component_id: UUID,
-    payload: LifecycleEventCreate,
-    db: DbSession,
-    current_user: CurrentAdmin,
-) -> LifecycleEventRead:
-    return ReferenceDataService(db).create_equipment_event(
-        component_id,
-        payload,
-        current_user,
-    )
 
 
 @router.post(
@@ -451,20 +368,6 @@ def export_run_json(
         revision_id,
         current_user,
     )
-    return Response(
-        content=content,
-        media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@router.get("/experiments/{run_id}/draft-export")
-def export_draft_run_json(
-    run_id: UUID,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> Response:
-    content, filename = V2ReportingService(db).export_draft_json(run_id, current_user)
     return Response(
         content=content,
         media_type="application/json",

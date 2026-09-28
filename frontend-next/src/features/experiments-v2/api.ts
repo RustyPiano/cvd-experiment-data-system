@@ -77,13 +77,6 @@ export type DatasetQueryResponse = {
   query_manifest: Record<string, unknown>
 }
 
-export type ContainerInstance = {
-  id: string
-  material_lot_id: string
-  material_lot_version: number
-  container_code: string
-  status: string
-}
 export type Contributor = {
   id: string
   name: string
