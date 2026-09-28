@@ -9,7 +9,7 @@
 # 依赖由项目 UV 环境管理，禁止使用 pip 单独安装。
 #
 # 四个 sheet：字段草案（实验记录 84 字段/10 模块）、一等实体字段表（MaterialLot、
-# 装置 Setup、表征仪器，共 44 字段）、v2→v3变更说明、待明确清单。
+# 装置 Setup、表征仪器，共 44 字段）、v2→v3变更说明。
 # 全流程背景与进度见 docs/standard/STATUS.md；技术决策见 docs/engineering/v2-implementation-plan.md。
 # ============================================================================
 import json
@@ -66,7 +66,6 @@ ROWS = sections_to_rows(DOC["experiment_record"]["sections"])
 ENT_HEADERS = DOC["entities"]["headers"]
 ENTITY_ROWS = sections_to_rows(DOC["entities"]["sections"])
 CHG = DOC["changelog"]["rows"]
-TBD = DOC["open_items"]["rows"]
 
 wb = openpyxl.Workbook()
 ws = wb.active
@@ -199,24 +198,6 @@ for i, row in enumerate(CHG, 2):
 for c, w in enumerate([6, 16, 72, 14], 1):
     ws2.column_dimensions[openpyxl.utils.get_column_letter(c)].width = w
 ws2.freeze_panes = "A2"
-
-# ---- 待明确清单 sheet ----
-ws3 = wb.create_sheet("待明确清单")
-tbd_hdr = DOC["open_items"]["headers"]
-for c, h in enumerate(tbd_hdr, 1):
-    cell = ws3.cell(1, c, h)
-    cell.fill = hdr_fill
-    cell.font = hdr_font
-    cell.alignment = Alignment(horizontal="center", vertical="center")
-    cell.border = border
-for i, row in enumerate(TBD, 2):
-    for c, val in enumerate(row, 1):
-        cell = ws3.cell(i, c, val)
-        cell.border = border
-        cell.alignment = Alignment(vertical="center", wrap_text=True)
-for c, w in enumerate([6, 64, 26], 1):
-    ws3.column_dimensions[openpyxl.utils.get_column_letter(c)].width = w
-ws3.freeze_panes = "A2"
 
 wb.save(OUT)
 # count fields

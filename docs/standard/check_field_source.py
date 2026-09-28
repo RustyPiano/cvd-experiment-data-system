@@ -4,7 +4,7 @@
 #
 # 校验三件事：
 #   1. 提交的 字段草案-v3.xlsx 与「由 field-source.yaml 重新渲染」逐格一致（防手改 xlsx / 防漂移）
-#   2. YAML 结构约束：必填级别词表封闭、条件必填必须带条件表达式、pending 字段必须有说明
+#   2. YAML 结构约束：必填级别词表封闭、条件必填必须带条件表达式
 #   3. 计数断言：字段数 / R0 数（防误删）
 # 用法：uv run --project backend python docs/standard/check_field_source.py
 # ============================================================================
@@ -198,8 +198,6 @@ for part, scope_of in (
             f.get("options") or ""
         ).strip() in {"", "—"}:
             err(f"{where}: 下拉字段 options 必须非空且不能为 '—'")
-        if f.get("status") == "pending-alignment" and not f.get("pending"):
-            err(f"{where}: pending-alignment 缺少 pending 说明")
         validation = f.get("validation")
         if validation is not None:
             allowed_validation_keys = {

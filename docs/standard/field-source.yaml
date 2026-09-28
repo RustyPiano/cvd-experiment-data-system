@@ -135,7 +135,7 @@ scientific_contract:
       other:
         other_name: {type: text, required: true}
         items: {type: named_parameter_list, required: true}
-    parameter_template_status: internal_validation; pelletize and other minimum templates remain pending real-run trial confirmation
+    parameter_template_status: internal_validation
     owns:
     - container_instance
     - container_snapshot_at_lock
@@ -6438,8 +6438,6 @@ experiment_record:
       example: 正常
       source: 导师·2026-07-28前驱体复核
       note: 当前科学载荷不接受本旧字段；如后续确认会影响复现，再以强类型观察重新立项
-      status: pending-alignment
-      pending: 待与俊杰确认组内常见异常状态词表
     - module: 前驱体
       label: 处理方式
       label_en: Treatment method
@@ -7510,8 +7508,6 @@ experiment_record:
       example: 不连续覆盖
       source: 复审
       note: ★失败炉次最小痕迹；终态无任何结果→『结果缺失』待办(标准§7/§10)
-      status: pending-alignment
-      pending: 待明确清单#5：词表粒度（7项多选 vs 生长/不生长），导师K75点名
     - module: 实测产物
       label: 检出相、多型与堆垛
       label_en: Detected phase, polytype, and stacking
@@ -7526,8 +7522,6 @@ experiment_record:
       example: 2H-MoS₂；AB堆垛
       source: 复审/导师
       note: ★v3.4导师评审(B76红字)：增记堆垛类型（可判粒度待与俊杰确认，或改下拉）；最小结构化结果
-      status: pending-alignment
-      pending: 待明确清单#7：堆垛可判粒度→定自由文本还是下拉
     - module: 实测产物
       label: 实测层数
       label_en: Measured layer count
@@ -7562,8 +7556,6 @@ experiment_record:
       example: '70'
       source: 复审/科学契约审查
       note: 量化口径仍须随表征条件记录
-      status: pending-alignment
-      pending: 待明确清单#6：SEM覆盖率组里叫法/量化方式待确认
     - module: 实测产物
       label: 畴尺寸
       label_en: Domain size
@@ -9096,12 +9088,8 @@ changelog:
     - 导师评审
   - - v3.4
     - 全表
-    - 表头下加必填级别图例行；必填/条件必填字体加粗着色（导师提醒B93）；表单UI红星标识记入待明确清单
+    - 表头下加必填级别图例行；必填/条件必填字体加粗着色（导师提醒B93）
     - 导师评审
-  - - 未改
-    - §7
-    - 『观察到的现象』词表粒度（7项多选 vs 只记生长/不生长）——导师K75点名与俊杰确认后再定，见待明确清单#5
-    - 待俊杰对齐
   - - ''
     - ── review→v3 回退存档（每条给去向）──
     - ''
@@ -9298,45 +9286,3 @@ changelog:
     - 最小可复现核心(27项，含条件必填)
     - 过程R0以温度/气体/压力通道和降温条件为准；不再要求人工划分反应阶段或反应时长
     - 必填集
-open_items:
-  headers:
-  - '#'
-  - 问题
-  - 状态
-  rows:
-  - - '1'
-    - 化学式 / 异质结 标准写法（渲染规则，找国标或组内定）
-    - 待办
-  - - '2'
-    - 化学式录入：文本+元素校验/自动补全（建议，非周期表点选）
-    - 待办(技术)
-  - - ''
-    - ── 2026-07-07 导师评审引出的待对齐──
-    - ''
-  - - '5'
-    - 【问俊杰·导师K75点名】§7『观察到的现象』粒度：现7项客观多选 vs 只记『生长/不生长』？可带折中案：一级『生长/未生长』必选＋二级现象细分可选（保失败溯源卖点）
-    - 待对齐(问俊杰)
-  - - '6'
-    - 【问俊杰】SEM覆盖率：组里习惯的叫法/量化方式/单位？（导师问『SEM占比是什么』，已先改名『SEM覆盖率(视场内材料面积占比,%)』）
-    - 待对齐(问俊杰)
-  - - '7'
-    - 【问俊杰】堆垛类型实际可判到什么粒度（2H/3R？AA/AB/ABC？扭转角？）→ 决定自由文本还是下拉词表
-    - 待对齐(问俊杰)
-  - - '8'
-    - 【问俊杰】前驱体『外观描述』词表：组里常用前驱体的形态 + 潮解/变质后的典型外观有哪些
-    - 待对齐(问俊杰)
-  - - '9'
-    - 【回导师】①SEM占比=SEM视场内材料面积覆盖占比（已改名并给定义）；②必填/选填已加图例行+字体强化，表单UI将用红星标必填
-    - 待回复
-  - - '12'
-    - 【问俊杰】低压CVD的漏率是否逐炉记录，以及应归入装置校验还是实验过程
-    - 待对齐(本轮不记录漏率)
-  - - '13'
-    - 【问俊杰】多气体比例的组内标准名称；系统当前由同时间段各气体流量派生
-    - 待对齐(不另存重复比例)
-  - - '14'
-    - 【问俊杰】掺杂体系“基体/主体/本征材料”的最终角色术语与常见括号化学式示例
-    - 待对齐(结构已支持)
-  - - '15'
-    - 【问俊杰】压片等前驱体处理方式的最小参数模板
-    - 待对齐(当前使用具名参数—值—单位)

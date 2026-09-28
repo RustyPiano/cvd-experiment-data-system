@@ -182,7 +182,7 @@
           }
         }
       },
-      "parameter_template_status": "internal_validation; pelletize and other minimum templates remain pending real-run trial confirmation",
+      "parameter_template_status": "internal_validation",
       "owns": [
         "container_instance",
         "container_snapshot_at_lock",
