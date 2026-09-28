@@ -1,13 +1,7 @@
 .git
 .github
-.agents
 .claude
 .codex
-.impeccable
-.opencode
-.superpowers
-.workbuddy
-skills-lock.json
 .DS_Store
 .env
 **/.env
