@@ -11,7 +11,7 @@
 - 本地 HEAD 为 `1c99d4c`，提交内字段版本为 `v4.0-alpha.41`，工作树为 `v4.0-alpha.42`。逐对象比较确认，两者的 `characterization_profiles` 和 `characterization_properties` 完全相同。因此，本报告不把当前衬底修改误认为表征修改。
 - 已核对字段单一源、生成元数据的实际消费逻辑、表单提交载荷、Pydantic 校验、测量服务、详情与 JSON 导出路径；使用 UV 直接运行了 8 组模型校验探针。没有登录生产、读写真实实验数据，也没有把本次静态审查称为浏览器或仪器实测验收。
 - 外部依据采用正式数据模型/词典、原始研究、厂商及分析软件官方资料。NeXus 的 contributed definition 是参考方案，不能表述成所有实验必须遵守的强制国际标准；显微成像的通用原则可借鉴 OME，但生物显微镜的全部字段不直接照搬到 CVD。
-- 下文的“核心”是我对本项目新采集记录的建议；来源支持其科学必要性，不代表来源规定了本项目的必填级别。仪器是否能导出这些值，仍需用课题组实际机型和一个真实原生文件确认。
+- 下文的“核心”是本项目新采集记录的建议级别，来源用于说明科学必要性。仪器是否能导出这些值，仍需用课题组实际机型和一个真实原生文件确认。
 
 代码入口：[字段单一源](/Users/rustypiano/项目/CVD实验数据采集系统/docs/standard/field-source.yaml:517)、[表单筛选与条件校验](/Users/rustypiano/项目/CVD实验数据采集系统/frontend-next/src/features/experiments-v2/simple-characterization-workspace.tsx:887)、[后端条件模型](/Users/rustypiano/项目/CVD实验数据采集系统/backend/app/schemas/scientific.py:1601)、[测量保存](/Users/rustypiano/项目/CVD实验数据采集系统/backend/app/services/scientific_measurement_service.py:222)、[JSON 导出](/Users/rustypiano/项目/CVD实验数据采集系统/backend/app/services/v2_reporting_service.py:968)。
 
@@ -42,7 +42,7 @@
 | 条件对应到具体数据 | 一次测量只有一个 `typed_conditions`，可以上传多个文件；一组峰只指向一个文件，不能再指定文件内的某条曲线或某帧 | 先约定“同一条记录的原始数据共享同一套条件”；不同曝光/功率/倍率优先分记录，完整扫描文件保留逐点参数。峰/高度/间距增加文件与曲线/通道标识。OME 将曝光放到 Plane，pdCIF 允许计数时间随测点记录，说明条件可能属于数据内部，而非整次实验。依据：[OME 字段模型](https://www.openmicroscopy.org/Schemas/Documentation/Generated/OME-2016-06/ome.indexList.html)、[pdCIF 计数时间](https://www.iucr.org/__data/iucr/cifdic_html/1/cif_pd.dic/Ipd_meas_step_count_time.html)。 |
 | 原始与处理后文件 | 新表单上传统一传 `fileCategory: 'raw'`，提交固定 `analyses: []`；用户即使选择了拟合图/校平图，系统也无法忠实表达其性质 | 恢复逐文件“原始采集/处理后/说明性附件”分类，保留原文件；有处理时，记录来源文件及最少处理信息。不要求每张图都填代码提交号和分析时间。依据：[QUAREP-LiMi 关于硬件、采集、处理与质量控制元数据](https://arxiv.org/abs/2101.09153)。 |
 | 采集值与设备能力 | 仪器固定配置可以记录“有 300/600/1800 光栅”，本次采集却没有光栅字段；物镜是一个可随意省略 NA 的文本 | 固定能力留在仪器版本，本次实际选用的光栅、物镜、相机和探测器绑定到测量。可从配置预填，但要留下实际选用值。依据：[NXraman](https://manual.nexusformat.org/classes/applications/NXraman.html)、[OME 的 Objective 与 DetectorSettings](https://www.openmicroscopy.org/Schemas/Documentation/Generated/OME-2016-06/ome.indexList.html)。 |
-| 条件展开与适用性 | `when` 控制显示/允许提交，未使展开项自动必填；TEM 的成像模式只按数据类型过滤，未按 TEM/STEM 过滤 | 为明确分支规定最少依赖，前后端使用同一规则。先修正科学上不相容的组合；缺信息仍可留存，但必须明确缺了什么，不能声称条件完整。具体反例见第 13 节。 |
+| 条件展开与适用性 | `when` 控制显示/允许提交，未使展开项自动必填；TEM 的成像模式只按数据类型过滤，未按 TEM/STEM 过滤 | 为明确分支规定最少依赖，前后端使用同一规则。先修正科学上不相容的组合；缺信息仍可留存，但须标明缺项。具体反例见第 13 节。 |
 | 样品在测量时的状态 | SEM 镀膜、TEM 制样字段被隐藏；公共表单没有专门表达转移后载体、清洗、退火或导电层的入口 | 记录实际处理与测量时载体；已有样品转化模型应复用，不在多条测量中重复维护同一段制样历史。至少让镀层材料/厚度（已知时）、转移载体/支撑膜可追溯。镀层会改变信号，制样也可能引入污染或损伤。依据：[JEOL SEM 原理](https://www.jeol.com/products/science/sem.php)、[Gatan EELS 样品要求](https://eels.info/book/export/html/42)。 |
 
 文件分类的代码依据：[上传与保存载荷](/Users/rustypiano/项目/CVD实验数据采集系统/frontend-next/src/features/experiments-v2/simple-characterization-workspace.tsx:1104)。后端已有分析输入/输出文件关系，可在现有能力上补最小入口；这项建议不等于恢复此前整个通用分析面板。
@@ -60,7 +60,7 @@
 | 增益与偏置 | 本次增益、原机单位/档位；模拟与数字增益可区分时分别记录；黑电平/offset 按仪器提供情况 | 增益为核心，偏置推荐。不要把各机型“增益 1”当成同一物理量，也不要把相机灰度 counts 当成光子数。 |
 | 白平衡 | 关闭/手动/一次自动/连续自动；实际 RGB 增益或可回溯的白平衡配置；参考对象/参考图像；色温仅在软件提供时保留 | 彩色图像核心。黑白相机不适用。单写“自动”或一个色温不能完整描述色彩变换；不要要求用户猜测 RGB 值。 |
 | 照明与滤光 | 实际光源、亮度读数及原机单位；滤光片/波段；相关孔径设置在可获取时记录 | 光源与亮度推荐进入常用项；用于颜色/反射衬比比较时成为核心。仪器的亮度百分比不等于样品处辐照度。 |
-| 空间尺度 | X/Y 像素尺寸，μm/px，及校准/元数据来源；或可核验的标尺 | 尺寸、跨图比较时核心。应恢复尺度记录；本轮暂缓面积统计不构成删除标尺的理由。裁剪不一定改变像素尺度，重采样会改变。 |
+| 空间尺度 | X/Y 像素尺寸，μm/px，及校准/元数据来源；或可核验的标尺 | 尺寸、跨图比较时核心。应恢复尺度记录；暂缓面积统计时仍保留标尺。裁剪不一定改变像素尺度，重采样会改变。 |
 | 图像编码与采集组合 | 像素宽高、位深、颜色/通道、binning；多曝光 HDR、拼接、景深合成仅在使用时记录 | 优先自动提取；不要全变成人工输入。保留各组合图的原始输入文件。 |
 | 图像处理 | 白平衡应用阶段、gamma、对比度/饱和度变换、归一化、降噪、锐化、裁剪/重采样；只登记实际发生的处理及设置/报告 | 用于颜色、亮度或尺寸比较时核心；无记录应显示“处理情况未记录”，不能默认“未处理”。 |
 
@@ -199,7 +199,7 @@ Oxford Instruments 解释了 EDS process time 对能量分辨率、可处理计�
 
 **13. 已运行的校验探针与工程落点**
 
-以下结果来自工作树现有 `MeasurementBundleCreate.model_validate`，仅验证字段层，不代表通过数据库外键/权限/真实文件校验。所有 UUID 均为人工构造，无数据库连接与写入。
+以下结果来自工作树现有 `MeasurementBundleCreate.model_validate`，仅验证字段层。所有 UUID 均为人工构造，无数据库连接与写入。
 
 | 输入 | 当前模型结果 | 审查判断 |
 | --- | --- | --- |

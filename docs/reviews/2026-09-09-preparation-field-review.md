@@ -153,4 +153,4 @@ UI 当前只有本征、掺杂、合金、异质结构；但底层 `material_reg
 
 优先收口外场多项及实际使用联动、溶液计量对象与名称，然后处理目标分类维度和处理方法参数。实施仍须先改字段源、生成全部契约和 xlsx，并核对旧快照显示与导出。
 
-证据位置：`docs/standard/field-source.yaml`；`frontend-next/src/features/experiments-v2/simple-preparation-editors.tsx` 中 targetKind/changeTargetKind/sourceSolutionMode；`scientific-form-workflow.ts` 的 targetValidationIssue；实体库 `entity-form.tsx`；`treatment-steps-editor.tsx`；后端 `schemas/scientific.py` 与 `commands/generate_v2_models.py`。使用 UV 调用现有模型验证了同化学式不同自定义晶相可接受、横向区域层数 1/2 被拒绝，未写数据库。交互示意的 Bun 自检通过增删、非空/重复、“无”互斥和草稿恢复；这些不代表业务实现已经完成。
+证据位置：`docs/standard/field-source.yaml`；`frontend-next/src/features/experiments-v2/simple-preparation-editors.tsx` 中 targetKind/changeTargetKind/sourceSolutionMode；`scientific-form-workflow.ts` 的 targetValidationIssue；实体库 `entity-form.tsx`；`treatment-steps-editor.tsx`；后端 `schemas/scientific.py` 与 `commands/generate_v2_models.py`。使用 UV 调用现有模型验证了同化学式不同自定义晶相可接受、横向区域层数 1/2 被拒绝，未写数据库。交互示意的 Bun 自检通过增删、非空/重复、“无”互斥和草稿恢复。

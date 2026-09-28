@@ -1,6 +1,6 @@
 # PL 字段与配置复核 · 2026-09-11
 
-后续：用户已授权修改，alpha.47本地变更见[实施记录](./2026-09-11-pl-implementation.md)。下文保留alpha.46审查基线，不代表整改后的当前行为。
+后续：用户已授权修改，alpha.47本地变更见[实施记录](./2026-09-11-pl-implementation.md)。下文为alpha.46审查基线。
 
 审查基线：本地提交 `75fb6d9`，字段源 `v4.0-alpha.46 / INTERNAL_VALIDATION`。OM、Raman 整改已提交，PL 仍使用通用仪器预设。本轮仅审查，未修改业务代码、字段源或数据库，未推送或部署。生产版本沿用 STATUS 中记录的 alpha.43，本轮没有连接生产重新核验。
 
@@ -19,7 +19,7 @@
 | [衬底对单层 MoS₂ Raman/PL 的影响](https://arxiv.org/abs/1311.3869)；[CVD MoS₂ 真空环境依赖 PL](https://pmc.ncbi.nlm.nih.gov/articles/PMC5711928/) | 当前载体、环境及处理历史会影响 PL，值得保留 | 使用样品现有记录，不要求表征时重复填写一套生长衬底资料，也不自动把相关变化判为材料变化 |
 | [Edinburgh Instruments：发射光谱响应校正](https://www.edinst.com/resource/emission-correction-in-a-fluorescence-spectrometer/) | 检测效率随波长变化；响应校正能影响谱形和相对强度，依赖具体光路及校正曲线 | 归一化、counts/s 和响应校正不同；“已应用”必须对应所讨论的数据文件 |
 | [NIST：荧光仪器校准指南](https://www.nist.gov/publications/standard-guide-fluorescence-instrument-calibration-and-validation) | 波长准确度、发射响应等是不同的校准项目 | 不能用最近一次整机校准或维护日期代替本次 PL 光谱校准适用性 |
-| [Edinburgh Instruments：时间分辨 PL](https://www.edinst.com/resource/measurement-of-time-resolved-photoluminescence/) | 衰减测量涉及检测方法、时间轴、激发重复频率、脉宽和仪器响应；不同光源使用不同脉宽/频率尺度 | 仅补脉宽和重复频率，不能声称已经完整支持 TRPL 或寿命提取 |
+| [Edinburgh Instruments：时间分辨 PL](https://www.edinst.com/resource/measurement-of-time-resolved-photoluminescence/) | 衰减测量涉及检测方法、时间轴、激发重复频率、脉宽和仪器响应；不同光源使用不同脉宽/频率尺度 | 仅补脉宽和重复频率；TRPL 与寿命提取不在范围内 |
 | [Mooney、Kambhampati：波长与能量坐标转换](https://pubs.acs.org/doi/10.1021/jz401508t)，附[2014 年勘误](https://pubs.acs.org/doi/10.1021/jz502066v) | 定量发射谱在波长和能量坐标间转换需要处理谱密度；不能只换横轴标签后直接比较面积 | 不将任意原始 counts 无条件当成每 nm 的谱密度；须先明确文件数据的定义。出版社正文访问受限，本轮核验了书目信息与勘误，换算边界依据变量变换关系独立核对 |
 
 ## 2. 现状及常规填写流程
@@ -169,13 +169,13 @@ nm 与 eV 间的峰位坐标可用 `E = hc/λ` 表示，但 **不能把 nm 的�
 ## 8. 验证及证据范围
 
 - 读取字段单一源、设备编辑与校验、预设应用、条件编辑、峰编辑、测量创建与保存、文件上传、校准快照、详情和导出实现。
-- **41 组后端/契约/仪器校验探针**：37 组 `MeasurementBundleCreate` 与项目 `ScientificJSONValidator` 对照，4 组仪器预设服务校验。使用模拟 UUID，无数据库读写；“接受”只指该校验层，不表示完成 API 保存或物理验证。
+- **41 组后端/契约/仪器校验探针**：37 组 `MeasurementBundleCreate` 与项目 `ScientificJSONValidator` 对照，4 组仪器预设服务校验。使用模拟 UUID，无数据库读写。
 - 前端共享函数探针确认 PL 无采集预设白名单；四种不当预设通过；不相容线偏振组合未清理；PL 默认 a.u. 且 FWHM/峰高不要求提取说明；生成 AJV 存在上述方法边界差异。
 - 反向范围在后端、项目 JSON Schema 适配器和前端均被拒绝：alpha.46 已共享 `x-cvd-ordered` 校验，本轮没有沿用旧 Raman 报告的反向范围问题。普通 Draft 2020-12 消费者需支持此扩展或自行检查端点顺序。
 - 说明性附件作为峰来源时，后端拒绝，Schema 适配器接受；文件引用关系仍需后端交叉校验，不能用 Schema 通过替代保存校验。当前前端亦限制峰来源文件角色。
 - 既有后端测试：`uv run pytest tests/api/test_characterization_metadata.py tests/api/test_scientific_v4.py -q`，**36 passed**。
 - 既有前端测试：`bun run test src/features/experiments-v2/scientific-measurement-workspace.test.tsx src/features/experiments-v2/spectral-peaks-editor.test.tsx`，**52 passed**。
-- 本轮没有浏览器联调、生产验收或真实仪器文件解析；现有测试通过不表示上述未覆盖问题不存在。
+- 本轮没有浏览器联调、生产验收或真实仪器文件解析。
 
 | 探针 | Pydantic | 项目 Schema 适配器 |
 |---|---|---|

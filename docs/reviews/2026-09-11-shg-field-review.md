@@ -2,7 +2,7 @@
 
 本文于 2026-09-13 重写，替代 `a5bbef0` 提交的同名初稿。初稿中的事实错误见 §8。
 
-后续：用户已授权修改，alpha.48 本地变更见[实施记录](./2026-09-13-shg-implementation.md)，其中与本报告的差异列在实施记录 §4。下文保留 alpha.47 的审查基线，不代表整改后的当前行为。
+后续：用户已授权修改，alpha.48 本地变更见[实施记录](./2026-09-13-shg-implementation.md)，其中与本报告的差异列在实施记录 §4。下文为 alpha.47 审查基线。
 
 审查基线：提交 `a5bbef0`，字段源 `v4.0-alpha.47 / INTERNAL_VALIDATION`。OM、Raman、PL 已接入设备目录，SHG 仍使用通用预设。本轮仅审查，未修改业务代码、字段源或数据库，也未推送或部署。
 
@@ -164,7 +164,7 @@
 | SHG-12 | 未显示当前载体；校准仅取整机最近记录 | 第三批 |
 | SHG-13 | 除 OM/Raman/PL 目录键外，capability `configuration` 中的未知键（如 `shg`）被静默接受 | 第三批，随目录实现一并收紧 |
 | SHG-14 | 文案：“不要求填写晶体学取向”；“保留样品处实测或仪器设置口径”；占位符“参数变化不共用一个数值” | 随改动删除 |
-| SHG-15 | 原生文件（PMT 图像栈、光谱文件）尚未解析 | 取得真实机型和文件后实施，不宣称已具备 |
+| SHG-15 | 原生文件（PMT 图像栈、光谱文件）尚未解析 | 取得真实机型和文件后实施 |
 
 需要组内确认的实际情况（不影响先实施 SHG-01～05）：本组 SHG 设备使用 PMT 扫描、光谱仪还是相机检测；样品处功率通常在物镜后测，还是在物镜前测。若在物镜前测，应另设测量位置选项，不能直接记为样品处功率。
 
@@ -184,7 +184,7 @@
 - 读取了字段源 SHG 定义、`scientific.py` 的 `MeasurementRunCreate` 和 `validate_profile_conditions`、`v2_entity_service.py` 的能力与预设校验、`scientific_measurement_service.py` 的校准快照，以及 `simple-characterization-workspace.tsx` 的仪器切换、预设应用和条件展开，`instrument-presets.ts` 的预设白名单和 `reconcileConditions`。
 - **50 组只读探针**：44 组 `MeasurementBundleCreate` 与项目 `ScientificJSONValidator` 对照（两者结果一致），6 组仪器服务预设/目录校验。使用模拟 UUID，无数据库读写。脚本位于会话临时目录 `scratchpad/shg_probes.py`，输出为 `shg_probes.json`。
 - 前端函数探针（JSDOM）：`presetFields('SHG')` 为空；样品处理、备注、数据类型+曝光、样品处功率四类预设均判为有效；`reconcileConditions` 保留“非偏振+平行”。临时脚本已从工作树移除。
-- 既有测试：后端 `tests/api/test_objective_measurements.py`、`test_scientific_integrity.py`、`test_characterization_metadata.py` **121 passed**；前端 `scientific-measurement-workspace.test.tsx` **51 passed**。现有 SHG 测试仅覆盖脉冲参数显隐和保存—详情—导出，测试通过不代表上述问题不存在。
+- 既有测试：后端 `tests/api/test_objective_measurements.py`、`test_scientific_integrity.py`、`test_characterization_metadata.py` **121 passed**；前端 `scientific-measurement-workspace.test.tsx` **51 passed**。现有 SHG 测试仅覆盖脉冲参数显隐和保存—详情—导出。
 - 本轮没有浏览器联调、生产验收或真实仪器文件。
 
 | 探针 | 结果 |

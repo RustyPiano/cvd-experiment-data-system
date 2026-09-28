@@ -2,7 +2,7 @@
 
 日期：2026-09-10。状态：**A～D 本地实现已完成，前后端回归、PostgreSQL 及真实浏览器/容器联调通过；尚未发布生产**。执行证据见 §9。
 
-依据：[逐项复核报告](../reviews/2026-09-10-frontend-design-audit-verification.md)。原审计报告仅作为问题输入，误报及未经验证的建议不自动进入实施范围。
+依据：[逐项复核报告](../reviews/2026-09-10-frontend-design-audit-verification.md)。只实施复核确认成立的问题。
 
 ## 1. 目标与基线
 
@@ -139,9 +139,9 @@
 
 - `scripts/generate-measurement-validator.ts` 读取 `docs/standard/generated/cvd-2d-process-v2.schema.json` 中 measurement_bundle；不维护新的手写 zod/字段规则副本。
 - 将锁文件中已有的 Ajv 8.20.0 明确列为开发依赖，构建期生成并打包独立校验器；浏览器不引入 Ajv 编译器，也不动态求值 schema。
-- 校验器返回类型守卫，实际校验通过后才调用强类型 createMeasurement。对象形状、方法/属性联合、单位及 schema 条件参与验证；UUID/date-time 格式仍由 API 验证，本地校验不替代后端或跨实体业务检查。
+- 校验器返回类型守卫，实际校验通过后才调用强类型 createMeasurement。对象形状、方法/属性联合、单位及 schema 条件参与验证；UUID/date-time 格式及跨实体业务检查由后端验证。
 - 接入 gen:fields，现有 generated 目录漂移门禁覆盖新增产物；重复生成哈希一致。新增原语形状、未知方法、错误单位、缺少方法条件等回归测试。
-- **已知代价**：独立校验 chunk 约 1,001 KB，gzip 75.36 KB，首次提交时按需加载；Vite 提示超过 500 KB 的未压缩 chunk。未提高阈值掩盖警告，也不声称本批缩小了所有构建产物。后续可在实测基础上优化生成器输出。
+- **已知代价**：独立校验 chunk 约 1,001 KB，gzip 75.36 KB，首次提交时按需加载；Vite 提示超过 500 KB 的未压缩 chunk。后续可在实测基础上优化生成器输出。
 
 ### 已执行验证
 
