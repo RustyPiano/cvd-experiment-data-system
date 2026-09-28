@@ -91,6 +91,7 @@
 | 09-13 | [SHG 复核](../reviews/2026-09-11-shg-field-review.md)与整改（alpha.48，提交 `742c5f0`） |
 | 09-20 | 清理未使用的本地工具、技能和脚手架文件（`ac4a25b`） |
 | 09-21 | [字段名称与分类体系审核](../reviews/2026-09-21-field-terminology-taxonomy-review.md)：30 项问题 + 4 项文字建议，待处理 |
+| 09-28 | 文档精简；删除 deploy.sh 批8切换逻辑与结构指纹检查、重复的 `create_admin`、前端脚手架文件和 CI 本地工具检查 |
 
 ## 6. 下一步
 

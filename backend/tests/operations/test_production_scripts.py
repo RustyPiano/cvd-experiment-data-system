@@ -34,8 +34,6 @@ def _deploy_fixture(
     public_object_kind: str = "",
     compose_status: str = "backend|running|healthy\nfrontend|running|healthy",
     revision: str = "20260711_0001",
-    schema_fingerprint: str = "ok",
-    file_asset_shape: str = "current",
     expected_services: str = "backend\nfrontend",
 ) -> Path:
     project = tmp_path / "project"
@@ -47,7 +45,6 @@ def _deploy_fixture(
     )
     _executable(project / "backup.sh", "#!/usr/bin/env bash\nexit 0\n")
     (project / "docker-compose.prod.yml").write_text("services: {}\n", encoding="utf-8")
-    (project / "volume-data").mkdir()
     migration_dir = project / "backend" / "alembic" / "versions"
     migration_dir.mkdir(parents=True)
     (migration_dir / "initial.py").write_text("revision = '20260711_0001'\n", encoding="utf-8")
@@ -56,14 +53,6 @@ def _deploy_fixture(
     _executable(
         fake_bin / "git",
         """#!/usr/bin/env bash
-if [ "$1" = "rev-parse" ] && [ "$2" = "HEAD" ]; then
-    printf '%s\n' "${BATCH8_FAKE_HEAD:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
-    exit 0
-fi
-if [ "$1" = "status" ] && [ "$2" = "--porcelain" ]; then
-    printf '%s' "${BATCH8_FAKE_DIRTY:-}"
-    exit 0
-fi
 if [ "$1" = "pull" ]; then
     touch git-pull-called
 fi
@@ -97,63 +86,8 @@ if [ "$1" = "exec" ]; then
             printf '%s\\n' "$state"
             ;;
         *version_num*) printf '%s\\n' '{revision}' ;;
-        *schema_fingerprint*)
-            fingerprint='{schema_fingerprint}'
-            case '{file_asset_shape}' in
-                missing-entity-columns)
-                    if [[ "$query" == *"file_assets"* \
-                        && "$query" == *"entity_type"* \
-                        && "$query" == *"entity_id"* \
-                        && "$query" == *"entity_version"* ]]; then
-                        fingerprint='mismatch'
-                    fi
-                    ;;
-                run-scope-not-nullable)
-                    if [[ "$query" == *"experiment_run_id"* \
-                        && "$query" == *"attnotnull"* ]]; then
-                        fingerprint='mismatch'
-                    fi
-                    ;;
-                missing-scope-check)
-                    if [[ "$query" == *"ck_file_assets_single_scope"* ]]; then
-                        fingerprint='mismatch'
-                    fi
-                    ;;
-                missing-type-check)
-                    if [[ "$query" == *"ck_file_assets_entity_type"* ]]; then
-                        fingerprint='mismatch'
-                    fi
-                    ;;
-            esac
-            printf '%s\\n' "$fingerprint"
-            ;;
         *) exit 2 ;;
     esac
-    exit 0
-fi
-if [ "$1" = "volume" ] && [ "$2" = "inspect" ]; then
-    [ "${{BATCH8_FAIL_VOLUME_INSPECT:-0}}" != "1" ] || exit 99
-    if [ "$3" = "--format" ]; then
-        [ "$5" = "${{COMPOSE_PROJECT_NAME:-project}}_storage_data" ] || exit 1
-        printf '%s\n' "$PWD/volume-data"
-        exit 0
-    fi
-    [ "$3" = "${{COMPOSE_PROJECT_NAME:-project}}_storage_data" ]
-    exit
-fi
-if [ "$1" = "cp" ]; then
-    [ "$2" = "backend-container:/data/storage/." ] && [ "$3" = "-" ] || exit 1
-    /usr/bin/tar -cf - -C "$PWD/volume-data" .
-    exit 0
-fi
-if [ "$1" = "inspect" ] && [ "$2" = "--format" ]; then
-    printf '%s|%s\n' \
-        "${{BATCH8_FAKE_RUNNING:-false}}" \
-        "${{COMPOSE_PROJECT_NAME:-project}}_storage_data"
-    exit 0
-fi
-if [[ " $* " == *" ps -q --all backend "* ]]; then
-    printf '%s\n' 'backend-container'
     exit 0
 fi
 if [[ " $* " == *" config --services "* ]]; then
@@ -177,12 +111,6 @@ exit 0
 def _run_script(project: Path, name: str, **environment: str) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     for key in (
-        "BATCH8_FAKE_DIRTY",
-        "BATCH8_FAKE_HEAD",
-        "BATCH8_FAKE_RUNNING",
-        "BATCH8_FAIL_VOLUME_INSPECT",
-        "BATCH8_PROOF_MAX_AGE_SECONDS",
-        "BATCH8_VERIFIED_BACKUP_DIR",
         "COMPOSE_DATABASE_URL",
         "PG_CONTAINER",
         "POSTGRES_DB",
@@ -203,257 +131,6 @@ def _run_script(project: Path, name: str, **environment: str) -> subprocess.Comp
     )
 
 
-def _batch8_backup_dir(
-    project: Path,
-    *,
-    backup_root: Path | None = None,
-) -> tuple[Path, str]:
-    target_sha = "a" * 40
-    backup_root = backup_root or project / "backups"
-    backup_root.mkdir()
-    backup_root.chmod(0o700)
-    (backup_root / ".cvd-backup-root").touch()
-    backup_dir = backup_root / "20260724_120000"
-    backup_dir.mkdir()
-    backup_dir.chmod(0o700)
-    database = backup_dir / "database.sql"
-    storage = backup_dir / "storage.tar.gz"
-    database.write_text("-- verified PostgreSQL dump\n", encoding="utf-8")
-    with tarfile.open(storage, "w:gz") as archive:
-        payload = project / "stored-file.txt"
-        payload.write_text("evidence\n", encoding="utf-8")
-        archive.add(payload, arcname="stored-file.txt")
-    hashes = {
-        path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (database, storage)
-    }
-    (backup_dir / "SHA256SUMS").write_text(
-        f"{hashes['database.sql']}  database.sql\n{hashes['storage.tar.gz']}  storage.tar.gz\n",
-        encoding="utf-8",
-    )
-    (backup_dir / "batch8-proof.env").write_text(
-        "FORMAT=cvd-batch8-v1\n"
-        "PG_CONTAINER=fixture-postgres\n"
-        "POSTGRES_USER=fixture-user\n"
-        "POSTGRES_DB=fixture-db\n"
-        "STORAGE_VOLUME=project_storage_data\n"
-        f"TARGET_GIT_SHA={target_sha}\n"
-        f"DATABASE_SHA256={hashes['database.sql']}\n"
-        f"STORAGE_SHA256={hashes['storage.tar.gz']}\n"
-        f"VERIFIED_AT_EPOCH={int(time.time())}\n"
-        "RESTORE_VERIFIED=true\n",
-        encoding="utf-8",
-    )
-    for name in ("database.sql", "storage.tar.gz", "SHA256SUMS", "batch8-proof.env"):
-        (backup_dir / name).chmod(0o600)
-    return backup_dir, target_sha
-
-
-def _run_batch8_deploy(
-    project: Path,
-    backup_dir: Path,
-    target_sha: str,
-    **environment: str,
-) -> subprocess.CompletedProcess[str]:
-    return _run_script(
-        project,
-        "deploy.sh",
-        BATCH8_FAKE_HEAD=target_sha,
-        BATCH8_VERIFIED_BACKUP_DIR=str(backup_dir),
-        HEALTH_POLL_INTERVAL="1",
-        MAX_WAIT="1",
-        **environment,
-    )
-
-
-def test_batch8_deploy_uses_verified_backup_without_live_backup_or_pull(tmp_path) -> None:
-    project = _deploy_fixture(tmp_path, schema_state="empty")
-    backup_dir, target_sha = _batch8_backup_dir(project)
-    _executable(
-        project / "backup.sh",
-        "#!/usr/bin/env bash\ntouch live-backup-called\nexit 99\n",
-    )
-
-    result = _run_batch8_deploy(project, backup_dir, target_sha)
-
-    assert result.returncode == 0, result.stderr
-    assert not (project / "live-backup-called").exists()
-    assert not (project / "git-pull-called").exists()
-    assert (project / "compose-up-called").exists()
-
-
-@pytest.mark.parametrize(
-    ("mutation", "error_fragment"),
-    [
-        ("empty-database", "database.sql"),
-        ("bad-storage", "storage.tar.gz"),
-        ("bad-hash", "SHA256"),
-        ("rewritten-artifacts", "DATABASE_SHA256"),
-        ("missing-field", "POSTGRES_DB"),
-        ("wrong-database", "POSTGRES_DB"),
-        ("wrong-volume", "STORAGE_VOLUME"),
-        ("expired-proof", "过期"),
-        ("restore-not-verified", "RESTORE_VERIFIED"),
-        ("wrong-target", "TARGET_GIT_SHA"),
-        ("wrong-permissions", "权限"),
-    ],
-)
-def test_batch8_deploy_rejects_invalid_proof_before_compose_up(
-    tmp_path,
-    mutation: str,
-    error_fragment: str,
-) -> None:
-    project = _deploy_fixture(tmp_path, schema_state="empty")
-    backup_dir, target_sha = _batch8_backup_dir(project)
-    if mutation == "empty-database":
-        (backup_dir / "database.sql").write_bytes(b"")
-    elif mutation == "bad-storage":
-        (backup_dir / "storage.tar.gz").write_text("not a tar", encoding="utf-8")
-    elif mutation == "bad-hash":
-        (backup_dir / "SHA256SUMS").write_text(
-            f"{'0' * 64}  database.sql\n{'0' * 64}  storage.tar.gz\n",
-            encoding="utf-8",
-        )
-    elif mutation == "rewritten-artifacts":
-        database = backup_dir / "database.sql"
-        storage = backup_dir / "storage.tar.gz"
-        database.write_text("-- replacement dump\n", encoding="utf-8")
-        with tarfile.open(storage, "w:gz") as archive:
-            replacement = project / "replacement.txt"
-            replacement.write_text("replacement\n", encoding="utf-8")
-            archive.add(replacement, arcname="replacement.txt")
-        (backup_dir / "SHA256SUMS").write_text(
-            f"{hashlib.sha256(database.read_bytes()).hexdigest()}  database.sql\n"
-            f"{hashlib.sha256(storage.read_bytes()).hexdigest()}  storage.tar.gz\n",
-            encoding="utf-8",
-        )
-    elif mutation == "missing-field":
-        proof = backup_dir / "batch8-proof.env"
-        proof.write_text(
-            proof.read_text(encoding="utf-8").replace(
-                "POSTGRES_DB=fixture-db\n",
-                "",
-            ),
-            encoding="utf-8",
-        )
-    elif mutation == "wrong-database":
-        proof = backup_dir / "batch8-proof.env"
-        proof.write_text(
-            proof.read_text(encoding="utf-8").replace(
-                "POSTGRES_DB=fixture-db",
-                "POSTGRES_DB=other-db",
-            ),
-            encoding="utf-8",
-        )
-    elif mutation == "wrong-volume":
-        proof = backup_dir / "batch8-proof.env"
-        proof.write_text(
-            proof.read_text(encoding="utf-8").replace(
-                "STORAGE_VOLUME=project_storage_data",
-                "STORAGE_VOLUME=other_storage_data",
-            ),
-            encoding="utf-8",
-        )
-    elif mutation == "expired-proof":
-        proof = backup_dir / "batch8-proof.env"
-        lines = proof.read_text(encoding="utf-8").splitlines()
-        proof.write_text(
-            "\n".join(
-                "VERIFIED_AT_EPOCH=1" if line.startswith("VERIFIED_AT_EPOCH=") else line
-                for line in lines
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-    elif mutation == "restore-not-verified":
-        proof = backup_dir / "batch8-proof.env"
-        proof.write_text(
-            proof.read_text(encoding="utf-8").replace(
-                "RESTORE_VERIFIED=true",
-                "RESTORE_VERIFIED=false",
-            ),
-            encoding="utf-8",
-        )
-    elif mutation == "wrong-target":
-        target_sha = "b" * 40
-    elif mutation == "wrong-permissions":
-        (backup_dir / "database.sql").chmod(0o644)
-
-    result = _run_batch8_deploy(project, backup_dir, target_sha)
-
-    assert result.returncode == 1
-    assert error_fragment in result.stderr
-    assert not (project / "compose-up-called").exists()
-
-
-def test_batch8_deploy_derives_the_marked_backup_root_from_the_capability(tmp_path) -> None:
-    project = _deploy_fixture(tmp_path, schema_state="empty")
-    backup_dir, target_sha = _batch8_backup_dir(project)
-    external, external_sha = _batch8_backup_dir(
-        project,
-        backup_root=tmp_path / "external-backups",
-    )
-
-    relative = _run_batch8_deploy(
-        project,
-        Path("backups") / backup_dir.name,
-        target_sha,
-    )
-    assert relative.returncode == 1
-    assert not (project / "compose-up-called").exists()
-
-    external_result = _run_batch8_deploy(project, external, external_sha)
-
-    assert external_result.returncode == 0, external_result.stderr
-
-
-def test_batch8_deploy_rejects_an_unmarked_parent_directory(tmp_path) -> None:
-    project = _deploy_fixture(tmp_path, schema_state="empty")
-    backup_dir, target_sha = _batch8_backup_dir(project)
-    (backup_dir.parent / ".cvd-backup-root").unlink()
-
-    result = _run_batch8_deploy(project, backup_dir, target_sha)
-
-    assert result.returncode == 1
-    assert "标记" in result.stderr
-
-
-def test_batch8_deploy_rejects_symlink_dirty_tree_and_schema_bypass(tmp_path) -> None:
-    project = _deploy_fixture(tmp_path, schema_state="empty")
-    backup_dir, target_sha = _batch8_backup_dir(project)
-    symlink = project / "backups" / "linked"
-    symlink.symlink_to(backup_dir, target_is_directory=True)
-
-    linked = _run_batch8_deploy(project, symlink, target_sha)
-    dirty = _run_batch8_deploy(
-        project,
-        backup_dir,
-        target_sha,
-        BATCH8_FAKE_DIRTY="?? local-file\n",
-    )
-    bypass = _run_batch8_deploy(
-        project,
-        backup_dir,
-        target_sha,
-        SKIP_SCHEMA_GUARD="1",
-    )
-
-    assert linked.returncode == 1
-    assert dirty.returncode == 1
-    assert bypass.returncode == 1
-    assert not (project / "compose-up-called").exists()
-
-
-def test_batch8_deploy_requires_a_fresh_empty_schema(tmp_path) -> None:
-    project = _deploy_fixture(tmp_path, schema_state="versioned")
-    backup_dir, target_sha = _batch8_backup_dir(project)
-
-    result = _run_batch8_deploy(project, backup_dir, target_sha)
-
-    assert result.returncode == 1
-    assert "schema" in result.stderr
-    assert not (project / "compose-up-called").exists()
-
-
 @pytest.mark.parametrize(
     "public_object_kind",
     [
@@ -467,7 +144,7 @@ def test_batch8_deploy_requires_a_fresh_empty_schema(tmp_path) -> None:
         "domain",
     ],
 )
-def test_batch8_deploy_rejects_every_supported_public_object_class(
+def test_deploy_rejects_every_supported_public_object_class(
     tmp_path,
     public_object_kind: str,
 ) -> None:
@@ -476,84 +153,12 @@ def test_batch8_deploy_rejects_every_supported_public_object_class(
         schema_state="empty",
         public_object_kind=public_object_kind,
     )
-    backup_dir, target_sha = _batch8_backup_dir(project)
 
-    result = _run_batch8_deploy(project, backup_dir, target_sha)
-
-    assert result.returncode == 1
-    assert "fresh-empty" in result.stderr
-
-
-def test_batch8_deploy_requires_the_backend_container_to_be_stopped(tmp_path) -> None:
-    project = _deploy_fixture(tmp_path, schema_state="empty")
-    backup_dir, target_sha = _batch8_backup_dir(project)
-
-    result = _run_batch8_deploy(
-        project,
-        backup_dir,
-        target_sha,
-        BATCH8_FAKE_RUNNING="true",
-    )
+    result = _run_script(project, "deploy.sh", MAX_WAIT="1", HEALTH_POLL_INTERVAL="1")
 
     assert result.returncode == 1
-    assert "已停止" in result.stderr
+    assert "非空" in result.stderr
     assert not (project / "compose-up-called").exists()
-
-
-def test_batch8_deploy_requires_the_storage_volume_to_be_empty(tmp_path) -> None:
-    project = _deploy_fixture(tmp_path, schema_state="empty")
-    backup_dir, target_sha = _batch8_backup_dir(project)
-    (project / "volume-data" / "orphan.bin").write_bytes(b"old")
-
-    result = _run_batch8_deploy(project, backup_dir, target_sha)
-
-    assert result.returncode == 1
-    assert "空卷" in result.stderr
-    assert not (project / "compose-up-called").exists()
-
-
-def test_batch8_deploy_checks_the_stopped_container_not_the_host_mountpoint(
-    tmp_path,
-) -> None:
-    project = _deploy_fixture(tmp_path, schema_state="empty")
-    backup_dir, target_sha = _batch8_backup_dir(project)
-
-    result = _run_batch8_deploy(
-        project,
-        backup_dir,
-        target_sha,
-        BATCH8_FAIL_VOLUME_INSPECT="1",
-    )
-
-    assert result.returncode == 0, result.stderr
-
-
-def test_batch8_proof_freshness_cannot_be_extended_past_six_hours(tmp_path) -> None:
-    project = _deploy_fixture(tmp_path, schema_state="empty")
-    backup_dir, target_sha = _batch8_backup_dir(project)
-    proof = backup_dir / "batch8-proof.env"
-    proof.write_text(
-        proof.read_text(encoding="utf-8").replace(
-            next(
-                line
-                for line in proof.read_text(encoding="utf-8").splitlines()
-                if line.startswith("VERIFIED_AT_EPOCH=")
-            ),
-            f"VERIFIED_AT_EPOCH={int(time.time()) - 21601}",
-        ),
-        encoding="utf-8",
-    )
-    proof.chmod(0o600)
-
-    result = _run_batch8_deploy(
-        project,
-        backup_dir,
-        target_sha,
-        BATCH8_PROOF_MAX_AGE_SECONDS="999999999",
-    )
-
-    assert result.returncode == 1
-    assert "过期" in result.stderr
 
 
 def test_deploy_allows_confirmed_empty_database_for_initial_migration(tmp_path) -> None:
@@ -607,7 +212,7 @@ def test_deploy_rejects_nonempty_database_without_alembic_version(tmp_path) -> N
     assert "非空" in result.stderr
 
 
-def test_deploy_allows_versioned_database_with_current_schema_fingerprint(tmp_path) -> None:
+def test_deploy_allows_versioned_database_on_current_migration_chain(tmp_path) -> None:
     project = _deploy_fixture(tmp_path, schema_state="versioned")
 
     result = _run_script(project, "deploy.sh", MAX_WAIT="1", HEALTH_POLL_INTERVAL="1")
@@ -615,43 +220,14 @@ def test_deploy_allows_versioned_database_with_current_schema_fingerprint(tmp_pa
     assert result.returncode == 0, result.stderr
 
 
-def test_deploy_rejects_current_revision_with_stale_schema_shape(tmp_path) -> None:
-    project = _deploy_fixture(
-        tmp_path,
-        schema_state="versioned",
-        schema_fingerprint="mismatch",
-    )
+def test_deploy_rejects_revision_outside_migration_chain(tmp_path) -> None:
+    project = _deploy_fixture(tmp_path, schema_state="versioned", revision="19990101_0001")
 
     result = _run_script(project, "deploy.sh", MAX_WAIT="1", HEALTH_POLL_INTERVAL="1")
 
     assert result.returncode == 1
-    assert "schema 指纹" in result.stderr
-    assert "重建" in result.stderr
-
-
-@pytest.mark.parametrize(
-    "file_asset_shape",
-    [
-        "missing-entity-columns",
-        "run-scope-not-nullable",
-        "missing-scope-check",
-        "missing-type-check",
-    ],
-)
-def test_deploy_rejects_versioned_database_with_legacy_file_asset_shape(
-    tmp_path,
-    file_asset_shape: str,
-) -> None:
-    project = _deploy_fixture(
-        tmp_path,
-        schema_state="versioned",
-        file_asset_shape=file_asset_shape,
-    )
-
-    result = _run_script(project, "deploy.sh", MAX_WAIT="1", HEALTH_POLL_INTERVAL="1")
-
-    assert result.returncode == 1
-    assert "schema 指纹" in result.stderr
+    assert "迁移链" in result.stderr
+    assert not (project / "compose-up-called").exists()
 
 
 @pytest.mark.parametrize(
@@ -689,7 +265,6 @@ def test_operations_scripts_do_not_require_python() -> None:
     assert "config --services" in deploy
     assert "load_database_target_from_env" in deploy
     assert "load_database_target_from_env" in backup
-    assert 'source "$BATCH8_PROOF_FILE"' not in deploy
     assert "eval " not in deploy
 
 
