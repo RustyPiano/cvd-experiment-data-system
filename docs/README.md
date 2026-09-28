@@ -6,7 +6,7 @@
 
 | 类别 | 文档 | 作用 |
 |---|---|---|
-| 现状 | [`standard/STATUS.md`](standard/STATUS.md) | 当前版本、已定决策、下一步 |
+| 现状 | [`standard/STATUS.md`](standard/STATUS.md) | 当前版本与已定决策 |
 | 标准 | [`standard/cvd-2d-process-data-standard-v2.0.md`](standard/cvd-2d-process-data-standard-v2.0.md) | CVD-2D 元数据规则书 |
 | 字段 | [`standard/field-source.yaml`](standard/field-source.yaml) | 字段、词表和必填规则的唯一机器源 |
 | 字段表 | [`standard/字段草案-v3.xlsx`](standard/字段草案-v3.xlsx) | 由字段单一源生成的人读表格 |
@@ -44,7 +44,7 @@
 
 ## 维护规则
 
-1. 实质改动完成后更新 `standard/STATUS.md` 的日期、进展和下一步。
+1. 实质改动完成后更新 `standard/STATUS.md` 的日期和进展。
 2. 字段改动只修改 `standard/field-source.yaml`，随后重跑全部生成器和字段源校验。
 3. 产品决策写入 `product/`，工程执行记录写入 `engineering/`，操作步骤写入 `operations/`。
 4. 已失效文档移入 `archive/` 并在文件开头注明历史状态，不在现行目录保留重复真相。

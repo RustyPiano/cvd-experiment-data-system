@@ -21,7 +21,7 @@ CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉�
 
 ## 文档入口
 
-- `docs/standard/STATUS.md`：现状、已定决策、下一步
+- `docs/standard/STATUS.md`：现状与已定决策
 - `docs/README.md`：文档分类与入口
 - `docs/product/run-first-workflow-and-copy-design.md`：产品工作流
 - `docs/standard/字段草案-v3.xlsx`：现行字段表（由 YAML 生成）

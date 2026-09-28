@@ -1,6 +1,6 @@
 # 现状（STATUS）
 
-> 本仓库的单一入口：背景、当前进度、已定决策、下一步。与其他文档冲突时以本文件为准。最后更新：2026-09-28。
+> 本仓库的单一入口：背景、当前进度、已定决策。与其他文档冲突时以本文件为准。最后更新：2026-09-28。
 
 ## 0. 速览
 
@@ -8,7 +8,7 @@
 - **香港生产**：`304c96f / v4.0-alpha.43`，Alembic `20260909_0016 (head)`。2026-07-24 切换到 v2，2026-08-07 经用户授权清空测试数据。旧 v1 库离线归档为 `cvd_v1_archive_20260724`。发布证据见 [`production-deployment-report-2026-07-24.md`](../operations/production-deployment-report-2026-07-24.md)。
 - **仓库**：`742c5f0 / v4.0-alpha.48 / INTERNAL_VALIDATION`，未发布。alpha.44–48 为表征仪器配置整改：[OM](../reviews/2026-09-10-om-implementation.md)、[Raman](../reviews/2026-09-11-raman-implementation.md)、[PL](../reviews/2026-09-11-pl-implementation.md)、[SHG](../reviews/2026-09-13-shg-implementation.md)。
 - **字段**：126 个实验字段（91 个进入前端/JSON 契约）、3 张一等实体表 67 个字段（55 个进入前端元数据）、26 个 R0 标记。`字段草案-v3.xlsx` 已按 alpha.48 重生成。
-- **评审输入**：2026-07-07 导师书面批注（已纳入 v3.4）；2026-07-24 线上走查 M/A/F；发布后试填与终审 U-01—U-32。计划见 [`2026-07-24-meeting-remediation-plan.md`](../product/2026-07-24-meeting-remediation-plan.md)，逐项状态见 [`2026-07-24-teacher-meeting-remediation.md`](../reviews/2026-07-24-teacher-meeting-remediation.md)。待组内裁定的专业词表见 §6 线 B。
+- **评审输入**：2026-07-07 导师书面批注（已纳入 v3.4）；2026-07-24 线上走查 M/A/F；发布后试填与终审 U-01—U-32。计划见 [`2026-07-24-meeting-remediation-plan.md`](../product/2026-07-24-meeting-remediation-plan.md)，逐项状态见 [`2026-07-24-teacher-meeting-remediation.md`](../reviews/2026-07-24-teacher-meeting-remediation.md)。
 - 已定决策见 §4，不重开。工程技术决策 D1–D12 见 [`v2-implementation-plan.md`](../engineering/v2-implementation-plan.md)。
 - 读序：本文件 → [`docs/README.md`](../README.md) → [`run-first-workflow-and-copy-design.md`](../product/run-first-workflow-and-copy-design.md) → [`cvd-2d-process-data-standard-v2.0.md`](cvd-2d-process-data-standard-v2.0.md) → `字段草案-v3.xlsx` → [`metadata-v2-review-and-redesign.md`](metadata-v2-review-and-redesign.md) →（写代码）根 `AGENTS.md`。
 
@@ -90,30 +90,13 @@
 | 09-10 — 09-11 | [Raman 复核](../reviews/2026-09-10-raman-field-review.md)与整改（alpha.46）；[PL 复核](../reviews/2026-09-11-pl-field-review.md)与整改（alpha.47）；[AFM 复核](../reviews/2026-09-11-afm-field-review.md)；衬底处理文案"紫外/臭氧表面处理" |
 | 09-13 | [SHG 复核](../reviews/2026-09-11-shg-field-review.md)与整改（alpha.48，提交 `742c5f0`） |
 | 09-20 | 清理未使用的本地工具、技能和脚手架文件（`ac4a25b`） |
-| 09-21 | [字段名称与分类体系审核](../reviews/2026-09-21-field-terminology-taxonomy-review.md)：30 项问题 + 4 项文字建议，待处理 |
+| 09-21 | [字段名称与分类体系审核](../reviews/2026-09-21-field-terminology-taxonomy-review.md)：30 项问题 + 4 项文字建议 |
 | 09-28 | 文档精简；删除 deploy.sh 批8切换逻辑与结构指纹检查、重复的 `create_admin`、前端脚手架文件和 CI 本地工具检查 |
 
-## 6. 下一步
-
-**当前**：alpha.44–48 待发布香港生产；[字段名称与分类体系审核](../reviews/2026-09-21-field-terminology-taxonomy-review.md)的问题待逐项处理；[AFM 复核](../reviews/2026-09-11-afm-field-review.md)待实施。厂商原生文件自动提取待真实样例；实际机型与文件可读参数待对应设备核定。继续按影响、可理解性和填写便利性逐方法审阅。
-
-**线 A：制备记录主线**
-
-- 已完成：产品重构阶段 0–4、全库审查、批8 生产切换、M/A/F 与 U-01—U-32 整改、师兄试填反馈版、表征审计版、制备表单体验优化、目标材料与装置/衬底/前驱体收口。
-- 待办：用户继续复核前驱体及后续字段（气路供给的具体分类待讨论）；确认后由两名非开发实验人员分别独立试填真实炉次并记录阻塞点。
-
-**线 B：标准冻结**（不阻塞线 A 的非语义 UI 与工作流实现）
-
-1. 与导师/俊杰/实际实验人对齐：①观察到的现象粒度；②SEM 覆盖率叫法和量化；③堆垛类型粒度；④前驱体外观词表；⑤"气路置换/洗气/吹扫"的组内称呼；⑥低压 CVD 漏率是否逐次记录及归属；⑦多气体比例的组内标准名称；⑧掺杂体系"基体/主体/本征材料"的角色术语；⑨压片等处理方式的最小参数模板；⑩低压真空泵类型/功率/转速的字段归属；⑪真实瓶装试录、目录号必填性及 CoA/标签照片的证据边界。
-2. 答案落地到 `field-source.yaml`，重跑全部生成器和校验。
-3. 标准头 `DRAFT`→`FROZEN`、YAML `meta.status`→`FROZEN`，Actions 首绿后打 `v2.0.0` tag。
-
-**延后**：G1—G12 案例数据与真实用户试填（代码完成后再找师兄填）；实验模板和 clone、PVD、分析仪表盘、批量导入、JWT 服务端吊销、xlsx 字节级稳定性；v4 新科学页面英文 locale 提取（当前中文优先）。
-
-## 7. 已归档
+## 6. 已归档
 
 `docs/archive/`：v1 文字标准、旧字段表、v1 生成产物、旧顶层设计、汇报材料、progress-report。仅供追溯。
 
-## 8. 研究素材
+## 7. 研究素材
 
 `docs/research/`：导师批注原件、国际对标表、会议纪要、材料数据标准调研。
