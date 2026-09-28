@@ -54,7 +54,6 @@ const labels: TreatmentStepsEditorLabels = {
     rinse: 'Rinse',
     wipe: 'Wipe',
     other: 'Other',
-    not_recorded: 'Not recorded',
   },
   types: {
     direct_load: 'Direct load',
@@ -306,7 +305,7 @@ describe('TreatmentStepsEditor', () => {
         initial={[
           {
             type: 'spin_coat',
-            parameters: { speed_rpm: 0, duration_s: 60 },
+            parameters: { stages: [{ speed_rpm: 0, duration_s: 60 }] },
           },
         ]}
       />,
@@ -318,7 +317,7 @@ describe('TreatmentStepsEditor', () => {
     expect(screen.queryByText('This field is required')).not.toBeInTheDocument()
   })
 
-  it('normalizes a legacy spin coat and stores ordered stages', async () => {
+  it('stores ordered spin coat stages', async () => {
     const user = userEvent.setup()
     render(
       <Wrapper
@@ -326,7 +325,7 @@ describe('TreatmentStepsEditor', () => {
         initial={[
           {
             type: 'spin_coat',
-            parameters: { speed_rpm: 1000, duration_s: 10 },
+            parameters: { stages: [{ speed_rpm: 1000, duration_s: 10 }] },
           },
         ]}
       />,

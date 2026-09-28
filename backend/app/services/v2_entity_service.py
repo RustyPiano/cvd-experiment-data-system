@@ -49,7 +49,6 @@ from app.services.om_configuration import validate_om_catalog
 from app.services.substrate_orientation import normalize_substrate_orientation
 from app.services.v2_entity_snapshot_service import FIXED_COORDINATE_SYSTEM
 from app.services.v2_field_source import (
-    canonical_option_value,
     condition_local_key,
     condition_matches,
     entity_fields_by_key,
@@ -275,11 +274,8 @@ class V2EntityService:
                 continue
             if input_type in COMPOSITE_INPUTS:
                 if not isinstance(value, dict):
-                    data[key] = self._normalize_composite_value(key, input_type, value, field)
-                    value = data[key]
+                    self._raise_invalid(key, "value")
             elif "下拉" in input_type or "多选" in input_type:
-                data[key] = canonical_option_value(value, self.doc, field_key=key)
-                value = data[key]
                 if "其他" not in input_type:
                     allowed_values = field_option_values(key, self.doc, field=field)
                     candidates = value if isinstance(value, list) else [value]
@@ -438,19 +434,12 @@ class V2EntityService:
         allowed = field_option_values("name_type", self.doc)
         seen: set[str] = set()
         for capability in capabilities:
-            configuration = {}
-            if isinstance(capability, str):
-                code = canonical_option_value(capability, self.doc)
-            else:
-                if not isinstance(capability, dict) or set(capability) - {
-                    "code",
-                    "configuration",
-                }:
-                    self._raise_invalid("capabilities", "value")
-                code = canonical_option_value(capability.get("code"), self.doc)
-                configuration = capability.get("configuration", {})
-                if not isinstance(configuration, dict):
-                    self._raise_invalid("capabilities", "configuration")
+            if not isinstance(capability, dict) or set(capability) - {"code", "configuration"}:
+                self._raise_invalid("capabilities", "value")
+            code = capability.get("code")
+            configuration = capability.get("configuration", {})
+            if not isinstance(configuration, dict):
+                self._raise_invalid("capabilities", "configuration")
             if code not in allowed or code in seen:
                 self._raise_invalid("capabilities", "value_or_duplicate")
             seen.add(code)
@@ -672,28 +661,17 @@ class V2EntityService:
         self,
         key: str,
         input_type: str,
-        raw: Any,
+        raw: dict[str, Any],
         field: dict[str, Any],
     ) -> dict[str, Any]:
         free_text_option = input_type == "文本+数值"
         allowed_options = (
             set() if free_text_option else field_option_values(key, self.doc, field=field)
         )
-        if isinstance(raw, dict):
-            if set(raw) - {"value", "option"}:
-                self._raise_invalid(key, "value")
-            free_value = raw.get("value")
-            option = raw.get("option")
-            if not free_text_option:
-                option = canonical_option_value(option, self.doc, field_key=key)
-        else:
-            if free_text_option:
-                self._raise_invalid(key, "value")
-            canonical = canonical_option_value(raw, self.doc, field_key=key)
-            if canonical in allowed_options:
-                free_value, option = None, canonical
-            else:
-                free_value, option = raw, None
+        if set(raw) - {"value", "option"}:
+            self._raise_invalid(key, "value")
+        free_value = raw.get("value")
+        option = raw.get("option")
 
         if free_text_option:
             if not isinstance(option, str) or not (option := option.strip()):
@@ -738,7 +716,6 @@ class V2EntityService:
         if not isinstance(raw, dict):
             self._raise_invalid(key, "value")
         raw = {name: value for name, value in raw.items() if value is not None}
-        normalized_shape = canonical_option_value(shape, self.doc, field_key="shape")
         required_by_shape = {
             "round": {"outer_diameter_mm", "wall_thickness_mm"},
             "square": {"outer_side_mm", "wall_thickness_mm"},
@@ -749,10 +726,10 @@ class V2EntityService:
             },
             "other": {"dimension_description"},
         }
-        required = required_by_shape.get(normalized_shape)
+        required = required_by_shape.get(shape)
         if required is None or set(raw) != required:
             self._raise_invalid(key, "value")
-        if normalized_shape == "other":
+        if shape == "other":
             description = raw.get("dimension_description")
             if not isinstance(description, str) or not description.strip():
                 self._raise_invalid(key, "value")
@@ -775,13 +752,8 @@ class V2EntityService:
     def _normalize_tube_material_shape(self, key: str, raw: Any) -> dict[str, Any]:
         if not isinstance(raw, dict):
             self._raise_invalid(key, "type")
-        normalized = {
-            **raw,
-            "material": canonical_option_value(raw.get("material"), self.doc, field_key="material"),
-            "shape": canonical_option_value(raw.get("shape"), self.doc, field_key="shape"),
-        }
         try:
-            return TubeMaterialShapePayload.model_validate(normalized).model_dump()
+            return TubeMaterialShapePayload.model_validate(raw).model_dump()
         except ValidationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

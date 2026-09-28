@@ -1,8 +1,5 @@
 import { additionalCapabilityNames } from '@/shared/additional-capabilities'
-import {
-  legacySubstrateOrientation,
-  substrateOrientationPayload,
-} from '@/shared/substrate-orientation'
+import { substrateOrientationPayload } from '@/shared/substrate-orientation'
 // 一等实体表单的「元数据驱动」纯逻辑：可选项解析、条件显隐、有效必填、默认值。
 // 全部只读消费 field-metadata（生成物），不含 React/网络，便于 vitest 单测。
 import {
@@ -495,8 +492,6 @@ export function buildDefaultValues(
   kind: EntityKind,
   source?: Record<string, unknown> | null,
 ): EntityFormValues {
-  if (kind === 'material_lot' && source)
-    source = legacySubstrateOrientation(source)
   const values: EntityFormValues = {}
   for (const field of getEntityFields(kind)) {
     const raw = source?.[field.key]
@@ -528,7 +523,7 @@ export function buildDefaultValues(
       isStructuredInput(field.input) &&
       typeof raw === 'object'
     ) {
-      values[field.key] = structuredValueFromRaw(field.key, raw)
+      values[field.key] = structuredValueFromRaw(raw)
     } else if (
       raw != null &&
       isCompositeInput(field.input) &&

@@ -19,18 +19,9 @@ function snapshotText(snapshot: Record<string, unknown>, key: string): string {
 
 function orientationText(snapshot: Record<string, unknown>): string {
   const plane = snapshotText(snapshot, 'substrate_crystal_plane')
-  if (plane)
-    return plane === 'supplier_cut'
-      ? snapshotText(snapshot, 'substrate_cut_spec')
-      : plane
-  if (snapshotText(snapshot, 'substrate_polish')) return ''
-  const value = snapshotValue(snapshot, 'substrate_orientation_polish')
-  if (!value || typeof value !== 'object')
-    return snapshotText(snapshot, 'substrate_orientation_polish')
-  return ['value', 'option']
-    .map((key) => String((value as Record<string, unknown>)[key] ?? '').trim())
-    .filter(Boolean)
-    .join('；')
+  return plane === 'supplier_cut'
+    ? snapshotText(snapshot, 'substrate_cut_spec')
+    : plane
 }
 
 export function materialLotProjection(

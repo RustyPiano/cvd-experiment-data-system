@@ -115,16 +115,6 @@ export function simpleProcessEventsIssue(
   return null
 }
 
-type TimelineSegment = {
-  segment_key: string
-  segment_type: string
-  sequence: number
-  start_s: number
-  end_s: number
-  label?: string
-  note?: string
-}
-
 type TimelineChannel = {
   channel_type?: string
   series?: Array<{
@@ -186,20 +176,12 @@ export function temperatureStepOperation(
 }
 
 export function simpleProcessEndSeconds(
-  segments: TimelineSegment[],
   channels: TimelineChannel[],
   fieldParams: Array<{ end_min: number | null }> = [],
   events: Array<{ start_s: number; end_s?: number }> = [],
 ): number {
   return Math.max(
     0,
-    ...segments
-      .filter(
-        (item) =>
-          !item.segment_key.endsWith('_post_growth') &&
-          !item.segment_key.endsWith('_cooling'),
-      )
-      .map((item) => item.end_s),
     ...channels.flatMap((channel) =>
       (channel.series ?? [])
         .filter(
@@ -221,40 +203,16 @@ export function buildSimpleSourceLoadsPayload<
       step_type: string
       parameters: Record<string, unknown>
     }>
-    ingredients: Array<{
-      snapshot?: unknown
-      function_role?: unknown
-      process_roles?: string[]
-      process_role_other?: unknown
-    }>
+    ingredients: Array<{ snapshot?: unknown }>
   },
 >(loads: T[]) {
   return {
     items: loads.map((load) => {
-      const preparationSteps = load.preparation_steps?.map((step) =>
-        step.step_type === 'spin_coat' && !Array.isArray(step.parameters.stages)
-          ? {
-              ...step,
-              parameters: {
-                stages: [
-                  {
-                    speed_rpm: step.parameters.speed_rpm,
-                    duration_s: step.parameters.duration_s,
-                  },
-                ],
-              },
-            }
-          : step,
-      )
       return {
         ...load,
-        ...(preparationSteps ? { preparation_steps: preparationSteps } : {}),
         ingredients: load.ingredients.map((ingredient) => {
           const payload = { ...ingredient }
           delete payload.snapshot
-          delete payload.function_role
-          delete payload.process_roles
-          delete payload.process_role_other
           return payload
         }),
       }
@@ -275,8 +233,6 @@ export type SimplePreparationOperation = {
     snapshot?: Record<string, unknown>
     flow_sccm?: number
   }>
-  /** 旧记录兼容；新录入使用气瓶批次。 */
-  gases?: string[]
   other_name?: string
 }
 
@@ -397,7 +353,6 @@ export function simpleCoolingIssue(
 }
 
 export function simpleGrowthIssue(
-  _segments: Array<{ segment_type: string; start_s: number; end_s: number }>,
   channels: Array<{
     channel_type: string
     source_type: string
@@ -419,7 +374,6 @@ export function simpleGrowthIssue(
     cooling_method?: string
     cooling_sequence?: SimpleCoolingStep[]
     cooling_other?: string
-    cooling_rate_C_per_min?: number
     lid_open_temperature_C?: number
     preparation_operations?: SimplePreparationOperation[]
   },
@@ -565,15 +519,7 @@ export function simpleGrowthIssue(
           index > 0 && Number(point.value) < Number(points[index - 1].value),
       ),
   )
-  if (
-    programmed &&
-    !hasDescent &&
-    !(
-      Number.isFinite(settings.cooling_rate_C_per_min) &&
-      (settings.cooling_rate_C_per_min ?? 0) > 0
-    )
-  )
-    return '请在温度程序中填写降温步骤。'
+  if (programmed && !hasDescent) return '请在温度程序中填写降温步骤。'
   if (!fieldParamsValid) return '请补齐实际使用的外场参数。'
   if (
     !Number.isFinite(settings.process_duration_min) ||
@@ -582,7 +528,6 @@ export function simpleGrowthIssue(
     return '请填写大于 0 的过程总时长。'
   const end = settings.process_duration_min! * 60
   if (
-    _segments.some((segment) => segment.end_s > end) ||
     channels.some((channel) =>
       channel.series?.some((point) => (point.end_s ?? point.start_s) > end),
     )

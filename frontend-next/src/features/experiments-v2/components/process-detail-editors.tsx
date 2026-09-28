@@ -57,10 +57,8 @@ type ActualFieldParameterKey = (typeof actualFieldParameterKeys)[number]
 interface ActualFieldParameterDefinition {
   key: ActualFieldParameterKey
   name: string
-  aliases: readonly string[]
   kind: 'number' | 'text'
   unit: string
-  unitAliases?: readonly string[]
   required?: boolean
   alternativeGroup?: 'magnitude'
 }
@@ -73,7 +71,6 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
     {
       key: 'plasmaPowerW',
       name: 'power_W',
-      aliases: ['power', 'plasma_power'],
       kind: 'number',
       unit: 'W',
       required: true,
@@ -81,7 +78,6 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
     {
       key: 'plasmaGasSpecies',
       name: 'gas_species',
-      aliases: ['gas', 'gas species'],
       kind: 'text',
       unit: '—',
       required: true,
@@ -89,7 +85,6 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
     {
       key: 'plasmaPressurePa',
       name: 'pressure_Pa',
-      aliases: ['pressure', 'working_pressure'],
       kind: 'number',
       unit: 'Pa',
       required: true,
@@ -99,7 +94,6 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
     {
       key: 'lightWavelengthNm',
       name: 'wavelength_nm',
-      aliases: ['wavelength'],
       kind: 'number',
       unit: 'nm',
       required: true,
@@ -107,7 +101,6 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
     {
       key: 'lightPowerMw',
       name: 'power_mW',
-      aliases: ['light_power'],
       kind: 'number',
       unit: 'mW',
       alternativeGroup: 'magnitude',
@@ -115,16 +108,13 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
     {
       key: 'lightIrradianceMwCm2',
       name: 'irradiance_mW_cm2',
-      aliases: ['irradiance', 'intensity'],
       kind: 'number',
       unit: 'mW·cm⁻²',
-      unitAliases: ['mW/cm2'],
       alternativeGroup: 'magnitude',
     },
     {
       key: 'lightSourceDistanceMm',
       name: 'source_distance_mm',
-      aliases: ['source_distance', 'light_source_distance'],
       kind: 'number',
       unit: 'mm',
       required: true,
@@ -134,7 +124,6 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
     {
       key: 'electricVoltageV',
       name: 'voltage_V',
-      aliases: ['voltage'],
       kind: 'number',
       unit: 'V',
       alternativeGroup: 'magnitude',
@@ -142,16 +131,13 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
     {
       key: 'electricFieldStrengthVCm',
       name: 'field_strength_V_cm',
-      aliases: ['field_strength', 'electric_field_strength'],
       kind: 'number',
       unit: 'V·cm⁻¹',
-      unitAliases: ['V/cm'],
       alternativeGroup: 'magnitude',
     },
     {
       key: 'electricElectrodeGapMm',
       name: 'electrode_gap_mm',
-      aliases: ['electrode_gap', 'gap'],
       kind: 'number',
       unit: 'mm',
       required: true,
@@ -159,7 +145,6 @@ const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
     {
       key: 'electricDirection',
       name: 'direction',
-      aliases: ['field_direction'],
       kind: 'text',
       unit: '—',
       required: true,
@@ -222,31 +207,16 @@ function namedParametersAreValid(parameters: NamedProcessParameter[]): boolean {
   )
 }
 
-function normalizedParameterToken(value: string): string {
-  return value
-    .trim()
-    .toLocaleLowerCase('en-US')
-    .replaceAll('²', '2')
-    .replace(/[\s_-]+/g, '')
-}
-
 function parameterMatchesDefinition(
   parameter: NamedProcessParameter,
   definition: ActualFieldParameterDefinition,
 ): boolean {
-  const acceptedNames = [definition.name, ...definition.aliases].map(
-    normalizedParameterToken,
-  )
-  if (!acceptedNames.includes(normalizedParameterToken(parameter.name))) {
-    return false
-  }
+  if (parameter.name.trim() !== definition.name) return false
   if (definition.kind === 'text') return true
-  if (!Number.isFinite(Number(parameter.value))) return false
-  const acceptedUnits = [
-    definition.unit,
-    ...(definition.unitAliases ?? []),
-  ].map(normalizedParameterToken)
-  return acceptedUnits.includes(normalizedParameterToken(parameter.unit))
+  return (
+    Number.isFinite(Number(parameter.value)) &&
+    parameter.unit.trim() === definition.unit
+  )
 }
 
 function explicitParameterIndexes(field: ActualField): Map<string, number> {

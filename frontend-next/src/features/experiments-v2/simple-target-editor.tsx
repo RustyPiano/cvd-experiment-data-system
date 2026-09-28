@@ -642,16 +642,8 @@ export function SimpleTargetEditor({
 }) {
   const id = useId()
   const kind = targetKind(target)
-  const legacyPlanar = ['continuous_film', 'discrete_planar_crystal'].includes(
-    target.dimensional_form ?? '',
-  )
-  const shape = legacyPlanar ? 'planar' : target.dimensional_form
-  const film =
-    target.dimensional_form === 'continuous_film'
-      ? 'continuous'
-      : target.dimensional_form === 'discrete_planar_crystal'
-        ? 'discrete'
-        : target.film_form
+  const shape = target.dimensional_form
+  const film = target.film_form
   const issue = showErrors ? targetValidationIssue(target) : null
   const change = (patch: Partial<SimpleTarget>) =>
     onChange({ ...target, ...patch })

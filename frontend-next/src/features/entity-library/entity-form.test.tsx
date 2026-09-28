@@ -811,9 +811,6 @@ describe('EntityForm — generated numeric validation', () => {
       substrate_crystal_plane: 'amorphous',
       substrate_polish: 'double_side_polished',
     })
-    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty(
-      'substrate_orientation_polish',
-    )
   })
 
   it('asks for a mica type in place and derives its formula', async () => {

@@ -103,7 +103,7 @@ describe('CharacterizationListPage', () => {
           experiment_run_id: 'run-1',
           run_code: 'CVD-2026-0001',
           sample_code: 'CVD-2026-0001-S01',
-          material_system: 'MoS2',
+          target_material_system: 'MoS2',
         },
         measurements: [
           {
@@ -121,7 +121,7 @@ describe('CharacterizationListPage', () => {
           experiment_run_id: 'run-2',
           run_code: 'CVD-2026-0002',
           sample_code: 'CVD-2026-0002-S01',
-          material_system: 'WS2',
+          target_material_system: 'WS2',
         },
         measurements: [
           {
@@ -139,7 +139,7 @@ describe('CharacterizationListPage', () => {
           experiment_run_id: 'run-3',
           run_code: 'CVD-2026-0003',
           sample_code: 'CVD-2026-0003-S01',
-          material_system: 'WSe2',
+          target_material_system: 'WSe2',
         },
         measurements: [],
       },

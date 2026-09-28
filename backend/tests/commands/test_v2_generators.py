@@ -313,15 +313,6 @@ def test_measurement_json_schema_and_openapi_reject_runtime_invalid_shapes() -> 
     )
     invalid_payloads.append(whole_sample_with_coordinates)
 
-    malformed_assertion = deepcopy(payload)
-    malformed_assertion["assertions"] = [
-        {
-            "assertion_type": "phase_identity",
-            "value": {"phase": " ", "extra": "not allowed"},
-        }
-    ]
-    invalid_payloads.append(malformed_assertion)
-
     duplicate_analysis_input = deepcopy(payload)
     duplicate_analysis_input["analyses"] = [
         {
@@ -374,9 +365,6 @@ def test_characterization_field_source_matches_runtime_discriminators() -> None:
         field["key"] for profile in profiles for field in profile["condition_fields"]
     }
     assert profile_condition_fields == set(MeasurementConditions.model_fields)
-    assert {
-        assertion for profile in profiles for assertion in profile["allowed_assertion_types"]
-    } == set()
     assert {region for profile in profiles for region in profile["allowed_region_types"]} == set(
         get_args(SampleRegion.model_fields["geometry_type"].annotation)
     )
@@ -510,7 +498,6 @@ def test_process_timeline_schema_validates_the_current_top_level_contract() -> N
     schema = export_v2_schema(output_dir=None)["json_schema_doc"]["modules"]["process_steps"]
     validator = Draft202012Validator(schema)
     payload = {
-        "segments": [],
         "channels": [
             {
                 "channel_key": "channel_11111111_1111_4111_8111_111111111111",
@@ -525,6 +512,7 @@ def test_process_timeline_schema_validates_the_current_top_level_contract() -> N
                 "scalar_value": 750,
             }
         ],
+        "process_duration_min": 60,
         "pressure_regime": "atmospheric",
         "cooling_method": "furnace_cooling",
     }

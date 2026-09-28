@@ -16,7 +16,6 @@ import {
   simpleSubstrateIsValid,
   sourceLoadIngredientsAreValid,
   sourcePreparationStepsAreValid,
-  sourceSolutionMode,
 } from './simple-preparation-editors'
 import type {
   SimpleChannel,
@@ -209,7 +208,8 @@ describe('simple target phase editing', () => {
         },
       ],
       composition_relations: [],
-      dimensional_form: 'discrete_planar_crystal',
+      dimensional_form: 'planar',
+      film_form: 'discrete',
       in_plane_outline: 'triangle',
     }
     render(
@@ -315,7 +315,6 @@ describe('simple precursor position editing', () => {
         {
           material_lot_id: '',
           material_lot_version: 0,
-          function_role: '',
         },
       ],
     }
@@ -358,7 +357,6 @@ describe('simple precursor position editing', () => {
     const ingredient = {
       material_lot_id: 'lot_1',
       material_lot_version: 1,
-      function_role: 'metal_source',
       amount: 1,
       unit: 'mg',
     }
@@ -386,7 +384,6 @@ describe('simple precursor position editing', () => {
         {
           material_lot_id: 'lot_1',
           material_lot_version: 1,
-          function_role: 'metal_source',
           amount: 12,
         },
       ],
@@ -452,7 +449,6 @@ describe('simple precursor position editing', () => {
         {
           material_lot_id: 'chemical-lot-1',
           material_lot_version: 1,
-          process_roles: ['transport_agent'],
           amount: 1,
           unit: 'mL',
           concentration_value: 0.5,
@@ -578,7 +574,7 @@ describe('simple precursor position editing', () => {
       screen.getByTestId('coating-loads').textContent ?? '',
     )[0] as SimpleSourceLoad
     expect(
-      sourceLoadIngredientsAreValid(load.ingredients, true, false, true, false),
+      sourceLoadIngredientsAreValid(load.ingredients, true, false, true),
     ).toBe(true)
     expect(load.ingredients[0].amount).toBeUndefined()
     expect(load.preparation_steps[0].parameters.solution_volume_uL).toBe(20)
@@ -592,7 +588,6 @@ describe('simple precursor position editing', () => {
       screen.getByTestId('coating-loads').textContent ?? '',
     )[0] as SimpleSourceLoad
     expect(load.ingredients[0].amount).toBeUndefined()
-    expect(sourceSolutionMode(load.preparation_steps).immersionOnly).toBe(true)
     expect(
       sourcePreparationStepsAreValid(
         load.preparation_steps,
@@ -632,7 +627,6 @@ describe('simple precursor position editing', () => {
         {
           material_lot_id: '',
           material_lot_version: 0,
-          function_role: '',
         },
       ],
     }
@@ -659,6 +653,7 @@ describe('simple precursor position editing', () => {
     await user.click(screen.getByRole('option', { name: '旋涂' }))
     await user.type(screen.getByLabelText(/^转速 \(rpm\)/), '3000')
     await user.type(screen.getByLabelText(/^时长 \(s\)/), '60')
+    await user.type(screen.getByLabelText(/^实际溶液用量/), '50')
 
     const loads = JSON.parse(
       screen.getByTestId('loads').textContent ?? '',
@@ -669,6 +664,7 @@ describe('simple precursor position editing', () => {
         sequence: 1,
         parameters: {
           stages: [{ speed_rpm: 3000, duration_s: 60 }],
+          solution_volume_uL: 50,
         },
       },
     ])
@@ -688,7 +684,6 @@ describe('simple precursor position editing', () => {
         {
           material_lot_id: '',
           material_lot_version: 0,
-          function_role: '',
         },
       ],
     }
@@ -726,44 +721,6 @@ describe('simple precursor position editing', () => {
     expect(position).toHaveValue(-20)
   })
 
-  it('does not silently reinterpret a legacy setup-origin position', () => {
-    const load: SimpleSourceLoad = {
-      load_key: 'legacy_load',
-      loading_method: 'boat',
-      heating_zone_ref: 'zone_1',
-      initial_position: {
-        axial_mm: -20,
-        reference: 'setup_origin',
-      },
-      preparation_steps: [],
-      position_program: [],
-      ingredients: [
-        {
-          material_lot_id: '',
-          material_lot_version: 0,
-          function_role: '',
-        },
-      ],
-    }
-
-    render(
-      <I18nextProvider i18n={i18n}>
-        <SimpleSourceLoadsEditor
-          loads={[load]}
-          zoneCount={2}
-          disabled={false}
-          onChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    )
-
-    expect(
-      screen.getByText(
-        '此记录使用旧装置原点参照；请按当前规则重新确认温区和相对测温点位置。',
-      ),
-    ).toBeInTheDocument()
-  })
-
   it('binds a surface load without presenting inferred process roles', async () => {
     const user = userEvent.setup()
     const initial: SimpleSourceLoad = {
@@ -776,8 +733,6 @@ describe('simple precursor position editing', () => {
         {
           material_lot_id: 'lot_1',
           material_lot_version: 1,
-          function_role: 'metal_source',
-          process_roles: [],
         },
       ],
     }
@@ -837,7 +792,6 @@ describe('simple precursor position editing', () => {
                 {
                   material_lot_id: 'lot_1',
                   material_lot_version: 1,
-                  process_roles: [],
                 },
               ],
             },
@@ -880,7 +834,6 @@ describe('simple precursor position editing', () => {
         {
           material_lot_id: 'lot_1',
           material_lot_version: 1,
-          process_roles: [],
           amount: 1,
           unit: 'mL',
         },
@@ -1245,7 +1198,6 @@ describe('simple growth preparation editing', () => {
       return (
         <I18nextProvider i18n={i18n}>
           <SimpleGrowthEditor
-            segments={[]}
             channels={[]}
             settings={{
               pressure_regime: 'atmospheric',
@@ -1335,7 +1287,6 @@ describe('simple growth preparation editing', () => {
       return (
         <I18nextProvider i18n={i18n}>
           <SimpleGrowthEditor
-            segments={[]}
             channels={channels}
             settings={settings}
             events={[]}
@@ -1346,7 +1297,7 @@ describe('simple growth preparation editing', () => {
             setupSnapshot={{}}
             zoneCount={1}
             disabled={false}
-            onTimelineChange={(_, nextChannels) => setChannels(nextChannels)}
+            onTimelineChange={setChannels}
             onSettingsChange={setSettings}
             onEventsChange={vi.fn()}
           />
@@ -1459,7 +1410,6 @@ describe('simple growth preparation editing', () => {
       return (
         <I18nextProvider i18n={i18n}>
           <SimpleGrowthEditor
-            segments={[]}
             channels={[]}
             settings={settings}
             events={[]}
@@ -1491,7 +1441,6 @@ describe('simple growth preparation editing', () => {
         material_lot_version: 2,
       }),
     ])
-    expect(settings.preparation_operations?.[0].gases).toBeUndefined()
     expect(screen.getByLabelText(/^置换方式/)).toHaveTextContent('请选择')
     await user.click(screen.getByLabelText(/^置换方式/))
     await user.click(screen.getByRole('option', { name: '连续通气' }))
@@ -1544,7 +1493,6 @@ describe('simple growth preparation editing', () => {
       return (
         <I18nextProvider i18n={i18n}>
           <SimpleGrowthEditor
-            segments={[]}
             channels={[]}
             settings={settings}
             events={[]}

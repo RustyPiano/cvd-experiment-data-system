@@ -116,8 +116,6 @@ export type SimpleTarget = {
   in_plane_outline_other?: string
   dimensional_form?:
     | 'planar'
-    | 'continuous_film'
-    | 'discrete_planar_crystal'
     | 'ribbon'
     | 'wire'
     | 'tube'
@@ -143,11 +141,6 @@ export type SimpleTarget = {
 export type SimpleIngredient = {
   material_lot_id: string
   material_lot_version: number
-  /** 旧记录只读兼容；新保存不再写入。 */
-  function_role?: string
-  /** 旧载荷兼容；保存时剔除，不展示或用于校验。 */
-  process_roles?: string[]
-  process_role_other?: string
   amount?: number
   unit?: string
   concentration_value?: number
@@ -169,14 +162,14 @@ export type SimpleSourceLoad = {
     axial_mm: number
     radial_mm?: number
     azimuth_deg?: number
-    reference: 'setup_origin' | 'zone_thermocouple'
+    reference: 'zone_thermocouple'
   }
   position_program: Array<{
     t_s: number
     axial_mm: number
     radial_mm?: number
     azimuth_deg?: number
-    reference: 'setup_origin' | 'zone_thermocouple'
+    reference: 'zone_thermocouple'
   }>
   heating_zone_ref?: string
   substrate_source_ids?: string[]
@@ -202,7 +195,6 @@ export function sourceLoadIngredientsAreValid(
   hasSolution = false,
   amountRequired = true,
   concentrationRequired = false,
-  volumeRequired = false,
 ): boolean {
   const lotIds = new Set<string>()
   return (
@@ -220,11 +212,6 @@ export function sourceLoadIngredientsAreValid(
         (Number.isFinite(ingredient.amount) &&
           Number(ingredient.amount) > 0 &&
           Boolean(ingredient.unit?.trim()))
-      if (
-        volumeRequired &&
-        !['μL', 'µL', 'uL', 'mL', 'L'].includes(ingredient.unit ?? '')
-      )
-        return false
       if (!amountValid || !hasSolution) return amountValid
       const hasConcentration =
         ingredient.concentration_value !== undefined ||
@@ -241,16 +228,6 @@ export function sourceLoadIngredientsAreValid(
       )
     })
   )
-}
-
-export type SimpleSegment = {
-  segment_key: string
-  segment_type: string
-  sequence: number
-  start_s: number
-  end_s: number
-  label?: string
-  note?: string
 }
 
 export type SimpleChannel = {
@@ -293,12 +270,9 @@ export type SimpleProcessSettings = {
     | 'other'
   cooling_sequence?: SimpleCoolingStep[]
   cooling_other?: string
-  cooling_rate_C_per_min?: number
   lid_open_temperature_C?: number
   preparation_operations?: SimplePreparationOperation[]
   field_params?: ActualField[]
-  /** 旧草稿兼容；新记录使用 field_params。 */
-  external_fields?: string[]
 }
 
 export type SimpleProcessEvent = {
@@ -462,14 +436,7 @@ export function sourcePreparationStepsAreValid(
   steps: SimpleSourceLoad['preparation_steps'],
   loadingMethod?: string,
 ) {
-  const coating = steps.filter((step) =>
-    ['drop_cast', 'spin_coat'].includes(step.step_type),
-  )
-  if (
-    coating.some((step) => step.parameters.solution_volume_uL != null) &&
-    !sourceSolutionVolumesRecorded(steps)
-  )
-    return false
+  if (sourceSolutionVolumesMissing(steps)) return false
   if (
     loadingMethod &&
     steps.some(
@@ -483,15 +450,13 @@ export function sourcePreparationStepsAreValid(
   return treatmentStepsAreValid('source_load', treatmentStepsForEditor(steps))
 }
 
-export function sourceSolutionVolumesRecorded(
+export function sourceSolutionVolumesMissing(
   steps: SimpleSourceLoad['preparation_steps'],
 ): boolean {
-  const coating = steps.filter((step) =>
-    ['drop_cast', 'spin_coat'].includes(step.step_type),
-  )
-  return (
-    coating.length > 0 &&
-    coating.every((step) => Number(step.parameters.solution_volume_uL) > 0)
+  return steps.some(
+    (step) =>
+      ['drop_cast', 'spin_coat'].includes(step.step_type) &&
+      !(Number(step.parameters.solution_volume_uL) > 0),
   )
 }
 
@@ -504,11 +469,6 @@ export function sourceSolutionMode(
       types.has(type),
     ),
     concentrationRequired: types.has('drop_cast') || types.has('dip_coat'),
-    volumeRequired: types.has('drop_cast'),
-    immersionOnly:
-      types.has('dip_coat') &&
-      !types.has('drop_cast') &&
-      !types.has('spin_coat'),
   }
 }
 
@@ -585,16 +545,10 @@ export function SimpleSourceLoadsEditor({
               )),
           )
           const isGasLine = load.loading_method === 'gas_line'
-          const {
-            hasSolution,
-            concentrationRequired,
-            volumeRequired,
-            immersionOnly,
-          } = sourceSolutionMode(load.preparation_steps)
-          const amountRequired =
-            !isGasLine &&
-            !immersionOnly &&
-            !sourceSolutionVolumesRecorded(load.preparation_steps)
+          const { hasSolution, concentrationRequired } = sourceSolutionMode(
+            load.preparation_steps,
+          )
+          const amountRequired = !isGasLine && !hasSolution
           return (
             <div
               key={load.load_key}
@@ -818,11 +772,6 @@ export function SimpleSourceLoadsEditor({
                         '相对于所选温区的测温点位置：以测温点为 0 mm；沿气流方向，上游填负值，下游填正值。'
                       }
                     </p>
-                    {load.initial_position?.reference === 'setup_origin' ? (
-                      <p className="text-destructive text-sm sm:col-span-2">
-                        此记录使用旧装置原点参照；请按当前规则重新确认温区和相对测温点位置。
-                      </p>
-                    ) : null}
                   </>
                 ) : null}
                 {isSubstrateSurface ? (
@@ -906,12 +855,7 @@ export function SimpleSourceLoadsEditor({
                       </p>
                     ) : null}
                     {showErrors &&
-                    hasSolution &&
-                    !immersionOnly &&
-                    !sourceSolutionVolumesRecorded(load.preparation_steps) &&
-                    load.ingredients.some(
-                      (item) => item.amount === undefined,
-                    ) ? (
+                    sourceSolutionVolumesMissing(load.preparation_steps) ? (
                       <p role="alert" className="text-sm text-destructive">
                         请在各滴涂或旋涂步骤填写实际溶液用量。
                       </p>
@@ -940,8 +884,7 @@ export function SimpleSourceLoadsEditor({
                                   concentration_unit: undefined,
                                   concentration_unit_other: undefined,
                                 }),
-                            ...(nextMode.immersionOnly ||
-                            sourceSolutionVolumesRecorded(preparationSteps)
+                            ...(nextMode.hasSolution
                               ? { amount: undefined, unit: undefined }
                               : {}),
                           })),
@@ -971,13 +914,7 @@ export function SimpleSourceLoadsEditor({
                       Number(ingredient.amount) <= 0),
                   )
                   const unitInvalid = Boolean(
-                    showErrors &&
-                    amountRequired &&
-                    (!ingredient.unit?.trim() ||
-                      (volumeRequired &&
-                        !['μL', 'µL', 'uL', 'mL', 'L'].includes(
-                          ingredient.unit,
-                        ))),
+                    showErrors && amountRequired && !ingredient.unit?.trim(),
                   )
                   const hasConcentration =
                     ingredient.concentration_value !== undefined ||
@@ -1065,8 +1002,7 @@ export function SimpleSourceLoadsEditor({
                           </p>
                         ) : null}
                       </div>
-                      {amountRequired &&
-                      (!hasSolution || ingredient.amount !== undefined) ? (
+                      {amountRequired ? (
                         <div className="grid grid-cols-2 gap-3">
                           <div
                             className="flex flex-col gap-2"
@@ -1138,18 +1074,13 @@ export function SimpleSourceLoadsEditor({
                               }
                             />
                             <datalist id={`${unitInputId}-options`}>
-                              {(volumeRequired
-                                ? ['μL', 'mL']
-                                : AMOUNT_UNITS
-                              ).map((unit) => (
+                              {AMOUNT_UNITS.map((unit) => (
                                 <option key={unit} value={unit} />
                               ))}
                             </datalist>
                             {unitInvalid ? (
                               <p className="text-destructive text-sm">
-                                {volumeRequired
-                                  ? '请使用体积单位（μL、mL 或 L）。'
-                                  : '请填写用量单位。'}
+                                请填写用量单位。
                               </p>
                             ) : null}
                           </div>
@@ -2432,7 +2363,6 @@ function newGasChannel(species: string, setupId: string): SimpleChannel {
 }
 
 export function SimpleGrowthEditor({
-  segments,
   channels,
   settings,
   events,
@@ -2450,7 +2380,6 @@ export function SimpleGrowthEditor({
   onEventsChange,
   onProcessEventsConfirmedChange,
 }: {
-  segments: SimpleSegment[]
   channels: SimpleChannel[]
   settings: SimpleProcessSettings
   events: SimpleProcessEvent[]
@@ -2463,10 +2392,7 @@ export function SimpleGrowthEditor({
   disabled: boolean
   showErrors?: boolean
   validationIssue?: string | null
-  onTimelineChange: (
-    segments: SimpleSegment[],
-    channels: SimpleChannel[],
-  ) => void
+  onTimelineChange: (channels: SimpleChannel[]) => void
   onSettingsChange: (settings: SimpleProcessSettings) => void
   onEventsChange: (events: SimpleProcessEvent[]) => void
   onProcessEventsConfirmedChange?: (confirmed: boolean) => void
@@ -2475,7 +2401,6 @@ export function SimpleGrowthEditor({
   const preparationOperations = settings.preparation_operations ?? []
 
   const syncPresetIntervals = (
-    _nextSegments: SimpleSegment[],
     nextChannels: SimpleChannel[],
     nextSettings: SimpleProcessSettings,
   ) => {
@@ -2497,20 +2422,14 @@ export function SimpleGrowthEditor({
 
   const setProcessSettings = (nextSettings: SimpleProcessSettings) => {
     onSettingsChange(nextSettings)
-    onTimelineChange(
-      segments,
-      syncPresetIntervals(segments, channels, nextSettings),
-    )
+    onTimelineChange(syncPresetIntervals(channels, nextSettings))
   }
   const updateChannel = (channelKey: string, next: SimpleChannel) => {
     const exists = channels.some((item) => item.channel_key === channelKey)
     const nextChannels = exists
       ? channels.map((item) => (item.channel_key === channelKey ? next : item))
       : [...channels, next]
-    onTimelineChange(
-      segments,
-      syncPresetIntervals(segments, nextChannels, settings),
-    )
+    onTimelineChange(syncPresetIntervals(nextChannels, settings))
   }
   const temperatureChannels = Array.from(
     { length: zoneCount ?? 0 },
@@ -2545,7 +2464,7 @@ export function SimpleGrowthEditor({
   const processEnd = (settings.process_duration_min ?? 0) * 60
   const addGasChannel = () => {
     const wholeProcess = wholeProcessInterval(processEnd)
-    onTimelineChange(segments, [
+    onTimelineChange([
       ...channels,
       {
         ...newGasChannel('', setupId),
@@ -2592,7 +2511,6 @@ export function SimpleGrowthEditor({
         file_asset_id: uploaded.id,
       }
       onTimelineChange(
-        segments,
         existing
           ? channels.map((item) =>
               item.channel_key === channelKey ? measured : item,
@@ -2713,7 +2631,6 @@ export function SimpleGrowthEditor({
                             value === 'gas_exchange'
                               ? [{ material_lot_id: '' }]
                               : undefined,
-                          gases: undefined,
                           other_name: undefined,
                         })
                       }
@@ -2937,7 +2854,6 @@ export function SimpleGrowthEditor({
                                   allowedLotCategories={['gas_cylinder']}
                                   onChange={(id, entity) =>
                                     patchOperation({
-                                      gases: undefined,
                                       gas_sources: (
                                         operation.gas_sources ?? []
                                       ).map((item, current) =>
@@ -3020,13 +2936,6 @@ export function SimpleGrowthEditor({
                             </div>
                           ),
                         )}
-                        {operation.gases?.length &&
-                        !operation.gas_sources?.length ? (
-                          <p className="text-sm text-muted-foreground">
-                            旧记录：{operation.gases.join(' + ')}
-                            ；请补选气瓶批次。
-                          </p>
-                        ) : null}
                         <Button
                           type="button"
                           size="sm"
@@ -3035,7 +2944,6 @@ export function SimpleGrowthEditor({
                           disabled={disabled}
                           onClick={() =>
                             patchOperation({
-                              gases: undefined,
                               gas_sources: [
                                 ...(operation.gas_sources ?? []),
                                 { material_lot_id: '' },
@@ -3047,13 +2955,10 @@ export function SimpleGrowthEditor({
                           添加气瓶批次
                         </Button>
                       </fieldset>
-                      {cyclic ||
-                      (!operation.exchange_mode &&
-                        operation.cycle_count !== undefined) ? (
+                      {cyclic ? (
                         <div className="flex flex-col gap-2">
                           <Label>
-                            {cyclic ? '循环次数' : '旧记录置换次数'}{' '}
-                            <RequiredMark />
+                            循环次数 <RequiredMark />
                           </Label>
                           <Input
                             type="number"
@@ -3324,7 +3229,6 @@ export function SimpleGrowthEditor({
                         series: [...series, { start_s: Number.NaN, value: '' }],
                       }
                       onTimelineChange(
-                        segments,
                         exists
                           ? channels.map((item) =>
                               item.channel_key === channel.channel_key
@@ -3374,7 +3278,6 @@ export function SimpleGrowthEditor({
                           disabled={disabled}
                           onClick={() =>
                             onTimelineChange(
-                              segments,
                               channels.filter(
                                 (item) =>
                                   !(
@@ -3810,7 +3713,6 @@ export function SimpleGrowthEditor({
                         disabled={disabled}
                         onClick={() =>
                           onTimelineChange(
-                            segments,
                             channels.filter(
                               (item) =>
                                 item.channel_key !== channel.channel_key,
@@ -3861,7 +3763,6 @@ export function SimpleGrowthEditor({
                   onSettingsChange({ ...settings, pressure_regime: regime })
                   if (regime === 'atmospheric') {
                     onTimelineChange(
-                      segments,
                       channels.filter(
                         (item) =>
                           item.channel_type !== 'pressure' ||
@@ -3917,7 +3818,6 @@ export function SimpleGrowthEditor({
                       onChange={(event) => {
                         if (event.target.value.trim() === '') {
                           onTimelineChange(
-                            segments,
                             channels.filter(
                               (item) =>
                                 item.channel_type !== 'pressure' ||
@@ -3940,7 +3840,6 @@ export function SimpleGrowthEditor({
                           scalar_value: Number(event.target.value),
                         }
                         onTimelineChange(
-                          segments,
                           pressure
                             ? channels.map((item) =>
                                 item.channel_key === pressure.channel_key
@@ -4012,10 +3911,6 @@ export function SimpleGrowthEditor({
                         : [],
                     cooling_other:
                       value === 'other' ? settings.cooling_other : undefined,
-                    cooling_rate_C_per_min:
-                      value === 'controlled_cooling'
-                        ? settings.cooling_rate_C_per_min
-                        : undefined,
                     lid_open_temperature_C:
                       value === 'open_lid_cooling'
                         ? settings.lid_open_temperature_C
@@ -4201,9 +4096,6 @@ export function SimpleGrowthEditor({
               ) ? (
                 <p className="text-sm text-muted-foreground">
                   降温步骤填写在温度程序中。
-                  {settings.cooling_rate_C_per_min !== undefined
-                    ? `旧记录设定速率：${settings.cooling_rate_C_per_min} ℃/min。`
-                    : ''}
                 </p>
               ) : null}
               {settings.cooling_method === 'open_lid_cooling' ? (
@@ -4290,7 +4182,6 @@ export function SimpleGrowthEditor({
                   onSettingsChange({
                     ...settings,
                     field_params,
-                    external_fields: undefined,
                   })
                 }
               />

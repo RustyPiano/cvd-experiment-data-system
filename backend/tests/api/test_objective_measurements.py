@@ -61,7 +61,6 @@ def test_unassigned_peaks_are_grouped_and_need_no_region(method, unit):
     payload = peak_payload(method, unit)
     model = MeasurementBundleCreate.model_validate(payload)
     assert model.measurement.sample_region is None
-    assert model.assertions == []
     assert len(model.properties[0].structured_value["peaks"]) == 2
     schema = export_v2_schema(output_dir=None)["json_schema_doc"]["result_models"][
         "measurement_bundle"
@@ -69,14 +68,12 @@ def test_unassigned_peaks_are_grouped_and_need_no_region(method, unit):
     Draft202012Validator(schema).validate(payload)
 
 
-@pytest.mark.parametrize("status", ["not_detected", "not_analyzed"])
-def test_no_detected_peaks_are_not_a_numeric_threshold_or_material_verdict(status):
+def test_no_detected_peaks_are_not_a_numeric_threshold():
     payload = peak_payload()
     value = payload["properties"][0]["structured_value"]
-    value.update(status=status, peaks=[])
+    value.update(status="not_detected", peaks=[])
     model = MeasurementBundleCreate.model_validate(payload)
     assert model.properties[0].numeric_value is None
-    assert model.assertions == []
 
 
 @pytest.mark.parametrize(
@@ -167,7 +164,6 @@ def test_shg_uses_typed_data_modes_without_material_verdicts(detection_kind, acq
     )
     validator.validate(payload)
     model = MeasurementBundleCreate.model_validate(payload)
-    assert model.assertions == []
     assert model.measurement.sample_region is None
     payload["measurement"]["typed_conditions"]["excitation_mode"] = "continuous"
     with pytest.raises(ValueError, match="does not apply"):
@@ -191,10 +187,3 @@ def test_tem_stem_and_eds_can_coexist():
     Draft202012Validator(
         export_v2_schema(output_dir=None)["json_schema_doc"]["result_models"]["measurement_bundle"]
     ).validate(payload)
-
-
-def test_material_verdicts_cannot_be_new_results():
-    payload = peak_payload()
-    payload["assertions"] = [{"assertion_type": "layer_count", "value": {"count": 1}}]
-    with pytest.raises(ValueError, match="assertions do not apply"):
-        MeasurementBundleCreate.model_validate(payload)

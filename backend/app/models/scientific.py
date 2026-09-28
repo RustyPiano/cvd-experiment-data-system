@@ -124,53 +124,6 @@ class SampleRevisionAssociation(Base):
     )
 
 
-class SampleRevisionState(Base):
-    __tablename__ = "sample_revision_states"
-    __table_args__ = (
-        UniqueConstraint(
-            "sample_id",
-            "run_revision_id",
-            name="uq_sample_revision_states_sample_revision",
-        ),
-        CheckConstraint(
-            "growth_state IN ('unknown', 'present', 'absent', 'uncertain')",
-            name="ck_sample_revision_states_growth",
-        ),
-        CheckConstraint(
-            "identity_state IN ('unknown', 'asserted', 'conflicting')",
-            name="ck_sample_revision_states_identity",
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    sample_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("samples.id"),
-        nullable=False,
-        index=True,
-    )
-    run_revision_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("run_revisions.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    growth_state: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
-    identity_state: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
-    material_summary: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    evidence_assertion_ids: Mapped[list[str]] = mapped_column(
-        json_payload_type,
-        nullable=False,
-        default=list,
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-
-
 class RunContributor(Base):
     __tablename__ = "run_contributors"
     __table_args__ = (
@@ -366,14 +319,6 @@ class SourceLoadIngredient(Base):
         json_payload_type,
         nullable=False,
     )
-    function_role: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    # Legacy columns retained for history; current writes/exports omit process roles.
-    process_roles: Mapped[list[str]] = mapped_column(
-        json_payload_type,
-        nullable=False,
-        default=list,
-    )
-    process_role_other: Mapped[str | None] = mapped_column(String(128), nullable=True)
     amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
     concentration_value: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -382,31 +327,6 @@ class SourceLoadIngredient(Base):
     composition_basis: Mapped[str | None] = mapped_column(String(64), nullable=True)
     uncertainty: Mapped[float | None] = mapped_column(Float, nullable=True)
     attrs: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False, default=dict)
-
-
-class ProcessSegment(Base):
-    __tablename__ = "process_segments"
-    __table_args__ = (
-        UniqueConstraint("run_revision_id", "segment_key", name="uq_process_segments_revision_key"),
-        CheckConstraint("start_s >= 0", name="ck_process_segments_start_nonnegative"),
-        CheckConstraint("end_s > start_s", name="ck_process_segments_order"),
-        Index("ix_process_segments_revision_sequence", "run_revision_id", "sequence"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    run_revision_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("run_revisions.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    segment_key: Mapped[str] = mapped_column(String(64), nullable=False)
-    segment_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
-    start_s: Mapped[float] = mapped_column(Float, nullable=False)
-    end_s: Mapped[float] = mapped_column(Float, nullable=False)
-    label: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ProcessChannel(Base):
@@ -723,52 +643,6 @@ class PropertyValue(Base):
     uncertainty_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     sample_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     quality_flag: Mapped[str] = mapped_column(String(32), nullable=False, default="valid")
-
-
-class MaterialAssertion(Base):
-    __tablename__ = "material_assertions"
-    __table_args__ = (
-        CheckConstraint(
-            "assertion_type IN "
-            "('growth_presence', 'phase_identity', 'composition', 'polytype', "
-            "'stacking_order', 'orientation_relationship', 'layer_count')",
-            name="ck_material_assertions_type",
-        ),
-        CheckConstraint(
-            "validity IN ('active', 'superseded', 'disputed')",
-            name="ck_material_assertions_validity",
-        ),
-        Index("ix_material_assertions_sample_type", "sample_id", "assertion_type"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    sample_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("samples.id"),
-        nullable=False,
-        index=True,
-    )
-    measurement_run_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("characterization_records.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    analysis_run_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("analysis_runs.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-    assertion_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    value_json: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False)
-    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    validity: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
 
 
 class DataDerivationEdge(Base):

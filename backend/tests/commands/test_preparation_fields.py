@@ -112,11 +112,10 @@ def test_solution_volume_is_recorded_once_per_operation() -> None:
     invalid["ingredients"][0].update(amount=20, unit="μL")
     with pytest.raises(ValueError, match="once per step"):
         SourceLoadPayload.model_validate(invalid)
-    legacy = deepcopy(load)
-    legacy["preparation_steps"][0]["parameters"].pop("solution_volume_uL")
-    for ingredient in legacy["ingredients"]:
-        ingredient.update(amount=20, unit="μL")
-    assert SourceLoadPayload.model_validate(legacy).ingredients[0].amount == 20
+    missing_volume = deepcopy(load)
+    missing_volume["preparation_steps"][0]["parameters"].pop("solution_volume_uL")
+    with pytest.raises(ValueError, match="actual solution volume"):
+        SourceLoadPayload.model_validate(missing_volume)
 
 
 def test_substrate_treatment_parameters_follow_the_selected_method() -> None:

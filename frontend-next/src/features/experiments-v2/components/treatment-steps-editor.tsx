@@ -557,18 +557,6 @@ function spinCoatStages(parameters: TreatmentParameters): SpinCoatStage[] {
           : null,
     }))
   }
-  if ('speed_rpm' in parameters || 'duration_s' in parameters) {
-    return [
-      {
-        speed_rpm: Number.isFinite(Number(parameters.speed_rpm))
-          ? Number(parameters.speed_rpm)
-          : null,
-        duration_s: Number.isFinite(Number(parameters.duration_s))
-          ? Number(parameters.duration_s)
-          : null,
-      },
-    ]
-  }
   return []
 }
 
@@ -1326,12 +1314,7 @@ function TreatmentStepRow({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {[
-                            ...(definition.options ?? []),
-                            ...(current === 'not_recorded'
-                              ? ['not_recorded']
-                              : []),
-                          ].map((option) => (
+                          {(definition.options ?? []).map((option) => (
                             <SelectItem key={option} value={option}>
                               {labels.options[option] ?? option}
                             </SelectItem>

@@ -27,11 +27,7 @@ class SampleRead(BaseModel):
     run_revision_id: UUID | None
     run_code: str | None = None
     target_material_system: str | None = None
-    material_system: str | None = None
     characterization_count: int = 0
-    actual_state: str
-    identity_state: str
-    actual_material_summary: str | None
     parent_sample_id: UUID | None
     role: str
     current_carrier: str | None

@@ -8,95 +8,21 @@ from fastapi import HTTPException
 from app.core.scientific_units import canonicalize_process_channel
 from app.models.file_asset import FileAsset
 from app.models.v2_entities import (
-    CommercialProduct,
     MaterialLot,
-    MaterialLotVersion,
     Substance,
 )
 from app.schemas.generated.v2_module_payload import MaterialLotVersionPayload
 from app.schemas.scientific import (
     PreparationOperationPayload,
     ProcessTimelinePayload,
-    ScientificProcessEventPayload,
-    normalize_process_event_for_read,
-    normalize_process_preparation_for_read,
 )
 from app.services.scientific_revision_service import ScientificRevisionService
 from app.services.v2_entity_service import V2EntityService
-from app.services.v2_field_source import load_field_source
 from app.services.v2_process_semantics import (
     frozen_gas_components,
     normalize_gas_components,
     valid_frozen_gas_reference,
 )
-from app.services.v2_reporting_service import V2ReportingService
-
-
-def test_event_categories_merge_manual_changes_without_losing_history() -> None:
-    expected = [
-        "power_interruption",
-        "water_interruption",
-        "gas_interruption",
-        "line_blockage",
-        "pressure_excursion",
-        "equipment_alarm",
-        "signal_anomaly",
-        "plan_changed",
-        "other",
-    ]
-    assert (
-        load_field_source()["scientific_contract"]["process_event"]["observed_deviations"]
-        == expected
-    )
-    schema = ScientificProcessEventPayload.model_json_schema()
-    assert schema["properties"]["observed_deviations"]["items"]["enum"] == expected
-    raw = {
-        "event_key": "event_legacy",
-        "start_s": 60,
-        "end_s": 120,
-        "observed_deviations": ["manual_intervention", "plan_changed", "manual_stop"],
-        "description": "调整温度后结束实验\n\n采取的处理：停止加热",
-        "outcome": "terminated",
-        "intervention_actions": ["stop_run"],
-        "attachment_file_ids": [str(uuid4())],
-    }
-    original = deepcopy(raw)
-    normalized = normalize_process_event_for_read(raw)
-    assert raw == original
-    assert normalized["observed_deviations"] == ["plan_changed"]
-    assert normalized["description"].endswith(raw["description"])
-    assert "人工干预、人工停止" in normalized["description"]
-    assert normalize_process_event_for_read(normalized) == normalized
-    long_description = {**raw, "description": "事" * 2000}
-    long_parsed = ScientificProcessEventPayload.model_validate(long_description)
-    assert long_parsed.description.endswith(long_description["description"])
-    assert ScientificProcessEventPayload.model_validate(long_parsed.model_dump()) == long_parsed
-    parsed = ScientificProcessEventPayload.model_validate(raw).model_dump(
-        mode="json", exclude_none=True
-    )
-    assert parsed["observed_deviations"] == ["plan_changed"]
-    for key in (
-        "event_key",
-        "start_s",
-        "end_s",
-        "outcome",
-        "intervention_actions",
-        "attachment_file_ids",
-    ):
-        assert parsed[key] == original[key]
-    exported = V2ReportingService._export_modules(
-        SimpleNamespace(content_json={"modules": {"process_events": {"items": [raw]}}})
-    )
-    assert exported["process_events"]["items"] == [normalized]
-    assert raw == original
-    new = {"event_key": "event_new", "start_s": 10, "observed_deviations": ["plan_changed"]}
-    assert "description" not in ScientificProcessEventPayload.model_validate(new).model_dump(
-        exclude_none=True
-    )
-    with pytest.raises(ValueError, match="unique"):
-        ScientificProcessEventPayload.model_validate(
-            {**new, "observed_deviations": ["plan_changed"] * 2}
-        )
 
 
 def _mixed_gas_payload() -> dict:
@@ -114,7 +40,6 @@ def _mixed_gas_payload() -> dict:
 
 def _gas_program(lot_id: str) -> dict:
     return {
-        "segments": [],
         "process_duration_min": 100,
         "pressure_regime": "atmospheric",
         "cooling_method": "staged_cooling",
@@ -161,7 +86,6 @@ def test_gas_program_keeps_raw_units_explicit_duration_and_cooling_steps() -> No
     raw = _gas_program(str(uuid4()))
     result = ProcessTimelinePayload.model_validate(raw).model_dump(mode="json", exclude_none=True)
     assert result["cooling_sequence"] == raw["cooling_sequence"]
-    assert "cooling_rate_C_per_min" not in result
     for unit, expected_unit, expected_value in [
         ("L/min", "L/min", 1),
         ("mL/min", "mL/min", 1),
@@ -187,9 +111,10 @@ def test_gas_program_keeps_raw_units_explicit_duration_and_cooling_steps() -> No
         ProcessTimelinePayload.model_validate(
             {**raw, "cooling_sequence": [{"method": "furnace_cooling"}]}
         )
-    legacy = deepcopy(raw)
-    legacy.pop("process_duration_min")
-    assert ProcessTimelinePayload.model_validate(legacy).process_duration_min is None
+    without_duration = deepcopy(raw)
+    without_duration.pop("process_duration_min")
+    with pytest.raises(ValueError):
+        ProcessTimelinePayload.model_validate(without_duration)
 
     pressure = {
         "channel_key": "channel_33333333_3333_4333_8333_333333333333",
@@ -208,18 +133,13 @@ def test_gas_program_keeps_raw_units_explicit_duration_and_cooling_steps() -> No
         ("low_pressure", 95000, "Pa"),
         ("low_pressure", 1e-12, "Pa"),
         ("high_pressure", 2, "MPa"),
-        ("ultra_high_vacuum", 1e-8, "Pa"),
     ]:
         item = {
             **raw,
             "pressure_regime": regime,
             "channels": [*raw["channels"], {**pressure, "scalar_value": value, "unit": unit}],
         }
-        parsed = ProcessTimelinePayload.model_validate(item)
-        assert parsed.pressure_regime == (
-            "low_pressure" if regime == "ultra_high_vacuum" else regime
-        )
-        assert item["pressure_regime"] == regime
+        assert ProcessTimelinePayload.model_validate(item).pressure_regime == regime
 
 
 def test_premixed_program_freezes_composition_and_distinguishes_cylinders(
@@ -254,10 +174,6 @@ def test_premixed_program_freezes_composition_and_distinguishes_cylinders(
         == _mixed_gas_payload()["gas_components"]
     )
     assert flow[0]["series"][0]["value"] == 1 and flow[0]["unit"] == "L/min"
-    exported = V2ReportingService._export_modules(
-        SimpleNamespace(content_json={"modules": {"process_steps": result}})
-    )
-    assert exported["process_steps"] == result
     invalid = deepcopy(result)
     invalid["channels"][1]["gas_species_code"] = "Ar"
     with pytest.raises(HTTPException):
@@ -287,7 +203,7 @@ def test_pump_down_accepts_target_pressure_or_duration() -> None:
         PreparationOperationPayload.model_validate({"operation_type": "pump_down"})
 
 
-def test_preparation_modes_preserve_measurements_and_legacy_history() -> None:
+def test_preparation_modes_preserve_measurements() -> None:
     source = {"material_lot_id": str(uuid4()), "material_lot_version": 1}
     continuous = {
         "operation_type": "gas_exchange",
@@ -322,28 +238,10 @@ def test_preparation_modes_preserve_measurements_and_legacy_history() -> None:
     ]:
         with pytest.raises(ValueError):
             PreparationOperationPayload.model_validate(invalid)
-    legacy = {
-        "operation_type": "gas_exchange",
-        "duration_min": 5,
-        "cycle_count": 3,
-        "gas_sources": [source],
-    }
-    assert PreparationOperationPayload.model_validate(legacy).exchange_mode is None
-    raw = {"preparation_operations": [{"operation_type": "leak_check", "duration_min": 2}, legacy]}
-    normalized = normalize_process_preparation_for_read(raw)
-    assert normalized["preparation_operations"][0] == {
-        "operation_type": "other",
-        "other_name": "旧记录：检漏",
-        "duration_min": 2,
-    }
-    assert raw["preparation_operations"][0]["operation_type"] == "leak_check"
-    assert "exchange_mode" not in normalized["preparation_operations"][1]
-    assert (
-        PreparationOperationPayload.model_validate(raw["preparation_operations"][0]).other_name
-        == "旧记录：检漏"
-    )
-    revision = SimpleNamespace(content_json={"modules": {"process_steps": raw}})
-    assert V2ReportingService._export_modules(revision)["process_steps"] == normalized
+    with pytest.raises(ValueError, match="exchange_mode"):
+        PreparationOperationPayload.model_validate(
+            {"operation_type": "gas_exchange", "duration_min": 5, "gas_sources": [source]}
+        )
 
 
 def test_gas_components_are_normalized_without_requiring_purity() -> None:
@@ -358,13 +256,12 @@ def test_gas_components_are_normalized_without_requiring_purity() -> None:
     ]
     with pytest.raises(ValueError, match="sum to 100"):
         normalize_gas_components([{"species": "Ar", "volume_percent": 99}])
-    assert frozen_gas_components(
-        {
-            "lot_category": "gas_cylinder",
-            "substance_name": "高纯氩",
-            "chemical_formula": "Ar",
-        }
-    ) == [{"species": "Ar", "volume_percent": 100.0}]
+    assert (
+        frozen_gas_components(
+            {"lot_category": "gas_cylinder", "substance_name": "高纯氩", "chemical_formula": "Ar"}
+        )
+        == []
+    )
 
 
 def test_mixed_gas_lot_allows_null_formula_and_freezes_authoritative_snapshot(
@@ -390,7 +287,7 @@ def test_mixed_gas_lot_allows_null_formula_and_freezes_authoritative_snapshot(
     operation = PreparationOperationPayload.model_validate(
         {
             "operation_type": "gas_exchange",
-            "duration_min": 10,
+            "exchange_mode": "evacuation_backfill",
             "cycle_count": 3,
             "gas_sources": [
                 {
@@ -410,68 +307,6 @@ def test_mixed_gas_lot_allows_null_formula_and_freezes_authoritative_snapshot(
     }
     assert "tampered" not in frozen_source["snapshot"]
     assert valid_frozen_gas_reference(frozen_source)
-
-    revision = SimpleNamespace(content_json={"modules": {"process_steps": process_steps}})
-    exported_operation = V2ReportingService._export_modules(revision)["process_steps"][
-        "preparation_operations"
-    ][0]
-    assert "gases" not in exported_operation
-    assert exported_operation["gas_sources"][0]["snapshot"]["attrs"]["gas_components"] == [
-        {"species": "H2", "volume_percent": 5.0},
-        {"species": "Ar", "volume_percent": 95.0},
-    ]
-
-
-def test_legacy_pure_gas_can_append_a_composition_version_without_changing_identity(
-    db_session,
-    admin_user,
-) -> None:
-    substance = Substance(canonical_name="Argon", chemical_formula="Ar")
-    db_session.add(substance)
-    db_session.flush()
-    product = CommercialProduct(
-        substance_id=substance.id,
-        supplier="Legacy Gas Co.",
-        catalog_number="AR-5N",
-    )
-    db_session.add(product)
-    db_session.flush()
-    lot = MaterialLot(substance_id=substance.id, commercial_product_id=product.id)
-    db_session.add(lot)
-    db_session.flush()
-    db_session.add(
-        MaterialLotVersion(
-            entity_id=lot.id,
-            version=1,
-            lot_category="gas_cylinder",
-            substance_name="Argon",
-            chemical_formula="Ar",
-            batch_number="OLD-AR",
-            attrs={"supplier": "Legacy Gas Co.", "catalog_number": "AR-5N"},
-        )
-    )
-    db_session.commit()
-
-    result = V2EntityService(db_session).append_version(
-        "material_lot",
-        lot.id,
-        MaterialLotVersionPayload.model_validate(
-            {
-                "lot_category": "gas_cylinder",
-                "substance_name": "Argon",
-                "batch_number": "OLD-AR",
-                "supplier": "Legacy Gas Co.",
-                "catalog_number": "AR-5N",
-                "gas_components": [{"species": "Ar", "volume_percent": 100}],
-            }
-        ),
-        admin_user,
-    )
-
-    assert result.version == 2
-    db_session.refresh(lot)
-    assert lot.substance_id == substance.id
-    assert lot.commercial_product_id == product.id
 
 
 def test_entity_version_can_reuse_its_existing_attachment(db_session, admin_user) -> None:
@@ -509,64 +344,6 @@ def test_entity_version_can_reuse_its_existing_attachment(db_session, admin_user
     db_session.refresh(asset)
     assert asset.entity_id == entity.id
     assert asset.entity_version == 1
-
-
-def test_legacy_pure_gas_reference_remains_readable_but_cannot_be_locked_again() -> None:
-    lot_id = "11111111-1111-4111-8111-111111111111"
-    snapshot = {
-        "entity_id": lot_id,
-        "version": 1,
-        "lot_category": "gas_cylinder",
-        "substance_name": "Argon",
-        "chemical_formula": "Ar",
-        "batch_number": "AR-OLD",
-        "attrs": {},
-    }
-    reference = {
-        "entity_id": lot_id,
-        "version": 1,
-        "snapshot": snapshot,
-    }
-    assert frozen_gas_components(snapshot) == [{"species": "Ar", "volume_percent": 100.0}]
-    assert valid_frozen_gas_reference({"species": "Ar", "lot_ref": reference})
-    legacy_operation = PreparationOperationPayload.model_validate(
-        {
-            "operation_type": "gas_exchange",
-            "duration_min": 10,
-            "cycle_count": 2,
-            "gases": ["Ar"],
-        }
-    )
-    assert legacy_operation.gases == ["Ar"]
-    with pytest.raises(HTTPException) as exc_info:
-        ScientificRevisionService.__new__(ScientificRevisionService).freeze_process_gas_references(
-            {
-                "preparation_operations": [
-                    legacy_operation.model_dump(mode="json", exclude_none=True)
-                ]
-            }
-        )
-    assert exc_info.value.detail["invalid"][0]["reason"] == "required"
-
-    revision = SimpleNamespace(
-        content_json={
-            "modules": {
-                "process_steps": {
-                    "preparation_operations": [
-                        {
-                            "operation_type": "gas_exchange",
-                            "duration_min": 10,
-                            "cycle_count": 2,
-                            "gases": ["Ar"],
-                        }
-                    ]
-                }
-            }
-        }
-    )
-    assert V2ReportingService._export_modules(revision)["process_steps"]["preparation_operations"][
-        0
-    ]["gases"] == ["Ar"]
 
 
 def test_reaction_flow_does_not_treat_a_premix_as_one_pure_species() -> None:

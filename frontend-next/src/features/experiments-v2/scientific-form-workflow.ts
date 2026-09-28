@@ -46,12 +46,6 @@ export function channelsForSetupZoneCount<
   )
 }
 
-type WorkflowSegment = {
-  segment_type: string
-  start_s: number
-  end_s: number
-}
-
 type WorkflowChannel = {
   channel_key: string
   channel_type: string
@@ -108,19 +102,8 @@ export function processChannelTitle(channel: WorkflowChannel): string {
 }
 
 export function timelineValidationIssue(
-  segments: WorkflowSegment[],
   channels: WorkflowChannel[],
 ): string | null {
-  if (
-    segments.some(
-      (segment) =>
-        !Number.isFinite(segment.start_s) ||
-        !Number.isFinite(segment.end_s) ||
-        segment.end_s <= segment.start_s,
-    )
-  ) {
-    return '请检查实验阶段的开始和结束时间。'
-  }
   if (channels.length === 0) {
     return '请至少添加一项温度、气体、压力或设备条件。'
   }

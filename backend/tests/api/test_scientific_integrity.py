@@ -25,7 +25,6 @@ from app.schemas.scientific import (
     AnalysisRunCreate,
     DatasetFilter,
     DatasetQuery,
-    MaterialAssertionWrite,
     MeasurementBundleCreate,
     MeasurementConditions,
     MeasurementRunCreate,
@@ -115,15 +114,6 @@ def test_process_channels_distinguish_physical_instances_and_normalize_gas() -> 
     timeline = ProcessTimelinePayload.model_validate(
         {
             "process_events_confirmed": False,
-            "segments": [
-                {
-                    "segment_key": "growth",
-                    "segment_type": "growth",
-                    "sequence": 1,
-                    "start_s": 0,
-                    "end_s": 60,
-                }
-            ],
             "channels": [
                 {
                     "channel_key": f"channel_{uuid4()}".replace("-", "_"),
@@ -182,6 +172,7 @@ def test_process_channels_distinguish_physical_instances_and_normalize_gas() -> 
                     for instance in ("valve-1", "valve-2")
                 ],
             ],
+            "process_duration_min": 1,
             "pressure_regime": "atmospheric",
             "cooling_method": "furnace_cooling",
         }
@@ -207,15 +198,6 @@ def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
         "series": [{"start_s": 0, "end_s": 3600, "value": 100}],
     }
     payload = {
-        "segments": [
-            {
-                "segment_key": "growth",
-                "segment_type": "growth",
-                "sequence": 1,
-                "start_s": 0,
-                "end_s": 3600,
-            }
-        ],
         "channels": [
             {
                 "channel_key": f"channel_{uuid4()}".replace("-", "_"),
@@ -234,6 +216,7 @@ def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
             },
             gas_channel,
         ],
+        "process_duration_min": 60,
         "pressure_regime": "atmospheric",
         "cooling_method": "furnace_cooling",
     }
@@ -288,20 +271,7 @@ def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
         )
 
 
-def test_measurement_contract_rejects_cross_method_properties_and_bad_composition() -> None:
-    with pytest.raises(ValueError, match="sum to one"):
-        MaterialAssertionWrite.model_validate(
-            {
-                "assertion_type": "composition",
-                "value": {
-                    "basis": "atomic_fraction",
-                    "components": [
-                        {"species": "Mo", "fraction": 0.8},
-                        {"species": "W", "fraction": 0.8},
-                    ],
-                },
-            }
-        )
+def test_measurement_contract_rejects_cross_method_properties() -> None:
     payload = {
         "measurement": {
             "sample_id": str(uuid4()),
@@ -512,15 +482,6 @@ def test_property_and_region_contract_reject_empty_or_wrongly_typed_evidence() -
             image_file_id=uuid4(),
             pixel_roi={"x": -1, "y": 0, "width": 1, "height": 1},
         )
-    assert MaterialAssertionWrite(
-        assertion_type="layer_count",
-        value={"count": 0},
-    ).value == {"count": 0}
-    with pytest.raises(ValueError):
-        MaterialAssertionWrite(
-            assertion_type="layer_count",
-            value={"count": True},
-        )
     assert (
         SampleRegion(
             geometry_type="whole_sample",
@@ -686,39 +647,6 @@ def test_transformation_api_rejects_non_finite_json(active_user) -> None:
     assert response.status_code == 422, response.text
 
 
-def test_material_assertion_values_are_canonical_and_exact() -> None:
-    assert MaterialAssertionWrite(
-        assertion_type="phase_identity",
-        value={"phase": "  2H-MoS2  "},
-    ).value == {"phase": "2H-MoS2"}
-    assert MaterialAssertionWrite(
-        assertion_type="composition",
-        value={
-            "basis": "atomic_fraction",
-            "components": [
-                {"species": " W ", "fraction": 0.5},
-                {"species": "Mo", "fraction": 0.5},
-            ],
-        },
-    ).value == {
-        "basis": "atomic_fraction",
-        "components": [
-            {"species": "Mo", "fraction": 0.5},
-            {"species": "W", "fraction": 0.5},
-        ],
-    }
-    with pytest.raises(ValueError, match="requires exactly"):
-        MaterialAssertionWrite(
-            assertion_type="phase_identity",
-            value={"phase": "2H-MoS2", "note": "unbounded"},
-        )
-    with pytest.raises(ValueError, match="at most 256"):
-        MaterialAssertionWrite(
-            assertion_type="orientation_relationship",
-            value={"orientation_relationship": "x" * 257},
-        )
-
-
 @pytest.mark.parametrize(
     ("model", "payload"),
     [
@@ -774,22 +702,6 @@ def test_material_assertion_values_are_canonical_and_exact() -> None:
                 "analysis_index": False,
             },
         ),
-        (
-            MaterialAssertionWrite,
-            {
-                "assertion_type": "phase_identity",
-                "value": {"phase": "2H-MoS2"},
-                "confidence": True,
-            },
-        ),
-        (
-            MaterialAssertionWrite,
-            {
-                "assertion_type": "phase_identity",
-                "value": {"phase": "2H-MoS2"},
-                "analysis_index": False,
-            },
-        ),
     ],
 )
 def test_measurement_numeric_contract_rejects_json_booleans(model, payload: dict) -> None:
@@ -833,7 +745,7 @@ def test_dataset_text_filters_are_trimmed_and_bounded() -> None:
 def test_dataset_numeric_filters_reject_unordered_or_non_finite_values(value: list) -> None:
     with pytest.raises(ValueError):
         DatasetFilter(
-            field="growth_duration_s",
+            field="max_temperature_setpoint_C",
             operator="between",
             value=value,
         )
@@ -841,7 +753,7 @@ def test_dataset_numeric_filters_reject_unordered_or_non_finite_values(value: li
 
 def test_dataset_cursor_is_bound_to_the_stable_query_manifest() -> None:
     payload = DatasetQuery(
-        filters=[DatasetFilter(field="growth_duration_s", operator="gte", value=1)],
+        filters=[DatasetFilter(field="max_temperature_setpoint_C", operator="gte", value=1)],
         limit=10,
     )
     query_sha256 = DatasetQueryService._query_sha256(payload)
@@ -907,8 +819,7 @@ def test_dataset_contains_treats_sql_wildcards_as_literal_text(
             "operator": "ne",
             "value": 10,
         },
-        {"field": "growth_duration_s", "operator": "ne", "value": 10},
-        {"field": "growth_presence", "operator": "ne", "value": "present"},
+        {"field": "max_temperature_measured_C", "operator": "ne", "value": 10},
     ],
 )
 def test_dataset_ne_excludes_missing_observations(
@@ -1074,23 +985,6 @@ def test_measurement_api_rejects_below_detection_limit_for_text_property(
     assert response.status_code == 422
 
 
-def test_new_measurements_reject_material_verdicts(
-    active_user,
-    db_session,
-) -> None:
-    _run, sample = _locked_sample(db_session, active_user, "10")
-    headers = _headers(active_user.email)
-
-    for state in ("  present  ", "present"):
-        payload = _optical_measurement(sample.id)
-        payload["assertions"] = [{"assertion_type": "growth_presence", "value": {"state": state}}]
-        response = client.post("/api/v1/measurements", json=payload, headers=headers)
-        assert response.status_code == 422, response.text
-
-    db_session.refresh(sample)
-    assert sample.actual_state == "unknown"
-
-
 def test_measurement_api_rejects_boolean_scientific_numbers(active_user, db_session) -> None:
     _run, sample = _locked_sample(db_session, active_user, "09")
     payload = _optical_measurement(sample.id)
@@ -1191,17 +1085,6 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     db_session.refresh(run)
     db_session.refresh(sample)
     assert run.not_characterized_at is not None
-    assert sample.actual_state == "unknown"
-
-    absent_query = {"filters": [{"field": "growth_presence", "operator": "eq", "value": "absent"}]}
-    assert (
-        client.post(
-            "/api/v1/datasets/query",
-            json=absent_query,
-            headers=headers,
-        ).json()["items"]
-        == []
-    )
 
     valid = client.post(
         "/api/v1/measurements",
@@ -1214,18 +1097,6 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     db_session.refresh(sample)
     assert run.not_characterized_at is None
     assert run.result_missing_todo is False
-    assert sample.actual_state == "unknown"
-    present_query = {
-        "filters": [{"field": "growth_presence", "operator": "eq", "value": "present"}]
-    }
-    assert [
-        item["run_id"]
-        for item in client.post(
-            "/api/v1/datasets/query",
-            json=present_query,
-            headers=headers,
-        ).json()["items"]
-    ] == []
 
     detail = client.get(
         f"/api/v1/measurements/{valid.json()['id']}",
@@ -1237,7 +1108,6 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     assert detail.json()["can_invalidate"] is True
     assert detail.json()["performed_by_name"] == active_user.name
     assert any(prop["property_code"] == "observation_note" for prop in detail.json()["properties"])
-    assert detail.json()["assertions"] == []
 
     observer = User(
         email="measurement-observer@example.com",
@@ -1275,15 +1145,6 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     db_session.refresh(run)
     db_session.refresh(sample)
     assert run.result_missing_todo is True
-    assert sample.actual_state == "unknown"
-    assert (
-        client.post(
-            "/api/v1/datasets/query",
-            json=present_query,
-            headers=headers,
-        ).json()["items"]
-        == []
-    )
     assert (
         db_session.query(AuditEvent)
         .filter_by(
@@ -1323,7 +1184,6 @@ def test_measurement_summary_accepts_observation_only(
     assert detail.status_code == 200, detail.text
     assert detail.json()["evidence_present"] is True
     assert detail.json()["property_count"] == 1
-    assert detail.json()["assertion_count"] == 0
     listed = client.get(f"/api/v1/measurements?run_id={run.id}", headers=headers)
     assert listed.status_code == 200, listed.text
     assert listed.json()["items"][0]["evidence_present"] is True
@@ -2212,7 +2072,6 @@ def test_new_method_conditions_survive_save_detail_and_export(
     assert {
         key: value for key, value in detail.json()["typed_conditions"].items() if value is not None
     } == conditions
-    assert detail.json()["assertions"] == []
     exported = client.get(
         f"/api/v1/experiments/{run.id}/export",
         params={"revision_id": str(run.current_revision_id)},

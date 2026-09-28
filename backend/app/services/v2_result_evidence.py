@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.file_asset import FileAsset
-from app.models.scientific import MaterialAssertion, PropertyValue
+from app.models.scientific import PropertyValue
 from app.models.v2_results import CharacterizationRecord
 from app.services.v2_field_source import characterization_profiles, load_field_source
 
@@ -97,25 +97,6 @@ def collect_measurement_evidence(
         if has_meaningful_value(value):
             meaningful_record_ids.add(item.measurement_run_id)
 
-    assertions = db.scalars(
-        select(MaterialAssertion)
-        .join(
-            CharacterizationRecord,
-            CharacterizationRecord.id == MaterialAssertion.measurement_run_id,
-        )
-        .where(
-            CharacterizationRecord.id.in_(records),
-            MaterialAssertion.sample_id == CharacterizationRecord.sample_id,
-            MaterialAssertion.validity == "active",
-        )
-    )
-    for item in assertions:
-        record = records[item.measurement_run_id]
-        profile = profiles[record.method_instrument]
-        if item.assertion_type in profile["allowed_assertion_types"] and has_meaningful_value(
-            item.value_json
-        ):
-            meaningful_record_ids.add(item.measurement_run_id)
     return {
         record_id
         for record_id in meaningful_record_ids

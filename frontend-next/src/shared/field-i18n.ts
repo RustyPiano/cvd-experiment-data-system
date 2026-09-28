@@ -53,7 +53,7 @@ export function localizedOption(value: string, language: string): string {
     : (optionLabelsZh[code] ?? value)
 }
 
-/** 旧中文选项值只在读取时兼容；所有新提交统一使用稳定 ASCII 机器码。 */
+/** 中文选项标签转换为稳定 ASCII 机器码。 */
 export function canonicalOption(value: string): string {
   return optionCodes[value] ?? value
 }

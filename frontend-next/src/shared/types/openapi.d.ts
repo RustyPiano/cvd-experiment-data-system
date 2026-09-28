@@ -888,7 +888,7 @@ export interface components {
              * Field
              * @enum {string}
              */
-            field: "target_formula" | "architecture_type" | "setup_id" | "material_lot_id" | "substrate_material" | "max_temperature_setpoint_C" | "max_temperature_measured_C" | "ramp_rate_setpoint_C_min" | "ramp_rate_measured_C_min" | "growth_duration_s" | "pressure_setpoint_min_Pa" | "pressure_setpoint_max_Pa" | "pressure_measured_min_Pa" | "pressure_measured_max_Pa" | "gas_species" | "has_process_event" | "growth_presence" | "property" | "provenance_complete";
+            field: "target_formula" | "architecture_type" | "setup_id" | "material_lot_id" | "substrate_material" | "max_temperature_setpoint_C" | "max_temperature_measured_C" | "ramp_rate_setpoint_C_min" | "ramp_rate_measured_C_min" | "pressure_setpoint_min_Pa" | "pressure_setpoint_max_Pa" | "pressure_measured_min_Pa" | "pressure_measured_max_Pa" | "gas_species" | "has_process_event" | "property" | "provenance_complete";
             /**
              * Operator
              * @enum {string}
@@ -1104,10 +1104,6 @@ export interface components {
             sample_code: string;
             /** Role */
             role: string;
-            /** Actual State */
-            actual_state: string;
-            /** Actual Material Summary */
-            actual_material_summary: string | null;
             /** Lifecycle State */
             lifecycle_state: string;
             /** Deleted At */
@@ -1149,70 +1145,6 @@ export interface components {
             /** Password */
             password: string;
         };
-        /** MaterialAssertionWrite */
-        MaterialAssertionWrite: {
-            /**
-             * Assertion Type
-             * @enum {string}
-             */
-            assertion_type: "growth_presence" | "phase_identity" | "composition" | "polytype" | "stacking_order" | "orientation_relationship" | "layer_count";
-            /** Value */
-            value: {
-                [key: string]: unknown;
-            };
-            /** Confidence */
-            confidence?: number | null;
-            /** Analysis Index */
-            analysis_index?: number | null;
-        } & ({
-            /** @constant */
-            assertion_type: "growth_presence";
-            value: {
-                /** @enum {unknown} */
-                state: "present" | "absent" | "uncertain";
-            };
-        } | {
-            /** @constant */
-            assertion_type: "phase_identity";
-            value: {
-                phase: string;
-            };
-        } | {
-            /** @constant */
-            assertion_type: "polytype";
-            value: {
-                polytype: string;
-            };
-        } | {
-            /** @constant */
-            assertion_type: "stacking_order";
-            value: {
-                stacking_order: string;
-            };
-        } | {
-            /** @constant */
-            assertion_type: "orientation_relationship";
-            value: {
-                orientation_relationship: string;
-            };
-        } | {
-            /** @constant */
-            assertion_type: "layer_count";
-            value: {
-                count: number;
-            };
-        } | {
-            /** @constant */
-            assertion_type: "composition";
-            value: {
-                /** @enum {unknown} */
-                basis: "site_fraction" | "atomic_fraction" | "mass_fraction";
-                components: {
-                    species: string;
-                    fraction: number;
-                }[];
-            };
-        });
         /** MaterialLotVersionPayload */
         MaterialLotVersionPayload: {
             /**
@@ -1264,7 +1196,6 @@ export interface components {
             substrate_cut_spec?: string | null;
             /** Substrate Polish */
             substrate_polish?: ("double_side_polished" | "not_provided" | "single_side_polished" | "unpolished") | null;
-            substrate_orientation_polish?: components["schemas"]["SubstrateOrientationPolishValue"] | null;
             /** Substrate Miscut Availability */
             substrate_miscut_availability?: ("not_applicable" | "not_provided" | "reported") | null;
             /** Substrate Miscut Angle Deg */
@@ -1327,26 +1258,6 @@ export interface components {
             /** Output Files */
             output_files: components["schemas"]["MeasurementRawFileRead"][];
         };
-        /** MeasurementAssertionRead */
-        MeasurementAssertionRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Analysis Run Id */
-            analysis_run_id: string | null;
-            /** Assertion Type */
-            assertion_type: string;
-            /** Value */
-            value: {
-                [key: string]: unknown;
-            };
-            /** Confidence */
-            confidence: number | null;
-            /** Validity */
-            validity: string;
-        };
         /** MeasurementBundleCreate */
         MeasurementBundleCreate: {
             measurement: components["schemas"]["MeasurementRunCreate"];
@@ -1354,8 +1265,6 @@ export interface components {
             analyses?: components["schemas"]["AnalysisRunCreate"][];
             /** Properties */
             properties?: components["schemas"]["PropertyValueWrite"][];
-            /** Assertions */
-            assertions?: components["schemas"]["MaterialAssertionWrite"][];
         } & ((({
             measurement?: {
                 /** @constant */
@@ -1427,7 +1336,6 @@ export interface components {
                 instrument_version: number;
             });
             properties?: unknown;
-            assertions?: unknown;
         } & unknown) | ({
             measurement?: {
                 /** @constant */
@@ -1498,7 +1406,6 @@ export interface components {
                 variable_conditions?: ("power_setting" | "sample_power_mW" | "integration_time_s" | "temperature_K" | "incident_polarization_angle_deg" | "analyzer_angle_deg")[];
             } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
             properties?: unknown;
-            assertions?: unknown;
         } & {
             properties?: unknown;
         }) | ({
@@ -1590,7 +1497,6 @@ export interface components {
                 variable_conditions?: ("power_setting" | "sample_power_mW" | "integration_time_s" | "temperature_K" | "incident_polarization_angle_deg" | "analyzer_angle_deg" | "pulse_width_fs" | "repetition_rate_MHz" | "elapsed_time_s")[];
             } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
             properties?: unknown;
-            assertions?: unknown;
         } & {
             properties?: unknown;
         }) | {
@@ -1642,7 +1548,6 @@ export interface components {
                 file_response_corrections?: unknown;
             };
             properties?: unknown;
-            assertions?: unknown;
         } | {
             measurement?: {
                 /** @constant */
@@ -1704,7 +1609,6 @@ export interface components {
                 file_response_corrections?: unknown;
             };
             properties?: unknown;
-            assertions?: unknown;
         } | ({
             measurement?: {
                 /** @constant */
@@ -1755,7 +1659,6 @@ export interface components {
                 file_response_corrections?: unknown;
             };
             properties?: unknown;
-            assertions?: unknown;
         } & (unknown & unknown & unknown & unknown & {
             properties?: unknown;
         })) | ({
@@ -1829,7 +1732,6 @@ export interface components {
                 file_response_corrections?: unknown;
             };
             properties?: unknown;
-            assertions?: unknown;
         } & unknown) | {
             measurement?: {
                 /** @constant */
@@ -1858,7 +1760,6 @@ export interface components {
                 instrument_version: number;
             });
             properties?: unknown;
-            assertions?: unknown;
         } | ({
             measurement?: {
                 /** @constant */
@@ -1934,7 +1835,6 @@ export interface components {
                 variable_conditions?: ("power_setting" | "measured_power_mW" | "excitation_wavelength_nm" | "incident_polarization_angle_deg" | "waveplate_angle_deg" | "sample_rotation_deg" | "analyzer_angle_deg" | "elapsed_time_s")[];
             } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
             properties?: unknown;
-            assertions?: unknown;
         } & (unknown & {
             properties?: unknown;
         }))) & ({
@@ -1943,8 +1843,6 @@ export interface components {
             };
         } | {
             properties: unknown;
-        } | {
-            assertions: unknown;
         }));
         /** MeasurementConditions */
         MeasurementConditions: {
@@ -2300,8 +2198,6 @@ export interface components {
             analysis_count: number;
             /** Property Count */
             property_count: number;
-            /** Assertion Count */
-            assertion_count: number;
             /** Instrument Configuration */
             instrument_configuration?: {
                 [key: string]: string;
@@ -2339,8 +2235,6 @@ export interface components {
             analyses: components["schemas"]["MeasurementAnalysisRead"][];
             /** Properties */
             properties: components["schemas"]["MeasurementPropertyRead"][];
-            /** Assertions */
-            assertions: components["schemas"]["MeasurementAssertionRead"][];
             /** Invalidation Reason */
             invalidation_reason?: string | null;
             /** Invalidated By Id */
@@ -2533,8 +2427,6 @@ export interface components {
             analysis_count: number;
             /** Property Count */
             property_count: number;
-            /** Assertion Count */
-            assertion_count: number;
         };
         /** MeasurementSupplementaryFile */
         MeasurementSupplementaryFile: {
@@ -2620,7 +2512,7 @@ export interface components {
             text_value?: null;
             structured_value: {
                 /** @enum {unknown} */
-                status: "recorded" | "not_detected" | "not_analyzed";
+                status: "recorded" | "not_detected";
                 /** @enum {unknown} */
                 position_unit: "cm⁻¹" | "nm" | "eV" | "° 2θ" | "° ω" | "° φ" | "° χ";
                 /** @enum {unknown} */
@@ -2786,19 +2678,11 @@ export interface components {
             run_code?: string | null;
             /** Target Material System */
             target_material_system?: string | null;
-            /** Material System */
-            material_system?: string | null;
             /**
              * Characterization Count
              * @default 0
              */
             characterization_count?: number;
-            /** Actual State */
-            actual_state: string;
-            /** Identity State */
-            identity_state: string;
-            /** Actual Material Summary */
-            actual_material_summary: string | null;
             /** Parent Sample Id */
             parent_sample_id: string | null;
             /** Role */
@@ -2945,21 +2829,13 @@ export interface components {
             /** Source */
             source?: string | null;
         };
-        /** SubstrateOrientationPolishValue */
-        SubstrateOrientationPolishValue: {
-            /** Value */
-            value?: string | null;
-            /** Option */
-            option?: ("double_side_polished" | "single_side_polished") | null;
-        };
         /** SurfaceRoughnessPayload */
         SurfaceRoughnessPayload: {
             /**
              * Availability
-             * @default reported
              * @enum {string}
              */
-            availability?: "reported" | "not_provided";
+            availability: "reported" | "not_provided";
             /** Metric */
             metric?: ("Ra" | "RMS") | null;
             /** Value Nm */

@@ -41,7 +41,6 @@ from app.services.temperature_timeseries import (
     parse_temperature_timeseries,
 )
 from app.services.v2_field_source import (
-    canonical_option_value,
     characterization_profiles,
     field_option_values,
 )
@@ -154,7 +153,7 @@ def serialize_file_asset(file_asset: FileAsset | None) -> dict[str, Any] | None:
         "content_type": file_asset.content_type,
         "size_bytes": file_asset.size_bytes,
         "sha256": file_asset.sha256,
-        "method": canonical_option_value(file_asset.method),
+        "method": file_asset.method,
         "file_category": file_asset.file_category,
         "asset_role": file_asset.asset_role,
         "note": file_asset.note,
@@ -314,11 +313,6 @@ class FileAssetService:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="This file role cannot be linked to a sample",
-            )
-        if resolved_asset_role == "direct_observation_file" and sample_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Direct observation files require a sample",
             )
         binding_metadata = self._validate_binding(
             resolved_asset_role,
@@ -591,11 +585,6 @@ class FileAssetService:
         file_asset = self.files.get_by_id_for_update(file_id)
         if file_asset is None or file_asset.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
-        if file_asset.asset_role == "direct_observation_file":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Legacy direct observation files are read-only",
-            )
         ensure_files_editable(experiment, file_asset.asset_role)
         if (
             current_user.role != UserRole.ADMIN
@@ -719,7 +708,7 @@ class FileAssetService:
             )
 
     def _normalize_method(self, method: str | None) -> str | None:
-        normalized = canonical_option_value((method or "").strip())
+        normalized = (method or "").strip()
         if not normalized:
             return None
         if normalized not in field_option_values("name_type"):
@@ -731,11 +720,6 @@ class FileAssetService:
 
     def _normalize_asset_role(self, value: str | None) -> str:
         normalized = (value or "characterization_file").strip()
-        if normalized == "direct_observation_file":
-            raise HTTPException(
-                status_code=status.HTTP_410_GONE,
-                detail="Direct observation file writes are retired; use /api/v1/measurements",
-            )
         if normalized not in {
             "characterization_file",
             "setup_diagram",

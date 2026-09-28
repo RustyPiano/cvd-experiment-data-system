@@ -88,8 +88,8 @@ def _process(gas_id: str, setup_id: str) -> dict:
         }
     )
     return {
-        "segments": [],
         "channels": channels,
+        "process_duration_min": 10,
         "pressure_regime": "atmospheric",
         "cooling_method": "furnace_cooling",
     }

@@ -11,7 +11,6 @@ import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
 import type { SampleRead } from '@/shared/types/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -24,14 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-
-const actualStateLabels: Record<string, string> = {
-  unknown: '尚无结论',
-  growth_present: '观察到生长',
-  no_growth: '未观察到生长',
-  uncertain: '结论不确定',
-  asserted: '已有材料结论',
-}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -66,15 +57,11 @@ export function SampleListPage() {
     const needle = query.trim().toLowerCase()
     if (!needle) return items
     return items.filter((sample) =>
-      [
-        sample.sample_code,
-        sample.run_code,
-        sample.target_material_system,
-        sample.actual_material_summary,
-      ].some((value) =>
-        String(value ?? '')
-          .toLowerCase()
-          .includes(needle),
+      [sample.sample_code, sample.run_code, sample.target_material_system].some(
+        (value) =>
+          String(value ?? '')
+            .toLowerCase()
+            .includes(needle),
       ),
     )
   }, [items, query])
@@ -140,7 +127,6 @@ export function SampleListPage() {
                     <TableHead>来源实验</TableHead>
                     <TableHead>衬底</TableHead>
                     <TableHead>目标材料</TableHead>
-                    <TableHead>实际结果</TableHead>
                     <TableHead>表征记录</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
@@ -169,23 +155,6 @@ export function SampleListPage() {
                       </TableCell>
                       <TableCell>
                         {sample.target_material_system || '—'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge
-                            variant={
-                              sample.actual_state === 'no_growth'
-                                ? 'destructive'
-                                : 'outline'
-                            }
-                          >
-                            {actualStateLabels[sample.actual_state] ??
-                              sample.actual_state}
-                          </Badge>
-                          {sample.actual_material_summary ? (
-                            <span>{sample.actual_material_summary}</span>
-                          ) : null}
-                        </div>
                       </TableCell>
                       <TableCell>
                         {

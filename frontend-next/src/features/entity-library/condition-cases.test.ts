@@ -42,7 +42,6 @@ describe('shared condition cases', () => {
             condition: testCase.condition,
           },
           r0: false,
-          group: null,
           placeholderZh: '请输入',
           placeholderEn: 'Enter a value',
           helpZh: null,

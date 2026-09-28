@@ -29,13 +29,6 @@ import {
 } from '@/components/ui/table'
 
 const routeApi = getRouteApi('/_authed/samples/$sampleId')
-const actualStateLabels: Record<string, string> = {
-  unknown: '尚无结论',
-  growth_present: '观察到生长',
-  no_growth: '未观察到生长',
-  uncertain: '结论不确定',
-  asserted: '已有材料结论',
-}
 const faceLabels: Record<string, string> = {
   face_up: '朝上',
   face_down: '朝下',
@@ -227,7 +220,7 @@ export function SampleDetailPage() {
           <CardTitle>基本信息</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <DetailRow label="样品编号" value={sample.sample_code} />
             <DetailRow
               label="来源实验"
@@ -236,16 +229,6 @@ export function SampleDetailPage() {
             <DetailRow
               label="目标材料"
               value={sample.target_material_system || '—'}
-            />
-            <DetailRow
-              label="生长状态"
-              value={
-                actualStateLabels[sample.actual_state] ?? sample.actual_state
-              }
-            />
-            <DetailRow
-              label="材料结论"
-              value={sample.actual_material_summary || '尚无材料结论'}
             />
           </dl>
         </CardContent>
@@ -359,10 +342,7 @@ export function SampleDetailPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>{measurement.raw_file_count}</TableCell>
-                        <TableCell>
-                          {measurement.property_count +
-                            measurement.assertion_count}
-                        </TableCell>
+                        <TableCell>{measurement.property_count}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             type="button"

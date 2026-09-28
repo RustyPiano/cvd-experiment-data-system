@@ -147,7 +147,7 @@ function readableValue(value: unknown, language: string): string {
 
 function translatedKey(
   t: TFunction,
-  namespace: 'regionFields' | 'assertionFields' | 'analysisParameterFields',
+  namespace: 'regionFields' | 'analysisParameterFields',
   key: string,
 ) {
   return t(`characterizations.details.${namespace}.${key}`, {
@@ -157,7 +157,7 @@ function translatedKey(
 
 function translatedCode(
   t: TFunction,
-  namespace: 'regionValues' | 'assertionValues',
+  namespace: 'regionValues',
   value: unknown,
   language: string,
 ) {
@@ -609,7 +609,7 @@ export function MeasurementDetails({
         <h5 className="text-sm font-medium">
           {t('characterizations.details.results')}
         </h5>
-        {measurement.properties.length || measurement.assertions.length ? (
+        {measurement.properties.length ? (
           <ul className="flex flex-col gap-1 text-sm">
             {measurement.properties.map((property) => {
               const value =
@@ -710,59 +710,6 @@ export function MeasurementDetails({
                               : 'characterizations.details.qualityNote',
                             { value: property.quality_note },
                           )}
-                        </span>
-                      ) : null}
-                      {analysisLabel ? (
-                        <span>
-                          {t('characterizations.details.analysisRun', {
-                            analysis: analysisLabel,
-                          })}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </li>
-              )
-            })}
-            {measurement.assertions.length ? (
-              <li className="mt-3 font-medium">
-                {t('characterizations.details.historicalAssignments')}
-              </li>
-            ) : null}
-            {measurement.assertions.map((assertion) => {
-              const analysisLabel = analysisReference(assertion.analysis_run_id)
-              return (
-                <li key={assertion.id} className="flex flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span>
-                      <span className="font-medium">
-                        {t(
-                          `characterizations.details.assertionTypes.${assertion.assertion_type}`,
-                          { defaultValue: assertion.assertion_type },
-                        )}
-                      </span>
-                      {colon}
-                      {Object.entries(assertion.value)
-                        .map(
-                          ([key, value]) =>
-                            `${translatedKey(t, 'assertionFields', key)}${colon}${translatedCode(t, 'assertionValues', value, i18n.language)}`,
-                        )
-                        .join(english ? '; ' : '；')}
-                    </span>
-                    <Badge variant="outline">
-                      {t(
-                        `characterizations.details.assertionValidity.${assertion.validity}`,
-                        { defaultValue: assertion.validity },
-                      )}
-                    </Badge>
-                  </div>
-                  {assertion.confidence != null || analysisLabel ? (
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      {assertion.confidence != null ? (
-                        <span>
-                          {t('characterizations.details.confidence', {
-                            value: assertion.confidence,
-                          })}
                         </span>
                       ) : null}
                       {analysisLabel ? (

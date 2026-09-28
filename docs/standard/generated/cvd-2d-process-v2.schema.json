@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "standard_id": "cvd-2d-process",
   "title": "CVD-2D 科学数据契约 / CVD-2D Scientific Data Contract",
-  "version": "v4.0-alpha.49",
+  "version": "v4.0-alpha.50",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "module_payload_schema_version": "cvd_v2",
@@ -203,23 +203,6 @@
         "system_derives": "channel_absolute_times",
         "manual_absolute_time": "custom_gas_interval_only"
       },
-      "segment_types": {
-        "canonical": [],
-        "legacy_read_only": [
-          "system_preparation",
-          "pre_reaction",
-          "reaction",
-          "post_reaction",
-          "cooling",
-          "other",
-          "purge",
-          "ramp",
-          "nucleation",
-          "growth",
-          "anneal",
-          "transfer"
-        ]
-      },
       "preparation_operations": {
         "optional": true,
         "types": [
@@ -231,7 +214,6 @@
           "continuous_flow",
           "evacuation_backfill"
         ],
-        "legacy_read": "old leak_check becomes named other; absent exchange_mode remains unspecified, never inferred from cycle_count",
         "required_fields": [
           "operation_type"
         ],
@@ -268,7 +250,7 @@
         "absolute_times": "derived",
         "cooling": "programmed cooling uses the same temperature steps; rates are derived per descending segment and remain setpoint values"
       },
-      "duration": "process_duration_min is explicitly entered once; whole_process spans zero to this endpoint, including recorded cooling; legacy records without it remain unspecified",
+      "duration": "process_duration_min is explicitly entered once; whole_process spans zero to this endpoint, including recorded cooling",
       "gas_supply": {
         "identity": "physical cylinder lot and version; premixed is a supply category, not a chemical species",
         "premixed": "reference the commercial cylinder composition and record its total flow once; on-site mixing references separate cylinders",
@@ -279,7 +261,7 @@
           "L/min"
         ],
         "raw_readings": "retain original values and units; never convert mL/min or L/min to sccm without calibration and reference conditions",
-        "value_source": "MFC setpoints use setpoint; float-meter readings use measured; old source types are preserved until explicitly changed"
+        "value_source": "MFC setpoints use setpoint; float-meter readings use measured"
       },
       "pressure_conditions": {
         "codes": [
@@ -287,8 +269,7 @@
           "atmospheric",
           "high_pressure"
         ],
-        "reference": "prevailing ambient atmospheric pressure; do not assume an exact ambient pressure or universal 80000 Pa boundary",
-        "legacy_read": "ultra_high_vacuum maps to low_pressure without changing raw historical revisions"
+        "reference": "prevailing ambient atmospheric pressure; do not assume an exact ambient pressure or universal 80000 Pa boundary"
       },
       "cooling_sequence": "staged_cooling expands an ordered list of methods; programmed segments reference temperature steps, never a single average cooling rate",
       "gas_timing_presets": [
@@ -341,11 +322,6 @@
       ],
       "option_order": "supply interruptions → line/pressure deviations → equipment/signals → plan changes → other",
       "plan_changed": "includes manual intervention and manual stop; reuse intervention actions and outcome without adding required fields",
-      "legacy_deviation_labels": {
-        "manual_intervention": "人工干预",
-        "manual_stop": "人工停止"
-      },
-      "legacy_read": "merge legacy manual types into plan_changed, preserve original type labels in description; never rewrite immutable revisions",
       "intervention_actions": [
         "adjust_flow",
         "adjust_pressure",
@@ -384,7 +360,7 @@
       "policy": "只保留定义明确的采集参数与有文件依据的结果。",
       "deferred": "图像统计、粗糙度、元素定量、通用分析面板、统计与不确定度编辑器",
       "result_source": "峰参数、台阶高度与晶格间距填写对应数据文件中已有的结果，不自动推断统计方式。",
-      "peak_entry": "不显示状态下拉；空白不生成峰结果，添加峰后自动记为 recorded，仅显式勾选未检出记为 not_detected；历史 not_analyzed 保留。"
+      "peak_entry": "不显示状态下拉；空白不生成峰结果，添加峰后自动记为 recorded，仅显式勾选未检出记为 not_detected。"
     },
     "instrument_other_methods": {
       "storage": "capabilities[code=other].configuration.method_names",
@@ -611,7 +587,7 @@
       "binning",
       "acquisition_note"
     ],
-    "notes": "OM硬件目录存于capabilities[].configuration.om；每项name在同目录唯一，conditions复用OM字段；adjustable列出本次可调字段。相机native_extensions为原生采集格式扩展名列表（点号及1–12位小写字母数字，最多20项），mode_options可声明exposure_mode与white_balance_mode的实际支持选项。尺度记录通过references绑定物镜、相机和光学配置，名称注明转接/变倍/采样条件。测量instrument_configuration按目录名引用所选配置；历史无目录时保留人工补录。预设仅保存preset_fields，不保存样品处理或观察结果。已解码图像的尺寸等信息逐文件保存在metadata_json.image，原生容器不宣称已解码。"
+    "notes": "OM硬件目录存于capabilities[].configuration.om；每项name在同目录唯一，conditions复用OM字段；adjustable列出本次可调字段。相机native_extensions为原生采集格式扩展名列表（点号及1–12位小写字母数字，最多20项），mode_options可声明exposure_mode与white_balance_mode的实际支持选项。尺度记录通过references绑定物镜、相机和光学配置，名称注明转接/变倍/采样条件。测量instrument_configuration按目录名引用所选配置；仪器版本无目录时手工填写条件。预设仅保存preset_fields，不保存样品处理或观察结果。已解码图像的尺寸等信息逐文件保存在metadata_json.image，原生容器不宣称已解码。"
   },
   "raman_configuration": {
     "max_entries": 50,
@@ -753,7 +729,7 @@
       "incident_polarization_angle_deg",
       "analyzer_angle_deg"
     ],
-    "notes": "Raman目录存于capabilities[].configuration.raman，复用OM具名目录结构；光谱配置引用适用激光。显微物镜登记倍率、NA、介质，探头不填物镜参数。原始数据的scan_file_id与variable_conditions记录序列来源与变动字段；变动字段不重复保存一个标量。power_setting/unit是仪器设置，sample_power_mW为样品处测值。file_intensity_units按文件保存强度单位。旧excitation_power字段保留历史语义。"
+    "notes": "Raman目录存于capabilities[].configuration.raman，复用OM具名目录结构；光谱配置引用适用激光。显微物镜登记倍率、NA、介质，探头不填物镜参数。原始数据的scan_file_id与variable_conditions记录序列来源与变动字段；变动字段不重复保存一个标量。power_setting/unit是仪器设置，sample_power_mW为样品处测值。file_intensity_units按文件保存强度单位。"
   },
   "pl_configuration": {
     "max_entries": 50,
@@ -947,8 +923,7 @@
           "status": {
             "enum": [
               "recorded",
-              "not_detected",
-              "not_analyzed"
+              "not_detected"
             ]
           },
           "position_unit": {
@@ -1875,7 +1850,6 @@
       "default_property_codes": [
         "observation_note"
       ],
-      "allowed_assertion_types": [],
       "common_condition_keys": [
         "observation_mode",
         "objective",
@@ -2593,7 +2567,6 @@
         "observation_note"
       ],
       "default_property_codes": [],
-      "allowed_assertion_types": [],
       "peak_position_units": [
         "cm⁻¹"
       ],
@@ -3588,7 +3561,6 @@
         "observation_note"
       ],
       "default_property_codes": [],
-      "allowed_assertion_types": [],
       "peak_position_units": [
         "nm",
         "eV"
@@ -3922,7 +3894,6 @@
         "afm_step_height",
         "observation_note"
       ],
-      "allowed_assertion_types": [],
       "common_condition_keys": [
         "mode"
       ]
@@ -4350,8 +4321,7 @@
       ],
       "default_property_codes": [
         "observation_note"
-      ],
-      "allowed_assertion_types": []
+      ]
     },
     "XRD": {
       "label_zh": "XRD",
@@ -4726,7 +4696,6 @@
         "observation_note"
       ],
       "default_property_codes": [],
-      "allowed_assertion_types": [],
       "peak_position_units": [
         "° 2θ",
         "° ω",
@@ -5379,7 +5348,6 @@
         "tem_lattice_spacing",
         "observation_note"
       ],
-      "allowed_assertion_types": [],
       "common_condition_keys": [
         "acquisition_mode",
         "image_mode",
@@ -5456,8 +5424,7 @@
       ],
       "default_property_codes": [
         "observation_note"
-      ],
-      "allowed_assertion_types": []
+      ]
     },
     "SHG": {
       "label_zh": "SHG",
@@ -6220,7 +6187,6 @@
         "observation_note"
       ],
       "default_property_codes": [],
-      "allowed_assertion_types": [],
       "peak_position_units": [
         "nm",
         "eV"
@@ -6699,7 +6665,7 @@
       ],
       "title": "EquipmentPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/equipment.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.50/equipment.schema.json"
     },
     "substrates": {
       "$defs": {
@@ -7013,7 +6979,6 @@
             },
             "cleaning_method": {
               "enum": [
-                "not_recorded",
                 "other",
                 "rinse",
                 "soak",
@@ -7653,7 +7618,7 @@
       },
       "title": "SubstratesPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/substrates.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.50/substrates.schema.json"
     },
     "basic_info": {
       "$defs": {
@@ -7827,7 +7792,7 @@
       ],
       "title": "ScientificBasicInfo",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/basic_info.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.50/basic_info.schema.json"
     },
     "target_product": {
       "$defs": {
@@ -8043,8 +8008,6 @@
             {
               "enum": [
                 "planar",
-                "continuous_film",
-                "discrete_planar_crystal",
                 "ribbon",
                 "wire",
                 "tube",
@@ -8163,7 +8126,7 @@
       ],
       "title": "TargetSpecPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/target_product.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.50/target_product.schema.json"
     },
     "precursors": {
       "$defs": {
@@ -8647,31 +8610,6 @@
               "title": "Material Lot Version",
               "type": "integer"
             },
-            "function_role": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "metal_source",
-                    "chalcogen_source",
-                    "carbon_source",
-                    "dopant_source",
-                    "promoter",
-                    "transport_agent",
-                    "etchant",
-                    "reducing_agent",
-                    "oxidizing_agent",
-                    "carrier_gas",
-                    "other"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Function Role"
-            },
             "amount": {
               "anyOf": [
                 {
@@ -8954,10 +8892,7 @@
               "title": "Azimuth Deg"
             },
             "reference": {
-              "enum": [
-                "setup_origin",
-                "zone_thermocouple"
-              ],
+              "const": "zone_thermocouple",
               "title": "Reference",
               "type": "string"
             }
@@ -9003,10 +8938,7 @@
               "title": "Azimuth Deg"
             },
             "reference": {
-              "enum": [
-                "setup_origin",
-                "zone_thermocouple"
-              ],
+              "const": "zone_thermocouple",
               "title": "Reference",
               "type": "string"
             },
@@ -9133,7 +9065,7 @@
       ],
       "title": "SourceLoadsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/precursors.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.50/precursors.schema.json"
     },
     "process_steps": {
       "$defs": {
@@ -9275,46 +9207,6 @@
           "title": "NamedParameterPayload",
           "type": "object"
         },
-        "PostReactionOperationPayload": {
-          "additionalProperties": false,
-          "properties": {
-            "operation_type": {
-              "enum": [
-                "continued_chalcogen",
-                "post_anneal",
-                "gas_switch",
-                "stop_precursor",
-                "other"
-              ],
-              "title": "Operation Type",
-              "type": "string"
-            },
-            "duration_min": {
-              "exclusiveMinimum": 0,
-              "title": "Duration Min",
-              "type": "number"
-            },
-            "other_name": {
-              "anyOf": [
-                {
-                  "maxLength": 255,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Other Name"
-            }
-          },
-          "required": [
-            "operation_type",
-            "duration_min"
-          ],
-          "title": "PostReactionOperationPayload",
-          "type": "object"
-        },
         "PreparationGasSourcePayload": {
           "additionalProperties": false,
           "properties": {
@@ -9448,21 +9340,6 @@
               },
               "title": "Gas Sources",
               "type": "array"
-            },
-            "gases": {
-              "anyOf": [
-                {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Gases"
             },
             "other_name": {
               "anyOf": [
@@ -9772,11 +9649,6 @@
                 {
                   "enum": [
                     "whole_process",
-                    "system_preparation",
-                    "pre_reaction",
-                    "reaction",
-                    "post_reaction",
-                    "reaction_to_process_end",
                     "custom"
                   ],
                   "type": "string"
@@ -9795,97 +9667,10 @@
           ],
           "title": "ProcessChannelPoint",
           "type": "object"
-        },
-        "ProcessSegmentPayload": {
-          "additionalProperties": false,
-          "properties": {
-            "segment_key": {
-              "maxLength": 64,
-              "minLength": 1,
-              "pattern": "^[a-z][a-z0-9_]*$",
-              "title": "Segment Key",
-              "type": "string"
-            },
-            "segment_type": {
-              "enum": [
-                "system_preparation",
-                "pre_reaction",
-                "reaction",
-                "post_reaction",
-                "purge",
-                "ramp",
-                "nucleation",
-                "growth",
-                "anneal",
-                "cooling",
-                "transfer",
-                "other"
-              ],
-              "title": "Segment Type",
-              "type": "string"
-            },
-            "sequence": {
-              "minimum": 1,
-              "title": "Sequence",
-              "type": "integer"
-            },
-            "start_s": {
-              "minimum": 0,
-              "title": "Start S",
-              "type": "number"
-            },
-            "end_s": {
-              "exclusiveMinimum": 0,
-              "title": "End S",
-              "type": "number"
-            },
-            "label": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Label"
-            },
-            "note": {
-              "anyOf": [
-                {
-                  "maxLength": 1000,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Note"
-            }
-          },
-          "required": [
-            "segment_key",
-            "segment_type",
-            "sequence",
-            "start_s",
-            "end_s"
-          ],
-          "title": "ProcessSegmentPayload",
-          "type": "object"
         }
       },
       "additionalProperties": false,
       "properties": {
-        "segments": {
-          "items": {
-            "$ref": "#/$defs/ProcessSegmentPayload"
-          },
-          "title": "Segments",
-          "type": "array"
-        },
         "channels": {
           "items": {
             "$ref": "#/$defs/ProcessChannelPayload"
@@ -9907,17 +9692,9 @@
           "title": "Process Events Confirmed"
         },
         "process_duration_min": {
-          "anyOf": [
-            {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Process Duration Min"
+          "exclusiveMinimum": 0,
+          "title": "Process Duration Min",
+          "type": "number"
         },
         "pressure_regime": {
           "enum": [
@@ -9968,19 +9745,6 @@
           "default": null,
           "title": "Cooling Other"
         },
-        "cooling_rate_C_per_min": {
-          "anyOf": [
-            {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Cooling Rate C Per Min"
-        },
         "lid_open_temperature_C": {
           "anyOf": [
             {
@@ -9993,48 +9757,11 @@
           "default": null,
           "title": "Lid Open Temperature C"
         },
-        "reaction_timer_origin": {
-          "anyOf": [
-            {
-              "enum": [
-                "main_zone_target",
-                "precursor_supply",
-                "other"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Reaction Timer Origin"
-        },
-        "reaction_timer_origin_other": {
-          "anyOf": [
-            {
-              "maxLength": 255,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Reaction Timer Origin Other"
-        },
         "preparation_operations": {
           "items": {
             "$ref": "#/$defs/PreparationOperationPayload"
           },
           "title": "Preparation Operations",
-          "type": "array"
-        },
-        "post_reaction_operations": {
-          "items": {
-            "$ref": "#/$defs/PostReactionOperationPayload"
-          },
-          "title": "Post Reaction Operations",
           "type": "array"
         },
         "field_params": {
@@ -10043,29 +9770,17 @@
           },
           "title": "Field Params",
           "type": "array"
-        },
-        "external_fields": {
-          "items": {
-            "enum": [
-              "plasma",
-              "electric_field",
-              "magnetic_field",
-              "light"
-            ],
-            "type": "string"
-          },
-          "title": "External Fields",
-          "type": "array"
         }
       },
       "required": [
         "channels",
+        "process_duration_min",
         "pressure_regime",
         "cooling_method"
       ],
       "title": "ProcessTimelinePayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/process_steps.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.50/process_steps.schema.json"
     },
     "process_events": {
       "$defs": {
@@ -10211,7 +9926,7 @@
             "description": {
               "anyOf": [
                 {
-                  "maxLength": 2048,
+                  "maxLength": 2000,
                   "type": "string"
                 },
                 {
@@ -10272,7 +9987,7 @@
       },
       "title": "ScientificProcessEventsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.49/process_events.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.50/process_events.schema.json"
     }
   },
   "entities": {
@@ -10358,46 +10073,10 @@
           "title": "GasCompositionComponentPayload",
           "type": "object"
         },
-        "SubstrateOrientationPolishValue": {
-          "additionalProperties": false,
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Value"
-            },
-            "option": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "double_side_polished",
-                    "single_side_polished"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Option"
-            }
-          },
-          "title": "SubstrateOrientationPolishValue",
-          "type": "object"
-        },
         "SurfaceRoughnessPayload": {
           "additionalProperties": false,
           "properties": {
             "availability": {
-              "default": "reported",
               "enum": [
                 "reported",
                 "not_provided"
@@ -10435,6 +10114,9 @@
               "title": "Value Nm"
             }
           },
+          "required": [
+            "availability"
+          ],
           "title": "SurfaceRoughnessPayload",
           "type": "object"
         }
@@ -10746,17 +10428,6 @@
           ],
           "default": null,
           "title": "Substrate Polish"
-        },
-        "substrate_orientation_polish": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SubstrateOrientationPolishValue"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
         },
         "substrate_miscut_availability": {
           "anyOf": [
@@ -11523,271 +11194,6 @@
           ],
           "title": "AnalysisRunCreate",
           "type": "object"
-        },
-        "MaterialAssertionWrite": {
-          "additionalProperties": false,
-          "properties": {
-            "assertion_type": {
-              "enum": [
-                "growth_presence",
-                "phase_identity",
-                "composition",
-                "polytype",
-                "stacking_order",
-                "orientation_relationship",
-                "layer_count"
-              ],
-              "title": "Assertion Type",
-              "type": "string"
-            },
-            "value": {
-              "additionalProperties": true,
-              "title": "Value",
-              "type": "object"
-            },
-            "confidence": {
-              "anyOf": [
-                {
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Confidence"
-            },
-            "analysis_index": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Analysis Index"
-            }
-          },
-          "required": [
-            "assertion_type",
-            "value"
-          ],
-          "title": "MaterialAssertionWrite",
-          "type": "object",
-          "allOf": [
-            {
-              "oneOf": [
-                {
-                  "required": [
-                    "assertion_type",
-                    "value"
-                  ],
-                  "properties": {
-                    "assertion_type": {
-                      "const": "growth_presence"
-                    },
-                    "value": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "state": {
-                          "enum": [
-                            "present",
-                            "absent",
-                            "uncertain"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "state"
-                      ]
-                    }
-                  }
-                },
-                {
-                  "required": [
-                    "assertion_type",
-                    "value"
-                  ],
-                  "properties": {
-                    "assertion_type": {
-                      "const": "phase_identity"
-                    },
-                    "value": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "phase": {
-                          "type": "string",
-                          "pattern": "\\S",
-                          "maxLength": 256
-                        }
-                      },
-                      "required": [
-                        "phase"
-                      ]
-                    }
-                  }
-                },
-                {
-                  "required": [
-                    "assertion_type",
-                    "value"
-                  ],
-                  "properties": {
-                    "assertion_type": {
-                      "const": "polytype"
-                    },
-                    "value": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "polytype": {
-                          "type": "string",
-                          "pattern": "\\S",
-                          "maxLength": 256
-                        }
-                      },
-                      "required": [
-                        "polytype"
-                      ]
-                    }
-                  }
-                },
-                {
-                  "required": [
-                    "assertion_type",
-                    "value"
-                  ],
-                  "properties": {
-                    "assertion_type": {
-                      "const": "stacking_order"
-                    },
-                    "value": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "stacking_order": {
-                          "type": "string",
-                          "pattern": "\\S",
-                          "maxLength": 256
-                        }
-                      },
-                      "required": [
-                        "stacking_order"
-                      ]
-                    }
-                  }
-                },
-                {
-                  "required": [
-                    "assertion_type",
-                    "value"
-                  ],
-                  "properties": {
-                    "assertion_type": {
-                      "const": "orientation_relationship"
-                    },
-                    "value": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "orientation_relationship": {
-                          "type": "string",
-                          "pattern": "\\S",
-                          "maxLength": 256
-                        }
-                      },
-                      "required": [
-                        "orientation_relationship"
-                      ]
-                    }
-                  }
-                },
-                {
-                  "required": [
-                    "assertion_type",
-                    "value"
-                  ],
-                  "properties": {
-                    "assertion_type": {
-                      "const": "layer_count"
-                    },
-                    "value": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "count": {
-                          "type": "integer",
-                          "minimum": 0
-                        }
-                      },
-                      "required": [
-                        "count"
-                      ]
-                    }
-                  }
-                },
-                {
-                  "required": [
-                    "assertion_type",
-                    "value"
-                  ],
-                  "properties": {
-                    "assertion_type": {
-                      "const": "composition"
-                    },
-                    "value": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "basis": {
-                          "enum": [
-                            "site_fraction",
-                            "atomic_fraction",
-                            "mass_fraction"
-                          ]
-                        },
-                        "components": {
-                          "type": "array",
-                          "minItems": 1,
-                          "items": {
-                            "type": "object",
-                            "additionalProperties": false,
-                            "properties": {
-                              "species": {
-                                "type": "string",
-                                "pattern": "\\S",
-                                "maxLength": 128
-                              },
-                              "fraction": {
-                                "type": "number",
-                                "minimum": 0,
-                                "maximum": 1
-                              }
-                            },
-                            "required": [
-                              "species",
-                              "fraction"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "basis",
-                        "components"
-                      ]
-                    }
-                  }
-                }
-              ]
-            }
-          ]
         },
         "MeasurementConditions": {
           "additionalProperties": false,
@@ -14387,8 +13793,7 @@
                         "status": {
                           "enum": [
                             "recorded",
-                            "not_detected",
-                            "not_analyzed"
+                            "not_detected"
                           ]
                         },
                         "position_unit": {
@@ -15375,13 +14780,6 @@
             "$ref": "#/$defs/PropertyValueWrite"
           },
           "title": "Properties"
-        },
-        "assertions": {
-          "items": {
-            "$ref": "#/$defs/MaterialAssertionWrite"
-          },
-          "title": "Assertions",
-          "type": "array"
         }
       },
       "required": [
@@ -16330,9 +15728,6 @@
                       }
                     }
                   }
-                },
-                "assertions": {
-                  "maxItems": 0
                 }
               },
               "allOf": [
@@ -17597,9 +16992,6 @@
                       }
                     }
                   }
-                },
-                "assertions": {
-                  "maxItems": 0
                 }
               },
               "allOf": [
@@ -19474,9 +18866,6 @@
                       }
                     }
                   }
-                },
-                "assertions": {
-                  "maxItems": 0
                 }
               },
               "allOf": [
@@ -19799,9 +19188,6 @@
                       }
                     }
                   }
-                },
-                "assertions": {
-                  "maxItems": 0
                 }
               }
             },
@@ -20231,9 +19617,6 @@
                       }
                     }
                   }
-                },
-                "assertions": {
-                  "maxItems": 0
                 }
               }
             },
@@ -20655,9 +20038,6 @@
                       }
                     }
                   }
-                },
-                "assertions": {
-                  "maxItems": 0
                 }
               },
               "allOf": [
@@ -21732,9 +21112,6 @@
                       }
                     }
                   }
-                },
-                "assertions": {
-                  "maxItems": 0
                 }
               },
               "allOf": [
@@ -21898,9 +21275,6 @@
                       }
                     }
                   }
-                },
-                "assertions": {
-                  "maxItems": 0
                 }
               }
             },
@@ -23384,9 +22758,6 @@
                       }
                     }
                   }
-                },
-                "assertions": {
-                  "maxItems": 0
                 }
               },
               "allOf": [
@@ -23496,16 +22867,6 @@
               ],
               "properties": {
                 "properties": {
-                  "minItems": 1
-                }
-              }
-            },
-            {
-              "required": [
-                "assertions"
-              ],
-              "properties": {
-                "assertions": {
                   "minItems": 1
                 }
               }
@@ -23704,14 +23065,12 @@
                 "max_temperature_measured_C",
                 "ramp_rate_setpoint_C_min",
                 "ramp_rate_measured_C_min",
-                "growth_duration_s",
                 "pressure_setpoint_min_Pa",
                 "pressure_setpoint_max_Pa",
                 "pressure_measured_min_Pa",
                 "pressure_measured_max_Pa",
                 "gas_species",
                 "has_process_event",
-                "growth_presence",
                 "property",
                 "provenance_complete"
               ],

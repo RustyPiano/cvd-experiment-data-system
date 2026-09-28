@@ -63,13 +63,14 @@ def substrate_lot_payload(
         "batch_number": batch_number,
         "substrate_material": material,
         "substrate_orientation_polish_availability": "reported",
-        "substrate_orientation_polish": {
-            "value": "c-plane",
-            "option": "single_side_polished",
-        },
+        "substrate_polish": "single_side_polished",
         "substrate_miscut_availability": "reported",
         "substrate_miscut_angle_deg": 0.0,
-        "substrate_surface_roughness": {"metric": "RMS", "value_nm": 0.5},
+        "substrate_surface_roughness": {
+            "availability": "reported",
+            "metric": "RMS",
+            "value_nm": 0.5,
+        },
     }
     if material == "sio2_si":
         payload["substrate_oxide_thickness_nm"] = 285.0

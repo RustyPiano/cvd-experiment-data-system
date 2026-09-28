@@ -61,9 +61,9 @@ describe('composite field serialization', () => {
 
   it('falls back to the free input when a stored value cannot be parsed', () => {
     expect(
-      parseCompositeValue('下拉+数值', 'legacy unstructured value', ['常压']),
+      parseCompositeValue('下拉+数值', 'unstructured value', ['常压']),
     ).toEqual({
-      freeValue: 'legacy unstructured value',
+      freeValue: 'unstructured value',
       option: '',
     })
   })

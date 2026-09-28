@@ -774,7 +774,7 @@ def test_export_preserves_measured_control_and_derived_sample_metadata(
                 transformation_run_id=transformation.id,
                 sample_id=control.id,
                 run_revision_id=None,
-                provenance_json={"legacy": True},
+                provenance_json={"input_ordinal": 1},
             ),
             TransformationOutput(
                 transformation_run_id=transformation.id,

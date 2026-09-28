@@ -18,10 +18,8 @@ from app.models.sample import Sample
 from app.models.scientific import (
     AnalysisRun,
     DataDerivationEdge,
-    MaterialAssertion,
     PropertyValue,
     RunRevision,
-    SampleRevisionState,
 )
 from app.models.user import User, UserRole
 from app.models.v2_entities import InstrumentCapability
@@ -30,7 +28,6 @@ from app.repositories.experiment_repository import ExperimentRepository
 from app.schemas.scientific import (
     SCAN_METHODS,
     MeasurementAnalysisRead,
-    MeasurementAssertionRead,
     MeasurementBundleCreate,
     MeasurementDetailRead,
     MeasurementListResponse,
@@ -478,21 +475,6 @@ class ScientificMeasurementService:
             self.db.add(property_row)
             property_rows.append((property_row, item.quality_note))
 
-        assertions: list[MaterialAssertion] = []
-        for item in payload.assertions:
-            assertion = MaterialAssertion(
-                sample_id=sample.id,
-                measurement_run_id=record.id,
-                analysis_run_id=(
-                    analyses[item.analysis_index].id if item.analysis_index is not None else None
-                ),
-                assertion_type=item.assertion_type,
-                value_json=item.value,
-                confidence=item.confidence,
-            )
-            self.db.add(assertion)
-            assertions.append(assertion)
-
         self.db.flush()
         property_evidence = {
             str(row.id): item.model_dump(
@@ -513,7 +495,6 @@ class ScientificMeasurementService:
                 **(record.attrs or {}),
                 "property_quality_notes": property_quality_notes,
             }
-        self._refresh_sample_actual_state(sample, run_revision_id)
         refresh_revision_provenance(self.db, run_revision_id)
         self.audit.record_event(
             actor=actor,
@@ -529,7 +510,6 @@ class ScientificMeasurementService:
                 "supplementary_file_ids": [str(file.id) for file in supplementary_files],
                 "analysis_count": len(analyses),
                 "property_count": len(payload.properties),
-                "assertion_count": len(assertions),
             },
         )
         if measurement.quality_flag == "valid" and (
@@ -538,7 +518,6 @@ class ScientificMeasurementService:
                 item.quality_flag in {"valid", "below_detection_limit"}
                 for item in payload.properties
             )
-            or assertions
         ):
             clear_not_characterized(self.db, run, actor)
         refresh_result_missing_todo(self.db, run)
@@ -587,12 +566,6 @@ class ScientificMeasurementService:
             .correlate(CharacterizationRecord)
             .scalar_subquery()
         )
-        assertion_count = (
-            select(func.count(MaterialAssertion.id))
-            .where(MaterialAssertion.measurement_run_id == CharacterizationRecord.id)
-            .correlate(CharacterizationRecord)
-            .scalar_subquery()
-        )
         statement = (
             select(
                 CharacterizationRecord,
@@ -601,7 +574,6 @@ class ScientificMeasurementService:
                 raw_count.label("raw_file_count"),
                 analysis_count.label("analysis_count"),
                 property_count.label("property_count"),
-                assertion_count.label("assertion_count"),
             )
             .join(Sample, Sample.id == CharacterizationRecord.sample_id)
             .join(ExperimentRun, ExperimentRun.id == CharacterizationRecord.experiment_run_id)
@@ -675,7 +647,6 @@ class ScientificMeasurementService:
                 raw_file_count=row.raw_file_count,
                 analysis_count=row.analysis_count,
                 property_count=row.property_count,
-                assertion_count=row.assertion_count,
                 evidence_present=(
                     row.CharacterizationRecord.quality_flag == "valid"
                     and row.CharacterizationRecord.id in evidence_record_ids
@@ -783,7 +754,6 @@ class ScientificMeasurementService:
         }
         self.db.flush()
         assert sample is not None
-        self._refresh_sample_actual_state(sample, record.run_revision_id)
         refresh_revision_provenance(self.db, record.run_revision_id)
         self.audit.record_event(
             actor=actor,
@@ -883,13 +853,6 @@ class ScientificMeasurementService:
                 select(PropertyValue)
                 .where(PropertyValue.measurement_run_id == record.id)
                 .order_by(PropertyValue.id)
-            )
-        )
-        assertions = list(
-            self.db.scalars(
-                select(MaterialAssertion)
-                .where(MaterialAssertion.measurement_run_id == record.id)
-                .order_by(MaterialAssertion.created_at, MaterialAssertion.id)
             )
         )
         attrs = record.attrs or {}
@@ -1001,17 +964,6 @@ class ScientificMeasurementService:
                     quality_note=property_quality_notes.get(str(item.id)),
                 )
                 for item in properties
-            ],
-            assertions=[
-                MeasurementAssertionRead(
-                    id=item.id,
-                    analysis_run_id=item.analysis_run_id,
-                    assertion_type=item.assertion_type,
-                    value=item.value_json,
-                    confidence=item.confidence,
-                    validity=item.validity,
-                )
-                for item in assertions
             ],
             invalidation_reason=attrs.get("invalidation_reason"),
             invalidated_by_id=attrs.get("invalidated_by_id"),
@@ -1246,12 +1198,6 @@ class ScientificMeasurementService:
                 )
             )
             or 0,
-            assertion_count=self.db.scalar(
-                select(func.count(MaterialAssertion.id)).where(
-                    MaterialAssertion.measurement_run_id == record.id
-                )
-            )
-            or 0,
             evidence_present=(
                 record.quality_flag == "valid"
                 and record.id in self._evidence_record_ids([record.id])
@@ -1271,7 +1217,6 @@ class ScientificMeasurementService:
         raw_file_count: int,
         analysis_count: int,
         property_count: int,
-        assertion_count: int,
         evidence_present: bool,
     ) -> MeasurementSummaryRead:
         if record.run_revision_id is None or record.measured_at is None:
@@ -1294,29 +1239,7 @@ class ScientificMeasurementService:
             raw_file_count=raw_file_count,
             analysis_count=analysis_count,
             property_count=property_count,
-            assertion_count=assertion_count,
         )
-
-    def _refresh_sample_actual_state(self, sample: Sample, run_revision_id: UUID) -> None:
-        # Measurements and historical assignments are evidence, not sample-wide verdicts.
-        state = self.db.scalar(
-            select(SampleRevisionState).where(
-                SampleRevisionState.sample_id == sample.id,
-                SampleRevisionState.run_revision_id == run_revision_id,
-            )
-        )
-        if state is None:
-            state = SampleRevisionState(sample_id=sample.id, run_revision_id=run_revision_id)
-            self.db.add(state)
-        state.growth_state = "unknown"
-        state.identity_state = "unknown"
-        state.material_summary = None
-        state.evidence_assertion_ids = []
-        run = self.db.get(ExperimentRun, sample.experiment_run_id)
-        if run is not None and run.current_revision_id == run_revision_id:
-            sample.actual_state = "unknown"
-            sample.identity_state = "unknown"
-            sample.actual_material_summary = None
 
     @staticmethod
     def _cursor_query_sha256(

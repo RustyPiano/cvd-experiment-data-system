@@ -214,37 +214,4 @@ describe('FieldParamsEditor', () => {
       false,
     )
   })
-
-  it('maps recognized legacy parameters without dropping unknown entries', async () => {
-    const user = userEvent.setup()
-    render(
-      <FieldWrapper
-        initialValue={[
-          {
-            field_type: 'plasma',
-            start_min: 5,
-            end_min: 25,
-            parameters: [
-              { name: 'power', value: 50, unit: 'W' },
-              { name: 'legacy_mode', value: 'pulse', unit: '—' },
-            ],
-          },
-        ]}
-      />,
-    )
-
-    expect(screen.getByLabelText(/Plasma power \(W\)/)).toHaveValue(50)
-    expect(screen.getByLabelText('Parameter name')).toHaveValue('legacy_mode')
-    await user.clear(screen.getByLabelText(/Plasma power \(W\)/))
-    await user.type(screen.getByLabelText(/Plasma power \(W\)/), '60')
-
-    const parameters = outputValue<ActualField[]>()[0].parameters
-    expect(parameters).toHaveLength(2)
-    expect(parameters).toEqual(
-      expect.arrayContaining([
-        { name: 'power_W', value: 60, unit: 'W' },
-        { name: 'legacy_mode', value: 'pulse', unit: '—' },
-      ]),
-    )
-  })
 })

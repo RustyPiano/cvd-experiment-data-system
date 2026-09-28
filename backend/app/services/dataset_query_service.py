@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.sample import Sample
 from app.models.scientific import (
-    MaterialAssertion,
     PropertyValue,
     RunFeature,
     RunRevision,
@@ -40,7 +39,6 @@ FEATURE_FIELDS = {
     "max_temperature_measured_C": "max_temperature_measured_C",
     "ramp_rate_setpoint_C_min": "ramp_rate_setpoint_C_min",
     "ramp_rate_measured_C_min": "ramp_rate_measured_C_min",
-    "growth_duration_s": "growth_duration_s",
     "pressure_setpoint_min_Pa": "pressure_setpoint_min_Pa",
     "pressure_setpoint_max_Pa": "pressure_setpoint_max_Pa",
     "pressure_measured_min_Pa": "pressure_measured_min_Pa",
@@ -54,7 +52,6 @@ NUMERIC_FIELDS = {
     "max_temperature_measured_C",
     "ramp_rate_setpoint_C_min",
     "ramp_rate_measured_C_min",
-    "growth_duration_s",
     "pressure_setpoint_min_Pa",
     "pressure_setpoint_max_Pa",
     "pressure_measured_min_Pa",
@@ -66,7 +63,6 @@ UNITS_REGISTRY = {
     "max_temperature_measured_C": "°C",
     "ramp_rate_setpoint_C_min": "°C/min",
     "ramp_rate_measured_C_min": "°C/min",
-    "growth_duration_s": "s",
     "pressure_setpoint_min_Pa": "Pa",
     "pressure_setpoint_max_Pa": "Pa",
     "pressure_measured_min_Pa": "Pa",
@@ -211,40 +207,6 @@ class DatasetQueryService:
             )
             matched = exists(property_query.where(value_clause))
             observed = exists(property_query.where(PropertyValue.numeric_value.is_not(None)))
-            return observed & ~matched if item.operator == "ne" else matched
-        if item.field == "growth_presence":
-
-            def has_state(value: str) -> Any:
-                return exists(
-                    select(MaterialAssertion.id)
-                    .join(
-                        CharacterizationRecord,
-                        CharacterizationRecord.id == MaterialAssertion.measurement_run_id,
-                    )
-                    .join(Sample, Sample.id == MaterialAssertion.sample_id)
-                    .where(
-                        Sample.experiment_run_id == RunRevision.experiment_run_id,
-                        Sample.role == "growth",
-                        Sample.run_revision_id == RunRevision.id,
-                        Sample.deleted_at.is_(None),
-                        CharacterizationRecord.run_revision_id == RunRevision.id,
-                        CharacterizationRecord.quality_flag == "valid",
-                        MaterialAssertion.sample_id == CharacterizationRecord.sample_id,
-                        MaterialAssertion.validity == "active",
-                        MaterialAssertion.assertion_type == "growth_presence",
-                        MaterialAssertion.value_json["state"].as_string() == value,
-                    )
-                )
-
-            present = has_state("present")
-            absent = has_state("absent")
-            uncertain = has_state("uncertain")
-            matched = {
-                "present": present & ~absent & ~uncertain,
-                "absent": absent & ~present & ~uncertain,
-                "uncertain": uncertain | (present & absent),
-            }[str(item.value)]
-            observed = present | absent | uncertain
             return observed & ~matched if item.operator == "ne" else matched
         feature_code = FEATURE_FIELDS[item.field]
         column = (

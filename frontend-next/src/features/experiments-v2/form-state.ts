@@ -33,7 +33,6 @@ export function buildStateFromLoaded(
       version: run.setup_ref_version ?? null,
       snapshot: snapshotFromRun(run.setup_ref_snapshot_json),
       tubeUsageHistory: structuredValueFromRaw(
-        'tube_usage_history',
         equipment?.['tube_usage_history'],
       ),
     },

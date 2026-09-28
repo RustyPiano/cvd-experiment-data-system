@@ -15,7 +15,6 @@ from app.models.file_asset import FileAsset
 from app.models.sample import Sample, SampleRole
 from app.models.scientific import (
     SampleRevisionAssociation,
-    SampleRevisionState,
     TransformationInput,
     TransformationOutput,
 )
@@ -44,9 +43,6 @@ def sample_revision_snapshot(sample: Sample) -> dict[str, Any]:
         "run_revision_id": str(sample.run_revision_id) if sample.run_revision_id else None,
         "parent_sample_id": str(sample.parent_sample_id) if sample.parent_sample_id else None,
         "role": sample.role,
-        "actual_state": sample.actual_state,
-        "actual_material_summary": sample.actual_material_summary,
-        "identity_state": sample.identity_state,
         "current_carrier": sample.current_carrier,
         "sample_region": deepcopy(sample.sample_region),
         "dimensions": deepcopy(sample.dimensions_json),
@@ -82,22 +78,6 @@ def ensure_sample_revision_association(
             sample_snapshot_json=sample_revision_snapshot(sample),
         )
         db.add(association)
-    state = db.scalar(
-        select(SampleRevisionState).where(
-            SampleRevisionState.sample_id == sample.id,
-            SampleRevisionState.run_revision_id == run_revision_id,
-        )
-    )
-    if state is None:
-        db.add(
-            SampleRevisionState(
-                sample_id=sample.id,
-                run_revision_id=run_revision_id,
-                growth_state="unknown",
-                identity_state="unknown",
-                evidence_assertion_ids=[],
-            )
-        )
     return association
 
 
@@ -275,7 +255,6 @@ class SampleService:
                     experiment_run_id=experiment.id,
                     run_revision_id=run_revision_id,
                     role=SampleRole.GROWTH.value,
-                    actual_state="unknown",
                     source_substrate_id=source_id,
                     source_substrate_snapshot_json=snapshot,
                     metadata_json={},
@@ -297,9 +276,6 @@ class SampleService:
             action = "restore" if sample.deleted_at is not None else "update"
             sample.role = SampleRole.GROWTH.value
             sample.run_revision_id = run_revision_id
-            sample.actual_state = "unknown"
-            sample.identity_state = "unknown"
-            sample.actual_material_summary = None
             sample.source_substrate_snapshot_json = snapshot
             sample.deleted_at = None
             sample.deleted_by_id = None
@@ -340,24 +316,6 @@ class SampleService:
                 or sample.lifecycle_state != "active"
             ):
                 continue
-            if not (
-                sample.actual_state == "unknown"
-                and sample.identity_state == "unknown"
-                and sample.actual_material_summary is None
-            ):
-                before = self._serialize_sample(sample)
-                sample.actual_state = "unknown"
-                sample.identity_state = "unknown"
-                sample.actual_material_summary = None
-                self.samples.save(sample)
-                self.audit.record_event(
-                    actor=current_user,
-                    entity_type="sample",
-                    entity_id=sample.id,
-                    action="reset_revision_projection",
-                    before_json=before,
-                    after_json=self._serialize_sample(sample),
-                )
             if run_revision_id is not None:
                 ensure_sample_revision_association(self.db, sample, run_revision_id)
 

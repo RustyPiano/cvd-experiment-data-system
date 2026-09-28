@@ -279,8 +279,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           role: 'growth',
           lifecycle_state: 'active',
           sample_code: 'S01',
-          actual_state: 'unknown',
-          actual_material_summary: null,
         },
         {
           id: 'sample-2',
@@ -289,8 +287,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           role: 'control',
           lifecycle_state: 'active',
           sample_code: 'S02',
-          actual_state: 'unknown',
-          actual_material_summary: null,
         },
       ],
     })
@@ -703,7 +699,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
     const payload = api.createMeasurement.mock.calls[0][0]
     expect(payload.measurement).not.toHaveProperty('sample_region')
-    expect(payload.assertions).toEqual([])
+    expect(payload).not.toHaveProperty('assertions')
     expect(payload.properties).toContainEqual(
       expect.objectContaining({
         property_code: 'spectral_peaks',
@@ -762,7 +758,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
     const payload = api.createMeasurement.mock.calls[0][0]
     expect(payload.measurement).not.toHaveProperty('sample_region')
-    expect(payload.assertions).toEqual([])
+    expect(payload).not.toHaveProperty('assertions')
     expect(payload.properties).toContainEqual(
       expect.objectContaining({
         property_code: 'observation_note',
@@ -1035,7 +1031,7 @@ describe('SimpleCharacterizationWorkspace', () => {
   })
 
   it.each(['raw', 'property'] as const)(
-    'allows an optical %s-only record without a growth assertion',
+    'allows an optical %s-only record',
     async (evidenceType) => {
       const user = userEvent.setup()
       const { container } = renderWorkspace()
@@ -1054,7 +1050,9 @@ describe('SimpleCharacterizationWorkspace', () => {
 
       await user.click(screen.getByRole('button', { name: '保存表征记录' }))
       await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
-      expect(api.createMeasurement.mock.calls[0][0].assertions).toEqual([])
+      expect(api.createMeasurement.mock.calls[0][0]).not.toHaveProperty(
+        'assertions',
+      )
     },
   )
 
@@ -1084,7 +1082,6 @@ describe('SimpleCharacterizationWorkspace', () => {
       measurement: { raw_file_ids: ['file-1'] },
       analyses: [],
       properties: [],
-      assertions: [],
     })
     expect(filesApi.uploadExperimentFile.mock.calls[0][2].fileCategory).toBe(
       'raw',
@@ -1401,8 +1398,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           role: 'growth',
           lifecycle_state: 'active',
           sample_code: 'CURRENT',
-          actual_state: 'unknown',
-          actual_material_summary: null,
         },
         {
           id: 'stale-growth',
@@ -1411,8 +1406,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           role: 'growth',
           lifecycle_state: 'active',
           sample_code: 'STALE',
-          actual_state: 'unknown',
-          actual_material_summary: null,
         },
         {
           id: 'consumed-control',
@@ -1421,8 +1414,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           role: 'control',
           lifecycle_state: 'consumed',
           sample_code: 'CONSUMED',
-          actual_state: 'unknown',
-          actual_material_summary: null,
         },
       ],
     })
@@ -1465,13 +1456,12 @@ describe('SimpleCharacterizationWorkspace', () => {
         new File(['raw'], 'spectrum.txt'),
       )
       expect(screen.queryByLabelText('峰提取状态')).toBeNull()
-      expect(screen.queryByText('尚未分析')).toBeNull()
       if (status === '未检出可分辨峰')
         await user.click(screen.getByRole('checkbox', { name: status }))
       await user.click(screen.getByRole('button', { name: '保存表征记录' }))
       await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
       const payload = api.createMeasurement.mock.calls[0][0]
-      expect(payload.assertions).toEqual([])
+      expect(payload).not.toHaveProperty('assertions')
       if (status === '未检出可分辨峰') {
         expect(payload.properties[0].structured_value).toMatchObject({
           status: 'not_detected',

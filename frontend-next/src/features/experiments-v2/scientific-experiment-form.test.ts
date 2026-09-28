@@ -41,7 +41,7 @@ describe('scientific experiment workflow helpers', () => {
   })
 
   it('does not treat an empty scientific timeline as completed', () => {
-    expect(timelineValidationIssue([], [])).toBe(
+    expect(timelineValidationIssue([])).toBe(
       '请至少添加一项温度、气体、压力或设备条件。',
     )
   })
@@ -59,7 +59,7 @@ describe('scientific experiment workflow helpers', () => {
       scalar_value: 100,
     }
     expect(processChannelTitle(channel)).toBe('Ar 流量')
-    expect(timelineValidationIssue([], [channel])).toBeNull()
+    expect(timelineValidationIssue([channel])).toBeNull()
   })
 
   it('allows setpoint and measured values for the same temperature zone', () => {
@@ -75,12 +75,7 @@ describe('scientific experiment workflow helpers', () => {
       data_kind: 'scalar' as const,
       scalar_value: 750 + index,
     }))
-    expect(
-      timelineValidationIssue(
-        [{ segment_type: 'growth', start_s: 0, end_s: 60 }],
-        channels,
-      ),
-    ).toBeNull()
+    expect(timelineValidationIssue(channels)).toBeNull()
   })
 
   it('allows multiple physical gas lines and valves of the same category', () => {
@@ -109,12 +104,7 @@ describe('scientific experiment workflow helpers', () => {
         series: [{ start_s: 0, end_s: 60, value: 'open' }],
       })),
     ]
-    expect(
-      timelineValidationIssue(
-        [{ segment_type: 'growth', start_s: 0, end_s: 60 }],
-        channels,
-      ),
-    ).toBeNull()
+    expect(timelineValidationIssue(channels)).toBeNull()
   })
 
   it('normalizes setpoint units and excludes measured temperatures from the summary', () => {

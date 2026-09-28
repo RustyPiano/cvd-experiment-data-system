@@ -50,7 +50,7 @@ export function CompositeFieldControl({
   const freeTextOption = input === '文本+数值'
   const freeFirst =
     !freeTextOption && (input.startsWith('数值') || input.startsWith('文本'))
-  // Keep malformed legacy values visible/editable instead of letting
+  // Keep unparseable values visible/editable instead of letting
   // <input type="number"> silently blank them.
   const numeric =
     input.includes('数值') &&

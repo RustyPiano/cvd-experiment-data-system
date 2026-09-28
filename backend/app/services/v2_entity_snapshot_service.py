@@ -30,25 +30,17 @@ def _present_snapshot_value(value: object | None) -> bool:
 
 
 def material_lot_item_projection(module_key: str, snapshot: dict) -> dict:
-    """Project lot-owned facts into a run item, omitting facts absent from old lots."""
+    """Project lot-owned facts into a run item, omitting facts the lot does not record."""
     if module_key != "substrates":
         return {}
 
-    orientation = _material_lot_snapshot_value(snapshot, "substrate_orientation_polish")
-    if isinstance(orientation, dict):
-        orientation = "；".join(
-            str(value).strip()
-            for key in ("value", "option")
-            if _present_snapshot_value(value := orientation.get(key))
-        )
     plane = _material_lot_snapshot_value(snapshot, "substrate_crystal_plane")
     polish = _material_lot_snapshot_value(snapshot, "substrate_polish")
-    if _present_snapshot_value(plane) or _present_snapshot_value(polish):
-        orientation = (
-            _material_lot_snapshot_value(snapshot, "substrate_cut_spec")
-            if plane == "supplier_cut"
-            else plane
-        )
+    orientation = (
+        _material_lot_snapshot_value(snapshot, "substrate_cut_spec")
+        if plane == "supplier_cut"
+        else plane
+    )
     candidates = {
         "material": _material_lot_snapshot_value(snapshot, "substrate_material"),
         "chemical_formula": _material_lot_snapshot_value(snapshot, "chemical_formula"),

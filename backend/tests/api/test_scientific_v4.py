@@ -12,7 +12,6 @@ from app.models.scientific import (
     RunFeature,
     RunRevision,
     SampleRevisionAssociation,
-    SampleRevisionState,
     SourceLoad,
     TargetMaterialRegion,
     TargetSpec,
@@ -34,36 +33,6 @@ client = TestClient(app)
 
 def test_process_timeline_does_not_require_a_declared_reaction_phase() -> None:
     payload = {
-        "segments": [
-            {
-                "segment_key": "system_preparation",
-                "segment_type": "system_preparation",
-                "sequence": 1,
-                "start_s": 0,
-                "end_s": 300,
-            },
-            {
-                "segment_key": "pre_reaction",
-                "segment_type": "pre_reaction",
-                "sequence": 2,
-                "start_s": 300,
-                "end_s": 600,
-            },
-            {
-                "segment_key": "reaction",
-                "segment_type": "reaction",
-                "sequence": 3,
-                "start_s": 600,
-                "end_s": 1200,
-            },
-            {
-                "segment_key": "post_reaction",
-                "segment_type": "post_reaction",
-                "sequence": 4,
-                "start_s": 1200,
-                "end_s": 1500,
-            },
-        ],
         "channels": [
             {
                 "channel_key": "channel_11111111_1111_4111_8111_111111111111",
@@ -100,12 +69,13 @@ def test_process_timeline_does_not_require_a_declared_reaction_phase() -> None:
                 ],
             },
         ],
+        "process_duration_min": 25,
         "pressure_regime": "atmospheric",
         "cooling_method": "furnace_cooling",
         "preparation_operations": [
             {
                 "operation_type": "gas_exchange",
-                "duration_min": 5,
+                "exchange_mode": "evacuation_backfill",
                 "cycle_count": 3,
                 "gas_sources": [
                     {
@@ -126,13 +96,9 @@ def test_process_timeline_does_not_require_a_declared_reaction_phase() -> None:
     }
 
     validated = ProcessTimelinePayload.model_validate(payload)
-    assert validated.segments[2].segment_type == "reaction"
     assert validated.channels[1].series
     assert validated.channels[1].series[0].timing_preset == "whole_process"
     assert validated.preparation_operations[0].gas_sources[0].material_lot_version == 1
-
-    payload["segments"] = []
-    assert ProcessTimelinePayload.model_validate(payload).segments == []
 
 
 def test_target_phase_catalog_accepts_known_and_custom_phases() -> None:
@@ -177,7 +143,7 @@ def test_target_phase_catalog_accepts_known_and_custom_phases() -> None:
         TargetSpecPayload.model_validate(invalid)
 
 
-def test_target_planar_outline_requires_discrete_planar_crystal() -> None:
+def test_target_planar_outline_requires_discrete_planar_target() -> None:
     target = {
         "architecture_type": "single_region",
         "material_regions": [
@@ -188,12 +154,13 @@ def test_target_planar_outline_requires_discrete_planar_crystal() -> None:
             }
         ],
         "composition_relations": [],
-        "dimensional_form": "discrete_planar_crystal",
+        "dimensional_form": "planar",
+        "film_form": "discrete",
         "in_plane_outline": "triangle",
     }
     assert TargetSpecPayload.model_validate(target).in_plane_outline == "triangle"
 
-    target["dimensional_form"] = "continuous_film"
+    target["film_form"] = "continuous"
     with pytest.raises(ValueError, match="requires a discrete planar target"):
         TargetSpecPayload.model_validate(target)
 
@@ -213,7 +180,8 @@ def test_source_position_uses_selected_zone_thermocouple() -> None:
                     {
                         "material_lot_id": "11111111-1111-4111-8111-111111111111",
                         "material_lot_version": 1,
-                        "function_role": "chalcogen_source",
+                        "amount": 10,
+                        "unit": "mg",
                     }
                 ],
             }
@@ -226,13 +194,8 @@ def test_source_position_uses_selected_zone_thermocouple() -> None:
     assert validated.items[0].initial_position.axial_mm == -20
 
     del payload["items"][0]["heating_zone_ref"]
-    with pytest.raises(ValueError, match="heating_zone_ref"):
+    with pytest.raises(ValueError, match="heating zone"):
         SourceLoadsPayload.model_validate(payload)
-
-    payload["items"][0]["initial_position"]["reference"] = "setup_origin"
-    legacy = SourceLoadsPayload.model_validate(payload)
-    assert legacy.items[0].initial_position
-    assert legacy.items[0].initial_position.reference == "setup_origin"
 
 
 def test_source_preparation_parameters_are_typed_and_atmosphere_is_canonical() -> None:
@@ -241,13 +204,16 @@ def test_source_preparation_parameters_are_typed_and_atmosphere_is_canonical() -
             "items": [
                 {
                     "load_key": "sulfur_source",
-                    "loading_method": "substrate_surface",
+                    "loading_method": "boat",
+                    "heating_zone_ref": "zone_1",
+                    "initial_position": {"axial_mm": -20, "reference": "zone_thermocouple"},
                     "preparation_steps": [step],
                     "ingredients": [
                         {
                             "material_lot_id": "11111111-1111-4111-8111-111111111111",
                             "material_lot_version": 1,
-                            "function_role": "chalcogen_source",
+                            "amount": 10,
+                            "unit": "mg",
                         }
                     ],
                 }
@@ -262,7 +228,7 @@ def test_source_preparation_parameters_are_typed_and_atmosphere_is_canonical() -
                 "parameters": {
                     "temperature_C": 500,
                     "duration_min": 20,
-                    "atmosphere": "氩气",
+                    "atmosphere": "Ar",
                 },
             }
         )
@@ -281,7 +247,8 @@ def test_source_preparation_parameters_are_typed_and_atmosphere_is_canonical() -
                 "parameters": {
                     "temperature_C": 500,
                     "duration_min": 20,
-                    "atmosphere": "forming gas",
+                    "atmosphere": "other",
+                    "atmosphere_other": "forming gas",
                 },
             }
         )
@@ -292,6 +259,17 @@ def test_source_preparation_parameters_are_typed_and_atmosphere_is_canonical() -
         "atmosphere": "other",
         "atmosphere_other": "forming gas",
     }
+
+    with pytest.raises(ValueError, match="unsupported atmosphere"):
+        SourceLoadsPayload.model_validate(
+            payload(
+                {
+                    "step_type": "dry",
+                    "sequence": 1,
+                    "parameters": {"temperature_C": 500, "duration_min": 20, "atmosphere": "氩气"},
+                }
+            )
+        )
 
     with pytest.raises(ValueError, match="Extra inputs are not permitted"):
         SourceLoadsPayload.model_validate(
@@ -599,7 +577,8 @@ def test_scientific_revision_measurement_and_query_chain(
                 }
             ],
             "composition_relations": [],
-            "dimensional_form": "discrete_planar_crystal",
+            "dimensional_form": "planar",
+            "film_form": "discrete",
             "in_plane_outline": "triangle",
         },
     )
@@ -621,7 +600,6 @@ def test_scientific_revision_measurement_and_query_chain(
                         {
                             "material_lot_id": source_lot["id"],
                             "material_lot_version": 1,
-                            "process_roles": [],
                             "amount": 10,
                             "unit": "mg",
                         }
@@ -692,15 +670,6 @@ def test_scientific_revision_measurement_and_query_chain(
         run_id,
         "process_steps",
         {
-            "segments": [
-                {
-                    "segment_key": "growth",
-                    "segment_type": "growth",
-                    "sequence": 1,
-                    "start_s": 0,
-                    "end_s": 1800,
-                }
-            ],
             "channels": [
                 {
                     "channel_key": "channel_11111111_1111_4111_8111_111111111111",
@@ -780,6 +749,7 @@ def test_scientific_revision_measurement_and_query_chain(
                     "scalar_value": 100,
                 },
             ],
+            "process_duration_min": 30,
             "pressure_regime": "low_pressure",
             "cooling_method": "furnace_cooling",
             "preparation_operations": [
@@ -904,8 +874,6 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert samples.status_code == 200, samples.text
     sample = samples.json()["items"][0]
-    assert sample["material_system"] is None
-    assert sample["actual_state"] == "unknown"
 
     measurement = client.post(
         "/api/v1/measurements",
@@ -932,7 +900,6 @@ def test_scientific_revision_measurement_and_query_chain(
             "properties": [
                 {"property_code": "observation_note", "text_value": "Continuous film at center"}
             ],
-            "assertions": [],
         },
         headers=headers,
     )
@@ -987,8 +954,6 @@ def test_scientific_revision_measurement_and_query_chain(
 
     sample_after = client.get(f"/api/v1/samples/{sample['id']}", headers=headers)
     assert sample_after.status_code == 200, sample_after.text
-    assert sample_after.json()["actual_state"] == "unknown"
-    assert sample_after.json()["material_system"] is None
     assert sample_after.json()["target_material_system"] == "MoS2"
 
     dataset = client.post(
@@ -1048,7 +1013,7 @@ def test_scientific_revision_measurement_and_query_chain(
     assert (
         projected_target.dimensional_form,
         projected_target.in_plane_outline,
-    ) == ("discrete_planar_crystal", "triangle")
+    ) == ("planar", "triangle")
     projected_region = (
         db_session.query(TargetMaterialRegion).filter_by(target_spec_id=projected_target.id).one()
     )
@@ -1128,11 +1093,6 @@ def test_scientific_revision_measurement_and_query_chain(
         headers=headers,
     )
     assert contradictory.status_code == 201, contradictory.text
-    sample_with_conflict = client.get(
-        f"/api/v1/samples/{sample['id']}",
-        headers=headers,
-    )
-    assert sample_with_conflict.json()["actual_state"] == "unknown"
 
     transformed = client.post(
         "/api/v1/transformations",
@@ -1227,18 +1187,11 @@ def test_scientific_revision_measurement_and_query_chain(
         revision_1,
         revision_2,
     }
-    states = db_session.query(SampleRevisionState).filter_by(sample_id=UUID(sample["id"])).all()
-    assert {
-        str(item.run_revision_id): (item.growth_state, item.identity_state) for item in states
-    } == {
-        revision_1: ("unknown", "unknown"),
-        revision_2: ("unknown", "unknown"),
-    }
     sample_in_revision_2 = client.get(
         f"/api/v1/samples/{sample['id']}",
         headers=headers,
     )
-    assert sample_in_revision_2.json()["actual_state"] == "unknown"
+    assert sample_in_revision_2.status_code == 200
     revisions = client.get(
         f"/api/v1/experiments/{run_id}/revisions",
         headers=headers,
@@ -1513,7 +1466,6 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
                 {
                     "material_lot_id": source.json()["id"],
                     "material_lot_version": 1,
-                    "process_roles": [],
                     "amount": 10,
                     "unit": "mg",
                 }
@@ -1550,7 +1502,6 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
             run_id,
             "process_steps",
             {
-                "segments": [],
                 "field_params": [
                     {
                         "field_type": "other",
@@ -1593,6 +1544,7 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
                         "series": [{"start_s": 0, "end_s": 3600, "value": 100}],
                     },
                 ],
+                "process_duration_min": 61,
                 "pressure_regime": "atmospheric",
                 "cooling_method": "furnace_cooling",
             },
@@ -1604,10 +1556,10 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
             {
                 "items": [
                     {
-                        "event_key": f"manual_intervention_{index}",
+                        "event_key": f"plan_change_{index}",
                         "start_s": 3600,
                         "end_s": 3660,
-                        "observed_deviations": ["manual_intervention"],
+                        "observed_deviations": ["plan_changed"],
                     }
                 ]
             },
@@ -1667,7 +1619,6 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
         assert measured.status_code == 201, measured.text
         sample = client.get(f"/api/v1/samples/{sample_id}", headers=headers)
         assert sample.status_code == 200, sample.text
-        assert sample.json()["actual_state"] == "unknown"
         assert sample.json()["characterization_count"] == 1
 
 

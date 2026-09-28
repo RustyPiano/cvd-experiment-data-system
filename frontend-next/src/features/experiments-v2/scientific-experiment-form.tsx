@@ -62,7 +62,6 @@ import {
   sourceLoadIngredientsAreValid,
   sourcePreparationStepsAreValid,
   sourceSolutionMode,
-  sourceSolutionVolumesRecorded,
   switchTargetDraft,
   targetKind,
 } from './simple-preparation-editors'
@@ -122,8 +121,6 @@ type TargetSpec = {
   in_plane_outline_other?: string
   dimensional_form?:
     | 'planar'
-    | 'continuous_film'
-    | 'discrete_planar_crystal'
     | 'ribbon'
     | 'wire'
     | 'tube'
@@ -149,7 +146,6 @@ type TargetSpec = {
 type Ingredient = {
   material_lot_id: string
   material_lot_version: number
-  function_role?: string
   amount?: number
   unit?: string
   concentration_value?: number
@@ -171,28 +167,18 @@ type SourceLoad = {
     axial_mm: number
     radial_mm?: number
     azimuth_deg?: number
-    reference: 'setup_origin' | 'zone_thermocouple'
+    reference: 'zone_thermocouple'
   }
   position_program: Array<{
     t_s: number
     axial_mm: number
     radial_mm?: number
     azimuth_deg?: number
-    reference: 'setup_origin' | 'zone_thermocouple'
+    reference: 'zone_thermocouple'
   }>
   heating_zone_ref?: string
   substrate_source_ids?: string[]
   ingredients: Ingredient[]
-}
-
-type Segment = {
-  segment_key: string
-  segment_type: string
-  sequence: number
-  start_s: number
-  end_s: number
-  label?: string
-  note?: string
 }
 
 type Channel = {
@@ -271,15 +257,8 @@ const DEFAULT_TARGET: TargetSpec = {
 }
 
 const EMPTY_TIMELINE = {
-  segments: [] satisfies Segment[],
   channels: [] satisfies Channel[],
 }
-
-const PRESERVED_PROCESS_FIELDS = [
-  'reaction_timer_origin',
-  'reaction_timer_origin_other',
-  'post_reaction_operations',
-] as const
 
 export const WORKFLOW_STEPS = [
   '基本信息',
@@ -302,19 +281,8 @@ const STEP_MODULES = [
 const PRESSURE_REGIME_LABELS: Record<string, string> = {
   atmospheric: '常压',
   low_pressure: '减压（含真空）',
-  ultra_high_vacuum: '减压（含真空）',
   high_pressure: '加压',
   other: '其他',
-}
-
-function normalizedCoolingMethod(
-  value: unknown,
-): SimpleProcessSettings['cooling_method'] {
-  return ({
-    natural: 'furnace_cooling',
-    rapid_furnace_move: 'rapid_furnace_move_cooling',
-    controlled: 'controlled_cooling',
-  }[String(value)] ?? value) as SimpleProcessSettings['cooling_method']
 }
 
 function stepForModule(module: string): number {
@@ -567,43 +535,17 @@ export function ScientificExperimentForm({
       EMPTY_TIMELINE,
     ),
   )
-  const [segments, setSegments] = useState<Segment[]>(() =>
-    Array.isArray(initialProcessPayload['segments'])
-      ? (initialProcessPayload['segments'] as Segment[])
-      : [],
-  )
   const [channels, setChannels] = useState<Channel[]>(() =>
     Array.isArray(initialProcessPayload['channels'])
       ? (initialProcessPayload['channels'] as Channel[])
       : [],
   )
-  const [preservedProcessFields] = useState<Record<string, unknown>>(() =>
-    Object.fromEntries(
-      PRESERVED_PROCESS_FIELDS.filter(
-        (key) => key in initialProcessPayload,
-      ).map((key) => [key, initialProcessPayload[key]]),
-    ),
-  )
   const [processSettings, setProcessSettings] = useState<SimpleProcessSettings>(
     () => {
       const payload = initialProcessPayload
-      const legacyExternalFields = Array.isArray(payload['external_fields'])
-        ? (payload['external_fields'] as string[])
-        : []
       const fieldParams = Array.isArray(payload['field_params'])
         ? (payload['field_params'] as ActualField[])
-        : legacyExternalFields
-            .filter((item) =>
-              actualFieldTypes.includes(
-                item as (typeof actualFieldTypes)[number],
-              ),
-            )
-            .map((field_type) => ({
-              field_type: field_type as ActualField['field_type'],
-              start_min: null,
-              end_min: null,
-              parameters: [],
-            }))
+        : []
       return {
         process_duration_min: payload['process_duration_min'] as
           | number
@@ -614,11 +556,10 @@ export function ScientificExperimentForm({
         pressure_regime: payload[
           'pressure_regime'
         ] as SimpleProcessSettings['pressure_regime'],
-        cooling_method: normalizedCoolingMethod(payload['cooling_method']),
+        cooling_method: payload[
+          'cooling_method'
+        ] as SimpleProcessSettings['cooling_method'],
         cooling_other: payload['cooling_other'] as string | undefined,
-        cooling_rate_C_per_min: payload['cooling_rate_C_per_min'] as
-          | number
-          | undefined,
         lid_open_temperature_C: payload['lid_open_temperature_C'] as
           | number
           | undefined,
@@ -628,7 +569,6 @@ export function ScientificExperimentForm({
             ] as SimpleProcessSettings['preparation_operations'])
           : [],
         field_params: fieldParams,
-        external_fields: legacyExternalFields,
       }
     },
   )
@@ -887,12 +827,7 @@ export function ScientificExperimentForm({
   const totalDuration =
     processSettings.process_duration_min !== undefined
       ? processSettings.process_duration_min * 60
-      : simpleProcessEndSeconds(
-          segments,
-          channels,
-          processSettings.field_params,
-          events,
-        )
+      : simpleProcessEndSeconds(channels, processSettings.field_params, events)
   const peakTemperature = peakTemperatureC(channels)
   const hasTemperatureFile = channels.some(
     (channel) =>
@@ -904,13 +839,12 @@ export function ScientificExperimentForm({
       ? '请至少添加一条异常事件。'
       : null) ??
     simpleGrowthIssue(
-      segments,
       channels,
       processSettings,
       setupZoneCount,
       processFieldParamsValid,
     ) ??
-    timelineValidationIssue(segments, channels) ??
+    timelineValidationIssue(channels) ??
     simpleProcessEventsIssue(events)
   const targetIssue = targetValidationIssue(target)
   const startedAtValid = Boolean(
@@ -966,11 +900,8 @@ export function ScientificExperimentForm({
           load.ingredients,
           sourceSolutionMode(load.preparation_steps).hasSolution,
           load.loading_method !== 'gas_line' &&
-            !sourceSolutionMode(load.preparation_steps).immersionOnly &&
-            !sourceSolutionVolumesRecorded(load.preparation_steps),
+            !sourceSolutionMode(load.preparation_steps).hasSolution,
           sourceSolutionMode(load.preparation_steps).concentrationRequired,
-          sourceSolutionMode(load.preparation_steps).volumeRequired &&
-            !sourceSolutionVolumesRecorded(load.preparation_steps),
         ),
     ),
   )
@@ -1001,11 +932,9 @@ export function ScientificExperimentForm({
     }
     if (key === 'process_steps') {
       return {
-        segments,
         channels,
         process_events_confirmed: processEventsConfirmed,
         ...processSettings,
-        ...preservedProcessFields,
       }
     }
     if (key === 'process_events') return { items: events }
@@ -1606,7 +1535,6 @@ export function ScientificExperimentForm({
 
           {activeStep === 4 ? (
             <SimpleGrowthEditor
-              segments={segments}
               channels={channels}
               settings={processSettings}
               events={events}
@@ -1621,8 +1549,7 @@ export function ScientificExperimentForm({
                 errors.process_steps || errors.process_events,
               )}
               validationIssue={processTimelineIssue}
-              onTimelineChange={(nextSegments, nextChannels) => {
-                setSegments(nextSegments)
+              onTimelineChange={(nextChannels) => {
                 setChannels(nextChannels)
                 markDirty('process_steps')
               }}

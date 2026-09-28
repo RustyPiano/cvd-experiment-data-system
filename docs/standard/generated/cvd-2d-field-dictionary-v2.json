@@ -1,6 +1,6 @@
 {
   "standard_id": "cvd-2d-process",
-  "version": "v4.0-alpha.49",
+  "version": "v4.0-alpha.50",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "characterization_properties": {
@@ -21,8 +21,7 @@
           "status": {
             "enum": [
               "recorded",
-              "not_detected",
-              "not_analyzed"
+              "not_detected"
             ]
           },
           "position_unit": {
@@ -953,7 +952,6 @@
       "default_property_codes": [
         "observation_note"
       ],
-      "allowed_assertion_types": [],
       "common_condition_keys": [
         "observation_mode",
         "objective",
@@ -1671,7 +1669,6 @@
         "observation_note"
       ],
       "default_property_codes": [],
-      "allowed_assertion_types": [],
       "peak_position_units": [
         "cm⁻¹"
       ],
@@ -2666,7 +2663,6 @@
         "observation_note"
       ],
       "default_property_codes": [],
-      "allowed_assertion_types": [],
       "peak_position_units": [
         "nm",
         "eV"
@@ -3000,7 +2996,6 @@
         "afm_step_height",
         "observation_note"
       ],
-      "allowed_assertion_types": [],
       "common_condition_keys": [
         "mode"
       ]
@@ -3428,8 +3423,7 @@
       ],
       "default_property_codes": [
         "observation_note"
-      ],
-      "allowed_assertion_types": []
+      ]
     },
     "XRD": {
       "label_zh": "XRD",
@@ -3804,7 +3798,6 @@
         "observation_note"
       ],
       "default_property_codes": [],
-      "allowed_assertion_types": [],
       "peak_position_units": [
         "° 2θ",
         "° ω",
@@ -4457,7 +4450,6 @@
         "tem_lattice_spacing",
         "observation_note"
       ],
-      "allowed_assertion_types": [],
       "common_condition_keys": [
         "acquisition_mode",
         "image_mode",
@@ -4534,8 +4526,7 @@
       ],
       "default_property_codes": [
         "observation_note"
-      ],
-      "allowed_assertion_types": []
+      ]
     },
     "SHG": {
       "label_zh": "SHG",
@@ -5298,7 +5289,6 @@
         "observation_note"
       ],
       "default_property_codes": [],
-      "allowed_assertion_types": [],
       "peak_position_units": [
         "nm",
         "eV"
@@ -6381,7 +6371,7 @@
       "key": "amount",
       "label": "实际物料用量",
       "label_en": "Amount used",
-      "meaning": "本次投料量；溶液滴涂/旋涂在各处理步骤填写实际溶液用量，同一份混合溶液的体积只记录一次；旧物料条目用量兼容，不代表干燥后负载量",
+      "meaning": "本次投料量；溶液滴涂/旋涂在各处理步骤填写实际溶液用量，同一份混合溶液的体积只记录一次，不代表干燥后负载量",
       "input": "数值",
       "example": "20",
       "help": null,
@@ -6725,7 +6715,7 @@
       "key": "crystal_orientation",
       "label": "标称晶面取向（来自批次）",
       "label_en": "Nominal crystal plane (from lot)",
-      "meaning": "批次标称晶面、取向状态或供应商切型；SiO₂/Si指底层Si；历史混合文本保留原意",
+      "meaning": "批次标称晶面、取向状态或供应商切型；SiO₂/Si指底层Si",
       "input": "文本",
       "example": "(0 0 0 1)",
       "help": null,

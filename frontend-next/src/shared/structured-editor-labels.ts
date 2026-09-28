@@ -121,7 +121,6 @@ export function buildTreatmentStepsEditorLabels(
       rinse: t('structuredEditors.treatmentSteps.options.rinse'),
       wipe: t('structuredEditors.treatmentSteps.options.wipe'),
       other: t('structuredEditors.treatmentSteps.options.other'),
-      not_recorded: t('structuredEditors.treatmentSteps.options.not_recorded'),
     },
     types: {
       direct_load: t('structuredEditors.treatmentSteps.types.direct_load'),

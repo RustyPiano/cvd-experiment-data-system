@@ -51,17 +51,6 @@ describe('structured scientific fields', () => {
     })
   })
 
-  it('backfills the legacy tube selector/value shape into named dimensions', () => {
-    expect(
-      JSON.parse(
-        structuredValueFromRaw('tube_outer_diameter_wall_mm', {
-          option: 'tube_2_inch',
-          value: 2,
-        }),
-      ),
-    ).toEqual({ outer_diameter_mm: 50.8, wall_thickness_mm: 2 })
-  })
-
   it('recognizes the v3.7 tube and substrate structured inputs', () => {
     expect(isStructuredInput('管材质形状对象')).toBe(true)
     expect(isStructuredInput('炉管尺寸对象')).toBe(true)
@@ -282,7 +271,7 @@ describe('structured scientific fields', () => {
   })
 
   it('round-trips the conditional substrate placement fields', () => {
-    const encoded = structuredValueFromRaw('size_placement', {
+    const encoded = structuredValueFromRaw({
       length_mm: 12,
       width_mm: 10,
       thickness_mm: 0.5,
@@ -323,26 +312,6 @@ describe('structured scientific fields', () => {
       upright_growth_face_direction: 'downstream',
     })
   })
-
-  it.each([
-    [
-      'size_placement',
-      { option: '正放', value: 10 },
-      { length_mm: 10, placement: 'face_up' },
-    ],
-    [
-      'zone_thermocouple_distance_mm',
-      { option: '温区2…', value: 15 },
-      { zone_index: 2, distance_mm: 15 },
-    ],
-  ])(
-    'backfills the legacy %s selector/value shape without inventing dimensions',
-    (fieldKey, legacy, expected) => {
-      expect(JSON.parse(structuredValueFromRaw(fieldKey, legacy))).toEqual(
-        expected,
-      )
-    },
-  )
 
   it('rejects invalid geometry before it reaches JSON serialization', () => {
     expect(() =>

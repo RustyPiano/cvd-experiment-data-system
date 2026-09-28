@@ -119,7 +119,7 @@ def ensure_results_editable(experiment: ExperimentRun) -> None:
 
 def ensure_files_editable(experiment: ExperimentRun, asset_role: str) -> None:
     """Locked runs allow result evidence only; process evidence remains frozen."""
-    locked_writable_roles = {"characterization_file", "direct_observation_file"}
+    locked_writable_roles = {"characterization_file"}
     if experiment.status == ExperimentStatus.INVALID or (
         experiment.status in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}
         and asset_role not in locked_writable_roles

@@ -61,91 +61,9 @@ export function encodeStructuredValue(value: Record<string, unknown>): string {
   return Object.keys(compact).length > 0 ? JSON.stringify(compact) : ''
 }
 
-function legacyOption(
-  option: unknown,
-  allowed: ReadonlySet<string>,
-): string | undefined {
-  const code = canonicalOption(String(option ?? ''))
-  return allowed.has(code) ? code : undefined
-}
-
-function legacyZoneIndex(option: unknown): number | undefined {
-  const match = canonicalOption(String(option ?? '')).match(/^zone_([1-9]\d*)$/)
-  return match ? Number(match[1]) : undefined
-}
-
-export function structuredValueFromRaw(fieldKey: string, raw: unknown): string {
+export function structuredValueFromRaw(raw: unknown): string {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return ''
-  const value = raw as Record<string, unknown>
-  const legacyComposite = 'value' in value || 'option' in value
-  if (fieldKey === 'tube_outer_diameter_wall_mm' && legacyComposite) {
-    const diameters: Record<string, number> = {
-      tube_1_inch: 25.4,
-      tube_2_inch: 50.8,
-      tube_4_inch: 101.6,
-      '1″': 25.4,
-      '2″': 50.8,
-      '4″': 101.6,
-    }
-    return encodeStructuredValue({
-      outer_diameter_mm:
-        diameters[String(value.option ?? '')] ?? value.outer_diameter_mm,
-      wall_thickness_mm: value.value ?? value.wall_thickness_mm,
-    })
-  }
-  if (fieldKey === 'tube_material_shape' && legacyComposite) {
-    const combined = canonicalOption(String(value.option ?? ''))
-    const combinedParts: Record<string, { material: string; shape: string }> = {
-      quartz_round: { material: 'quartz', shape: 'round' },
-      alumina_round: { material: 'alumina', shape: 'round' },
-    }
-    const fallback = combinedParts[combined]
-    return encodeStructuredValue({
-      material:
-        value.material ??
-        fallback?.material ??
-        legacyOption(value.option, TUBE_MATERIAL_CODES),
-      material_other: value.material_other,
-      shape:
-        value.shape ??
-        fallback?.shape ??
-        legacyOption(value.value, TUBE_SHAPE_CODES),
-      shape_other: value.shape_other,
-    })
-  }
-  if (fieldKey === 'size_placement' && legacyComposite) {
-    return encodeStructuredValue({
-      length_mm: value.length_mm ?? value.value,
-      width_mm: value.width_mm,
-      thickness_mm: value.thickness_mm,
-      placement: value.placement ?? legacyOption(value.option, PLACEMENT_CODES),
-      tilt_angle_deg: value.tilt_angle_deg,
-      tilt_azimuth_deg: value.tilt_azimuth_deg,
-      upright_growth_face_direction: value.upright_growth_face_direction,
-      placement_other: value.placement_other,
-    })
-  }
-  if (fieldKey === 'zone_thermocouple_distance_mm' && legacyComposite) {
-    return encodeStructuredValue({
-      zone_index: value.zone_index ?? legacyZoneIndex(value.option),
-      distance_mm: value.distance_mm ?? value.value,
-    })
-  }
-  if (
-    fieldKey === 'surface_roughness' ||
-    fieldKey === 'substrate_surface_roughness'
-  ) {
-    return encodeStructuredValue({
-      availability:
-        value.availability ??
-        (value.metric != null || value.value_nm != null
-          ? 'reported'
-          : undefined),
-      metric: value.metric,
-      value_nm: value.value_nm,
-    })
-  }
-  return encodeStructuredValue(value)
+  return encodeStructuredValue(raw as Record<string, unknown>)
 }
 
 function finite(
@@ -406,11 +324,9 @@ export function structuredPayload(
     fieldKey === 'surface_roughness' ||
     fieldKey === 'substrate_surface_roughness'
   ) {
-    const availability = canonicalOption(
-      String(
-        object.availability ??
-          (object.metric != null || object.value_nm != null ? 'reported' : ''),
-      ),
+    const availability = String(
+      object.availability ??
+        (object.metric != null || object.value_nm != null ? 'reported' : ''),
     )
     if (!ROUGHNESS_AVAILABILITIES.has(availability)) {
       throw new RangeError('roughness availability is required')

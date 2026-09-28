@@ -39,29 +39,13 @@ def test_naive_datetime_uses_configured_non_default_zoneinfo(monkeypatch) -> Non
     assert normalized.isoformat() == "2026-07-24T09:30:00-04:00"
 
 
-def test_scientific_field_examples_and_meanings_are_machine_unambiguous() -> None:
+def test_started_at_example_carries_a_utc_offset() -> None:
     doc = v2_field_source.load_field_source()
     fields = {field["key"]: field for field in v2_field_source.experiment_fields(doc)}
 
     started_at = fields["started_at"]
     parsed_start = datetime.fromisoformat(started_at["example"])
     assert parsed_start.utcoffset() is not None
-
-    gas_feeds = fields["gas_feeds"]
-    assert gas_feeds["input"] == "逐气体供气数组"
-    assert "每种气体独立" in gas_feeds["meaning"]
-    assert "lot_ref.snapshot" in gas_feeds["note"]
-    assert "end_min必须大于start_min" in gas_feeds["note"]
-
-    temperature_program = fields["temperature_program"]
-    assert temperature_program["input"] == "分温区温度程序"
-    assert "严格递增" in temperature_program["note"]
-    assert "拒绝任意字符串" in temperature_program["note"]
-
-    pressure = fields["pressure_system"]
-    assert "绝对压力" in pressure["label"]
-    assert "绝对压力" in pressure["meaning"]
-    assert "表压" in pressure["help"]
 
 
 def test_material_lot_evidence_and_setup_structures_are_unambiguous() -> None:
@@ -111,31 +95,3 @@ def test_material_lot_evidence_and_setup_structures_are_unambiguous() -> None:
     assert tube["input"] == "管材质形状对象"
     assert "独立保存" in tube["note"]
     assert v2_field_source.field_option_values("tube_material_shape", doc) == set()
-
-
-def test_nested_structured_controlled_values_export_as_machine_codes() -> None:
-    normalized = v2_field_source.canonicalize_controlled_values(
-        {
-            "gas_feeds": [
-                {
-                    "species": "H₂",
-                    "measurement_source": "MFC",
-                    "intervals": [{"start_min": 0, "end_min": 10, "flow_sccm": 20}],
-                }
-            ],
-            "field_devices": ["等离子体"],
-            "field_params": [{"field_type": "等离子体"}],
-            "pretreatment_steps": [{"type": "等离子体"}],
-            "tube_material_shape": {"material": "石英", "shape": "圆形"},
-        }
-    )
-
-    assert normalized["gas_feeds"][0]["species"] == "H2"
-    assert normalized["gas_feeds"][0]["measurement_source"] == "mfc"
-    assert normalized["field_devices"] == ["plasma"]
-    assert normalized["field_params"][0]["field_type"] == "plasma"
-    assert normalized["pretreatment_steps"][0]["type"] == "plasma_treatment"
-    assert normalized["tube_material_shape"] == {
-        "material": "quartz",
-        "shape": "round",
-    }

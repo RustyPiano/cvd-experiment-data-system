@@ -24,7 +24,7 @@ describe('generated field metadata', () => {
     expect(Object.values(entities).flat()).toHaveLength(53)
     expect(optionLabelsZh.gas_exchange).toBe('气氛置换')
     expect(optionLabelsEn.gas_exchange).toBe('Atmosphere exchange')
-    expect(optionCodes['气路置换']).toBe('gas_exchange')
+    expect(optionCodes['气氛置换']).toBe('gas_exchange')
   })
 
   it('publishes the current substrate and gas-cylinder fields', () => {

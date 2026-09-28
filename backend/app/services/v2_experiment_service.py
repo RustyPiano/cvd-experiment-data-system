@@ -21,9 +21,6 @@ from app.schemas.generated.v2_module_payload import validate_v2_module_payload
 from app.schemas.scientific import (
     RunRevisionListResponse,
     RunRevisionRead,
-    normalize_process_event_for_read,
-    normalize_process_preparation_for_read,
-    normalize_source_loads_for_read,
 )
 from app.schemas.v2 import (
     V2ExperimentCreate,
@@ -58,7 +55,6 @@ from app.services.v2_entity_snapshot_service import (
 )
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
-    canonical_option_value,
     normalize_offset_datetime,
     validate_chemical_formula,
 )
@@ -448,8 +444,6 @@ class V2ExperimentService:
             if module_key == "substrates":
                 payload_json = self._prefill_material_lot_fields(module_key, payload_json)
                 payload_json, substrate_source_ids = self._strip_substrate_source_ids(payload_json)
-            if module_key == "precursors":
-                payload_json = self._restore_legacy_precursor_roles(run, payload_json)
             if module_key in {
                 "basic_info",
                 "target_product",
@@ -493,11 +487,7 @@ class V2ExperimentService:
             validated = self.revisions.normalize_process_references(run, validated)
             self._validate_process_zone_indices(run, validated)
         if module_key == "precursors":
-            self._validate_precursor_substrate_references(
-                run.id,
-                validated,
-                legacy_roles=self._legacy_precursor_roles(run),
-            )
+            self._validate_precursor_substrate_references(run.id, validated)
             self.revisions.validate_source_references(validated)
         if module_key == "target_product":
             run.material_system = " / ".join(
@@ -637,8 +627,6 @@ class V2ExperimentService:
                 }
             elif payload.module_key == "substrates":
                 payload_json, substrate_source_ids = self._strip_substrate_source_ids(payload_json)
-            elif payload.module_key == "precursors":
-                payload_json = self._restore_legacy_precursor_roles(run, payload_json)
             try:
                 if payload.module_key in {
                     "basic_info",
@@ -705,29 +693,14 @@ class V2ExperimentService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"missing": [{"key": "setup_ref", "requirement": "required"}]},
             )
-        self._validate_precursor_substrate_references(
-            run.id,
-            validated_modules["precursors"],
-            legacy_roles=self._legacy_precursor_roles(run),
-        )
+        self._validate_precursor_substrate_references(run.id, validated_modules["precursors"])
         return validated_modules
 
     def _validate_precursor_substrate_references(
         self,
         run_id: UUID,
         precursor_payload: dict[str, Any],
-        *,
-        legacy_roles: dict[tuple[str, str, str], tuple[str, str]] | None = None,
     ) -> None:
-        allowed = legacy_roles or {}
-        for item in precursor_payload.get("items") or []:
-            for ingredient in item.get("ingredients") or []:
-                role = ingredient.get("function_role")
-                if not role:
-                    continue
-                key = self._precursor_ingredient_key(item, ingredient)
-                if allowed.get(key) != (item.get("loading_method"), role):
-                    self._raise_legacy_role_invalid()
         valid_ids = {
             str(item["source_id"])
             for item in self._substrate_items(run_id)
@@ -749,75 +722,6 @@ class V2ExperimentService:
                         ]
                     },
                 )
-
-    def _restore_legacy_precursor_roles(
-        self,
-        run: ExperimentRun,
-        precursor_payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        allowed = self._legacy_precursor_roles(run)
-        for item in precursor_payload.get("items") or []:
-            if not isinstance(item, dict):
-                continue
-            for ingredient in item.get("ingredients") or []:
-                if not isinstance(ingredient, dict):
-                    continue
-                key = self._precursor_ingredient_key(item, ingredient)
-                legacy = allowed.get(key)
-                supplied = ingredient.get("function_role")
-                if legacy and legacy[0] == item.get("loading_method"):
-                    if supplied not in {None, legacy[1]}:
-                        self._raise_legacy_role_invalid()
-                    ingredient["function_role"] = legacy[1]
-                elif supplied is not None:
-                    self._raise_legacy_role_invalid()
-        return precursor_payload
-
-    def _legacy_precursor_roles(
-        self,
-        run: ExperimentRun,
-    ) -> dict[tuple[str, str, str], tuple[str, str]]:
-        if run.draft_supersedes_revision_id is None:
-            return {}
-        revision = self.db.get(RunRevision, run.draft_supersedes_revision_id)
-        if revision is None or revision.schema_version != "v4.0-alpha.15":
-            return {}
-        roles: dict[tuple[str, str, str], tuple[str, str]] = {}
-        precursors = (revision.content_json.get("modules") or {}).get("precursors") or {}
-        for item in precursors.get("items") or []:
-            for ingredient in item.get("ingredients") or []:
-                role = ingredient.get("function_role")
-                if role:
-                    roles[self._precursor_ingredient_key(item, ingredient)] = (
-                        item.get("loading_method"),
-                        role,
-                    )
-        return roles
-
-    @staticmethod
-    def _precursor_ingredient_key(
-        item: dict[str, Any],
-        ingredient: dict[str, Any],
-    ) -> tuple[str, str, str]:
-        return (
-            str(item.get("load_key") or ""),
-            str(ingredient.get("material_lot_id") or ""),
-            str(ingredient.get("material_lot_version") or ""),
-        )
-
-    @staticmethod
-    def _raise_legacy_role_invalid() -> None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "invalid": [
-                    {
-                        "key": "function_role",
-                        "reason": "legacy_read_only",
-                    }
-                ]
-            },
-        )
 
     @staticmethod
     def _strip_substrate_source_ids(
@@ -1152,8 +1056,8 @@ class V2ExperimentService:
         )
 
     def _validate_substrate_lot_identity(self, item: dict[str, Any], version: Any) -> None:
-        material = canonical_option_value(item.get("material"))
-        lot_material = canonical_option_value(version.attrs.get("substrate_material"))
+        material = item.get("material")
+        lot_material = version.attrs.get("substrate_material")
         if lot_material and lot_material != material:
             self._raise_invalid_reference("lot_ref", "identity")
 
@@ -1267,24 +1171,12 @@ class V2ExperimentService:
         )
 
     def _module_read(self, payload: ExperimentModulePayload) -> V2ModulePayloadRead:
-        payload_json = payload.payload_json
-        if payload.module_key == "precursors":
-            payload_json = normalize_source_loads_for_read(payload_json)
-        elif payload.module_key == "process_steps":
-            payload_json = normalize_process_preparation_for_read(payload_json)
-        elif payload.module_key == "process_events":
-            payload_json = {
-                **payload_json,
-                "items": [
-                    normalize_process_event_for_read(item) for item in payload_json.get("items", [])
-                ],
-            }
         return V2ModulePayloadRead(
             id=payload.id,
             experiment_run_id=payload.experiment_run_id,
             module_key=payload.module_key,
             schema_version=payload.schema_version,
-            payload_json=payload_json,
+            payload_json=payload.payload_json,
             created_at=payload.created_at,
             updated_at=payload.updated_at,
         )

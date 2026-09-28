@@ -1384,7 +1384,6 @@ export function SimpleCharacterizationWorkspace({
           },
           analyses: [],
           properties,
-          assertions: [],
         }
         const { default: validateMeasurement } =
           await import('@/shared/generated/measurement-validator.mjs')

@@ -127,11 +127,9 @@ describe('i18n scaffolding', () => {
     expect(slashEntries.map(([path]) => path)).toEqual([
       'en.experimentsV2.sections.targetProduct.guides.vertical',
       'en.experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
-      'en.structuredEditors.coolingParams.coolingRateCPerMin',
       'en.structuredEditors.treatmentSteps.types.uv_ozone_treatment',
       'zh.experimentsV2.sections.targetProduct.guides.vertical',
       'zh.experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
-      'zh.structuredEditors.coolingParams.coolingRateCPerMin',
       'zh.structuredEditors.treatmentSteps.types.uv_ozone_treatment',
     ])
     for (const [, value] of slashEntries) {
@@ -139,11 +137,9 @@ describe('i18n scaffolding', () => {
     }
     expect(slashEntries[0]?.[1]).toContain('MoS2/WS2')
     expect(slashEntries[1]?.[1]).toContain('P6₃/mmc')
-    expect(slashEntries[2]?.[1]).toContain('°C/min')
-    expect(slashEntries[3]?.[1]).toContain('UV/ozone')
-    expect(slashEntries[4]?.[1]).toContain('MoS2/WS2')
-    expect(slashEntries[5]?.[1]).toContain('P6₃/mmc')
-    expect(slashEntries[6]?.[1]).toContain('°C/min')
+    expect(slashEntries[2]?.[1]).toContain('UV/ozone')
+    expect(slashEntries[3]?.[1]).toContain('MoS2/WS2')
+    expect(slashEntries[4]?.[1]).toContain('P6₃/mmc')
     expect(
       i18n.getResourceBundle('zh', 'common').structuredEditors.treatmentSteps
         .types.uv_ozone_treatment,

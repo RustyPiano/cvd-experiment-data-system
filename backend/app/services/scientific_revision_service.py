@@ -15,7 +15,6 @@ from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.scientific import (
     ProcessChannel,
-    ProcessSegment,
     RunContributor,
     RunFeature,
     RunRevision,
@@ -330,7 +329,6 @@ class ScientificRevisionService:
         timeline = modules["process_steps"]
         process_end = max(
             0,
-            *(item["end_s"] for item in timeline["segments"]),
             *(
                 point.get("end_s", point["start_s"])
                 for channel in timeline["channels"]
@@ -348,13 +346,12 @@ class ScientificRevisionService:
             ),
         )
         referenced: dict[UUID, tuple[str, str]] = {}
-        if timeline.get("process_duration_min") is not None:
-            explicit_end = timeline["process_duration_min"] * 60
-            if process_end > explicit_end:
-                self._invalid_process_reference(
-                    "process_steps.process_duration_min", "outside_process_timeline"
-                )
-            process_end = explicit_end
+        explicit_end = timeline["process_duration_min"] * 60
+        if process_end > explicit_end:
+            self._invalid_process_reference(
+                "process_steps.process_duration_min", "outside_process_timeline"
+            )
+        process_end = explicit_end
         for channel in timeline["channels"]:
             if channel.get("file_asset_id"):
                 referenced[UUID(channel["file_asset_id"])] = (
@@ -670,7 +667,6 @@ class ScientificRevisionService:
                         material_lot_id=lot_id,
                         material_lot_version=version_number,
                         material_snapshot_json=material_lot_version_snapshot(version),
-                        function_role=ingredient.get("function_role"),
                         amount=ingredient.get("amount"),
                         unit=ingredient.get("unit"),
                         concentration_value=ingredient.get("concentration_value"),
@@ -689,19 +685,6 @@ class ScientificRevisionService:
         excluded_ranges: list[dict[str, Any]],
         process_end: float,
     ) -> None:
-        for item in payload["segments"]:
-            self.db.add(
-                ProcessSegment(
-                    run_revision_id=revision.id,
-                    segment_key=item["segment_key"],
-                    segment_type=item["segment_type"],
-                    sequence=item["sequence"],
-                    start_s=item["start_s"],
-                    end_s=item["end_s"],
-                    label=item.get("label"),
-                    note=item.get("note"),
-                )
-            )
         for item in payload["channels"]:
             statistics = None
             source_file_sha256 = None
@@ -855,7 +838,6 @@ class ScientificRevisionService:
                     ordinal=index,
                     source="substrates.items.material",
                 )
-        timeline = modules["process_steps"]
         numeric_by_type_and_source: dict[tuple[str, str], list[float]] = {}
         gas_ordinal = 0
         ramp_rates: dict[str, list[float]] = {"setpoint": [], "measured": []}
@@ -963,19 +945,6 @@ class ScientificRevisionService:
                         unit="Pa",
                         source=f"process_steps.channels.pressure.{source_type}",
                     )
-        growth_duration = sum(
-            item["end_s"] - item["start_s"]
-            for item in timeline["segments"]
-            if item["segment_type"] in {"reaction", "nucleation", "growth"}
-        )
-        if growth_duration > 0:
-            self._feature(
-                revision,
-                "growth_duration_s",
-                numeric=growth_duration,
-                unit="s",
-                source="process_steps.segments",
-            )
         self._feature(
             revision,
             "has_process_event",
