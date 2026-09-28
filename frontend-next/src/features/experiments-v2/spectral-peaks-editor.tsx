@@ -1,3 +1,4 @@
+import { SCAN_METHODS } from '@/shared/instrument-presets'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -61,13 +62,13 @@ export function peakSeriesIssue(
 ): string | null {
   if (!value.status) return null
   if (
-    ['Raman', 'PL'].includes(method) &&
+    SCAN_METHODS.includes(method) &&
     value.peaks.some((peak) => peak.height.trim() || peak.area.trim()) &&
     !value.intensityUnit
   )
     return 'intensityRequired'
   if (
-    ['Raman', 'PL'].includes(method) &&
+    SCAN_METHODS.includes(method) &&
     value.peaks.some(
       (peak) => peak.fwhm.trim() || peak.height.trim() || peak.area.trim(),
     ) &&
@@ -475,7 +476,7 @@ export function SpectralPeaksEditor({
         {tr('add')}
       </Button>
       {value.status === 'recorded' &&
-      (!['Raman', 'PL'].includes(method) ||
+      (!SCAN_METHODS.includes(method) ||
         value.peaks.some((peak) => peak.height || peak.area)) ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-2">

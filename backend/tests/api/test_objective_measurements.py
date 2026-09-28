@@ -165,13 +165,17 @@ def test_xrd_rocking_curve_has_omega_peaks_and_no_bragg_d_spacing():
     assert not validator.is_valid(payload)
 
 
-@pytest.mark.parametrize("data_type", ["spectrum", "polarization_scan", "image", "power_scan"])
-def test_shg_uses_typed_data_modes_without_material_verdicts(data_type):
+@pytest.mark.parametrize(
+    "detection_kind,acquisition_kind",
+    [("spectrometer", "single"), ("point_detector", "single"), ("camera", None)],
+)
+def test_shg_uses_typed_data_modes_without_material_verdicts(detection_kind, acquisition_kind):
     payload = peak_payload()
     payload["measurement"].update(
         method_profile="SHG",
         typed_conditions={
-            "data_type": data_type,
+            "detection_kind": detection_kind,
+            **({"acquisition_kind": acquisition_kind} if acquisition_kind else {}),
             "excitation_wavelength_nm": 800,
             "excitation_mode": "pulsed",
             "pulse_width_fs": 100,

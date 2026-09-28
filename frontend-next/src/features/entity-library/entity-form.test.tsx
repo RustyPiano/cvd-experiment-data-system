@@ -424,6 +424,77 @@ describe('EntityForm — multi-select values', () => {
     },
   )
 
+  it('registers SHG lasers, objectives and detection paths', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    renderForm({
+      kind: 'instrument',
+      onSubmit,
+      defaultData: {
+        instrument_code: 'SHG-1',
+        capabilities: [
+          {
+            code: 'SHG',
+            configuration: {
+              shg: {
+                lasers: [
+                  {
+                    name: 'Ti:S',
+                    conditions: {
+                      excitation_wavelength_nm: 800,
+                      excitation_mode: 'pulsed',
+                      power_setting_unit: 'percent',
+                      pulse_width_fs: 140,
+                    },
+                  },
+                ],
+                objectives: [
+                  {
+                    name: '60x',
+                    conditions: {
+                      objective_magnification: 60,
+                      objective_na: 0.75,
+                      objective_immersion: 'air',
+                    },
+                  },
+                ],
+                detections: [
+                  {
+                    name: 'PMT',
+                    references: { lasers: 'Ti:S' },
+                    conditions: {
+                      detection_kind: 'point_detector',
+                      detector: 'PMT',
+                      filter_configuration: '400/40',
+                      collection_geometry: 'reflection',
+                    },
+                  },
+                ],
+              },
+              presets: [
+                {
+                  name: 'scan',
+                  conditions: { pixel_dwell_time_us: 20 },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+    await user.type(screen.getByRole('spinbutton', { name: /^重复频率/ }), '80')
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    const configuration =
+      onSubmit.mock.calls[0][0].capabilities[0].configuration
+    expect(configuration.shg.lasers[0].conditions.repetition_rate_MHz).toBe(80)
+    expect(configuration.presets[0].conditions).toEqual({
+      pixel_dwell_time_us: 20,
+    })
+  })
+
   it('requires objective NA and preserves the previous hardware version', async () => {
     const onSubmit = vi.fn()
     const user = userEvent.setup()

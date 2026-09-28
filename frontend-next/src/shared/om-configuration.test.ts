@@ -10,6 +10,7 @@ import type { OMCatalog } from './om-configuration'
 import {
   instrumentPresetsAreValid,
   presetPowerUnitMatches,
+  reconcileConditions,
 } from './instrument-presets'
 
 const ramanCatalog: OMCatalog = {
@@ -275,4 +276,56 @@ it('uses registered PL hardware while keeping measured values out of presets', (
   ).toBe(true)
   delete plCatalog.objectives[0].conditions.objective_na
   expect(omCatalogValid(plCatalog, 'PL')).toBe(false)
+})
+
+describe('SHG detection paths', () => {
+  it('shows only the time recorded by the detection path', () => {
+    const visible = (conditions: Record<string, string>) =>
+      omVisibleFields(undefined, {}, conditions, 'SHG')
+    expect(visible({ detection_kind: 'spectrometer' })).toContain(
+      'integration_time_s',
+    )
+    expect(
+      visible({
+        detection_kind: 'point_detector',
+        acquisition_kind: 'mapping',
+      }),
+    ).not.toContain('integration_time_s')
+    expect(visible({ detection_kind: 'camera' })).toContain('resolution_px')
+    expect(visible({ detection_kind: 'spectrometer' })).not.toContain(
+      'resolution_px',
+    )
+    expect(
+      reconcileConditions('SHG', {
+        detection_kind: 'point_detector',
+        acquisition_kind: 'mapping',
+        integration_time_s: '1',
+        pixel_dwell_time_us: '20',
+      }),
+    ).toEqual({
+      detection_kind: 'point_detector',
+      acquisition_kind: 'mapping',
+      pixel_dwell_time_us: '20',
+    })
+  })
+
+  it('rejects presets mixing detection-specific times or sample records', () => {
+    const valid = (conditions: Record<string, unknown>) =>
+      instrumentPresetsAreValid('SHG', {
+        presets: [{ name: 'p', conditions }],
+      })
+    expect(valid({ pixel_dwell_time_us: 20, accumulations: 2 })).toBe(true)
+    expect(valid({ exposure_time_ms: 50 })).toBe(true)
+    expect(valid({ pixel_dwell_time_us: 20, integration_time_s: 1 })).toBe(
+      false,
+    )
+    expect(
+      valid({
+        exposure_time_ms: 50,
+        spectral_range_nm: { min: 380, max: 420 },
+      }),
+    ).toBe(false)
+    expect(valid({ sample_preparation: 'anneal' })).toBe(false)
+    expect(valid({ measured_power_mW: 1 })).toBe(false)
+  })
 })

@@ -3,12 +3,18 @@ import {
   omConfiguration,
   ramanConfiguration,
   plConfiguration,
+  shgConfiguration,
 } from './generated/field-metadata'
 import {
   characterizationConditionIssue,
   conditionMatches,
 } from './characterization-conditions'
-import { conditionDraft, reconcileConditions } from './instrument-presets'
+import {
+  SCAN_METHODS,
+  conditionDraft,
+  reconcileConditions,
+  shgInapplicable,
+} from './instrument-presets'
 
 export type OMEntry = {
   name: string
@@ -22,18 +28,20 @@ export type OMCatalog = Record<string, OMEntry[]>
 export type OMSelection = Record<string, string>
 
 export const opticalSpec = (method = 'optical_microscopy') =>
-  method === 'PL'
-    ? plConfiguration
-    : method === 'Raman'
-      ? ramanConfiguration
-      : omConfiguration
+  method === 'SHG'
+    ? shgConfiguration
+    : method === 'PL'
+      ? plConfiguration
+      : method === 'Raman'
+        ? ramanConfiguration
+        : omConfiguration
 
 export function omCatalog(
   configuration?: Record<string, unknown>,
   method = 'optical_microscopy',
 ): OMCatalog | undefined {
   return configuration?.[
-    ['Raman', 'PL'].includes(method) ? method.toLowerCase() : 'om'
+    SCAN_METHODS.includes(method) ? method.toLowerCase() : 'om'
   ] as OMCatalog | undefined
 }
 
@@ -127,7 +135,7 @@ export function omDefaultSelection(
   digital: boolean,
   method = 'optical_microscopy',
 ): OMSelection {
-  if (['Raman', 'PL'].includes(method)) {
+  if (SCAN_METHODS.includes(method)) {
     const selection: OMSelection = {}
     for (const section of Object.keys(opticalSpec(method).sections)) {
       const entries = (catalog[section] ?? []).filter((entry) =>
@@ -157,7 +165,7 @@ export function omSelectionComplete(
   digital: boolean,
   method = 'optical_microscopy',
 ) {
-  if (['Raman', 'PL'].includes(method))
+  if (SCAN_METHODS.includes(method))
     return opticalSpec(method).required_sections!.every((section) =>
       catalog[section]?.some(
         (entry) =>
@@ -189,7 +197,7 @@ export function omEntryConditions(
   method = 'optical_microscopy',
 ) {
   const fixed = omFixedConditions(catalog, selection, method)
-  if (['Raman', 'PL'].includes(method)) {
+  if (SCAN_METHODS.includes(method)) {
     const hardware = new Set(
       Object.values(opticalSpec(method).sections).flatMap((spec) => [
         ...spec.fields,
@@ -244,8 +252,11 @@ export function omVisibleFields(
   conditions: Record<string, string>,
   method = 'optical_microscopy',
 ) {
-  if (['Raman', 'PL'].includes(method)) {
-    if (!catalog) return opticalSpec(method).manual_fields
+  if (SCAN_METHODS.includes(method)) {
+    const fields = opticalSpec(method).manual_fields.filter(
+      (key) => method !== 'SHG' || !shgInapplicable(key, conditions),
+    )
+    if (!catalog) return fields
     const { adjustable } = omFixedConditions(catalog, selection, method)
     const hardware = new Set(
       Object.values(opticalSpec(method).sections).flatMap((spec) => [
@@ -253,7 +264,7 @@ export function omVisibleFields(
         ...(spec.name_field ? [spec.name_field] : []),
       ]),
     )
-    return opticalSpec(method).manual_fields.filter(
+    return fields.filter(
       (key) =>
         (!hardware.has(key) || adjustable.has(key)) &&
         !(

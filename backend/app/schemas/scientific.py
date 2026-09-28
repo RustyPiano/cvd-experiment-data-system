@@ -1599,12 +1599,24 @@ class Resolution2D(BaseModel):
     height: int = Field(ge=1, strict=True)
 
 
+SCAN_METHODS = frozenset({"Raman", "PL", "SHG"})
+
+
 class MeasurementConditions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sampling_optic: str | None = Field(default=None, max_length=128, pattern=r"\S")
     power_setting_unit: str | None = Field(default=None, max_length=128, pattern=r"\S")
     sample_power_mW: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    measured_power_mW: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
+    power_measurement_position: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    detection_kind: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    waveplate_angle_deg: float | None = Field(
+        default=None, ge=-360, le=360, strict=True, allow_inf_nan=False
+    )
+    sample_rotation_deg: float | None = Field(
+        default=None, ge=-360, le=360, strict=True, allow_inf_nan=False
+    )
     environment_kind: str | None = Field(default=None, max_length=128, pattern=r"\S")
     temperature_control: str | None = Field(default=None, max_length=128, pattern=r"\S")
     wavenumber_calibration: str | None = Field(default=None, max_length=1000, pattern=r"\S")
@@ -1948,14 +1960,13 @@ class MeasurementRunCreate(BaseModel):
     def validate_measurement(self) -> Self:
         if self.instrument_configuration and self.method_profile not in {
             "optical_microscopy",
-            "Raman",
-            "PL",
+            *SCAN_METHODS,
         }:
-            raise ValueError("instrument_configuration applies only to OM, Raman and PL")
-        if self.method_profile not in {"Raman", "PL"} and (
+            raise ValueError("instrument_configuration applies only to OM, Raman, PL and SHG")
+        if self.method_profile not in SCAN_METHODS and (
             self.scan_file_id or self.variable_conditions or self.file_intensity_units
         ):
-            raise ValueError("spectral file metadata applies only to Raman and PL")
+            raise ValueError("scan file metadata applies only to Raman, PL and SHG")
         if self.file_response_corrections and self.method_profile != "PL":
             raise ValueError("file response corrections apply only to PL")
         if (self.instrument_id is None) != (self.instrument_version is None):
@@ -2002,7 +2013,7 @@ class MeasurementRunCreate(BaseModel):
         validate_profile_conditions(
             self.method_profile, conditions, variable_conditions=self.variable_conditions
         )
-        if self.method_profile in {"Raman", "PL"}:
+        if self.method_profile in SCAN_METHODS:
             spec = load_field_source()[f"{self.method_profile.lower()}_configuration"]
             if len(set(self.variable_conditions)) != len(self.variable_conditions) or set(
                 self.variable_conditions
@@ -2120,7 +2131,7 @@ def validate_profile_conditions(
         scan = conditions.get("scan_range_deg")
         if scan and not 0 <= scan["start"] < scan["end"] <= 180:
             raise ValueError("2theta scan range must be within 0 to 180 degrees")
-    if method_profile in {"Raman", "PL"}:
+    if method_profile in SCAN_METHODS:
         if "power_setting" in conditions:
             unit = conditions.get("power_setting_unit")
             if unit not in {"percent", "mW", "level"}:
@@ -2136,9 +2147,47 @@ def validate_profile_conditions(
     if method_profile == "PL":
         if conditions.get("slit_setting_kind") == "bandwidth" and "slit_width_um" in conditions:
             raise ValueError("spectral bandwidth and physical slit width are distinct settings")
+    if method_profile in {"PL", "SHG"}:
         width, rate = conditions.get("pulse_width_fs"), conditions.get("repetition_rate_MHz")
         if width and rate and width * rate >= 1e9:
             raise ValueError("pulse duration must be shorter than the repetition period")
+    if method_profile == "SHG":
+        recorded = conditions.keys() | set(variable_conditions or [])
+        if "integration_time_s" in recorded and shg_time_field(conditions) != "integration_time_s":
+            raise ValueError("a point-detector scan records pixel dwell time")
+        if recorded & SHG_IMAGE_FIELDS and not shg_records_image(conditions):
+            raise ValueError("image size applies to camera images or spatial scans")
+        if {"incident_polarization_angle_deg", "waveplate_angle_deg"} <= recorded:
+            raise ValueError("record either the polarization angle or the half-wave plate angle")
+
+
+SHG_IMAGE_FIELDS = frozenset({"resolution_px", "image_scale_um_per_px", "image_scale_y_um_per_px"})
+
+
+def shg_records_image(conditions: dict) -> bool:
+    return (
+        conditions.get("detection_kind") == "camera"
+        or conditions.get("acquisition_kind") == "mapping"
+    )
+
+
+def shg_preset_context(conditions: dict) -> dict:
+    """Detection settings implied by an SHG preset's time and spectral fields."""
+    if "exposure_time_ms" in conditions:
+        return {"detection_kind": "camera"}
+    if "pixel_dwell_time_us" in conditions:
+        return {"detection_kind": "point_detector", "acquisition_kind": "mapping"}
+    return {"detection_kind": "spectrometer"}
+
+
+def shg_time_field(conditions: dict) -> str | None:
+    """The per-point time recorded by an SHG detection path."""
+    kind = conditions.get("detection_kind")
+    if kind == "camera":
+        return "exposure_time_ms"
+    if kind == "point_detector" and conditions.get("acquisition_kind") == "mapping":
+        return "pixel_dwell_time_us"
+    return "integration_time_s" if kind in {"spectrometer", "point_detector"} else None
 
 
 class AnalysisRunCreate(BaseModel):
@@ -2481,14 +2530,14 @@ class MeasurementBundleCreate(BaseModel):
                 raise ValueError(f"{item.property_code} does not apply to mode {mode}")
             if item.property_code == "spectral_peaks":
                 series = item.structured_value
-                if self.measurement.method_profile in {"Raman", "PL"}:
+                if self.measurement.method_profile in SCAN_METHODS:
                     source_id = series.get("source_file_id")
                     units = self.measurement.file_intensity_units
                     file_unit = units.get(UUID(source_id)) if source_id else None
                     if any("height" in peak or "area" in peak for peak in series["peaks"]):
                         if file_unit and series.get("intensity_unit") != file_unit:
                             raise ValueError("peak intensity units must match their source file")
-                    if self.measurement.method_profile == "PL":
+                    if self.measurement.method_profile in {"PL", "SHG"}:
                         scan = conditions.get("spectral_range_nm")
                         limits = (scan["min"], scan["max"]) if scan else None
                     else:
@@ -2498,7 +2547,7 @@ class MeasurementBundleCreate(BaseModel):
                         for peak in series["peaks"]:
                             position = peak["position"]
                             if (
-                                self.measurement.method_profile == "PL"
+                                self.measurement.method_profile in {"PL", "SHG"}
                                 and series["position_unit"] == "eV"
                             ):
                                 position = 1239.8419843320025 / position

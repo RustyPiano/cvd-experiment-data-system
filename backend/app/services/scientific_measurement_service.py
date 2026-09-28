@@ -28,6 +28,7 @@ from app.models.v2_entities import InstrumentCapability, InstrumentLifecycleEven
 from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
 from app.schemas.scientific import (
+    SCAN_METHODS,
     MeasurementAnalysisRead,
     MeasurementAssertionRead,
     MeasurementBundleCreate,
@@ -37,6 +38,7 @@ from app.schemas.scientific import (
     MeasurementRawFileRead,
     MeasurementSummaryRead,
     SampleRegion,
+    shg_time_field,
 )
 from app.services.audit_service import AuditService
 from app.services.experiment_guards import (
@@ -236,7 +238,7 @@ class ScientificMeasurementService:
             measurement.method_profile,
             measurement.measured_at,
         )
-        if measurement.method_profile in {"Raman", "PL"}:
+        if measurement.method_profile in SCAN_METHODS:
             instrument_snapshot["calibration_at_measurement"] = self._raman_calibration_snapshot(
                 measurement.instrument_id,
                 measurement.measured_at,
@@ -253,9 +255,9 @@ class ScientificMeasurementService:
                     if isinstance(item, dict)
                     and item.get("code")
                     in (
-                        {"PL"}
-                        if measurement.method_profile == "PL"
-                        else {"Raman", "low_frequency_raman"}
+                        {"Raman", "low_frequency_raman"}
+                        if measurement.method_profile == "Raman"
+                        else {measurement.method_profile}
                     )
                 ),
                 {},
@@ -279,6 +281,8 @@ class ScientificMeasurementService:
                             "required_acquisition_keys"
                         ]
                     )
+                    if measurement.method_profile == "SHG" and (time_key := shg_time_field(actual)):
+                        required.add(time_key)
                     if required - actual.keys() - set(measurement.variable_conditions):
                         raise ValueError("complete the spectral acquisition settings")
                     if (set(measurement.variable_conditions) & fixed.keys()) - adjustable:
@@ -411,7 +415,7 @@ class ScientificMeasurementService:
                             for key, value in measurement.file_intensity_units.items()
                         },
                     }
-                    if measurement.method_profile in {"Raman", "PL"}
+                    if measurement.method_profile in SCAN_METHODS
                     else {}
                 ),
                 **(
@@ -1125,16 +1129,18 @@ class ScientificMeasurementService:
             if type(scope_version) is not int or scope_version != version:
                 continue
             quantity = (event.quantity or "").strip().lower().replace(" ", "_")
-            allowed = (
-                {"wavelength", "emission_response", "laser_power"}
-                if method == "PL"
-                else {"raman_shift", "relative_intensity", "laser_power"}
-            )
+            allowed = {
+                "PL": {"wavelength", "emission_response", "laser_power"},
+                "SHG": {"polarization", "laser_power"},
+            }.get(method, {"raman_shift", "relative_intensity", "laser_power"})
             if quantity not in allowed:
                 continue
-            if method == "PL" and (event.details_json or {}).get("method_profile") != "PL":
+            if (
+                method in {"PL", "SHG"}
+                and (event.details_json or {}).get("method_profile") != method
+            ):
                 continue
-            if method == "PL" and quantity == "laser_power":
+            if method in {"PL", "SHG"} and quantity == "laser_power":
                 measured = conditions or {}
                 calibrated = (event.details_json or {}).get("conditions", {})
                 keys = {
@@ -1162,7 +1168,11 @@ class ScientificMeasurementService:
             refs = (event.details_json or {}).get("configuration", {})
             required = {
                 "lasers",
-                "objectives" if quantity == "laser_power" else "spectrometers",
+                "objectives"
+                if quantity == "laser_power"
+                else "detections"
+                if method == "SHG"
+                else "spectrometers",
             }
             if (
                 not isinstance(refs, dict)

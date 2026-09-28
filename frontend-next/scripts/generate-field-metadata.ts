@@ -92,6 +92,7 @@ interface RawDoc {
   om_configuration: Record<string, unknown>
   raman_configuration: Record<string, unknown>
   pl_configuration: Record<string, unknown>
+  shg_configuration: Record<string, unknown>
   scientific_contract: { property_units: Record<string, string> }
   gas_species: Record<
     string,
@@ -515,6 +516,7 @@ const content =
     `export const omConfiguration: OpticalConfigurationSpec = ${JSON.stringify(doc.om_configuration, null, 2)}`,
     `export const plConfiguration: OpticalConfigurationSpec = ${JSON.stringify(doc.pl_configuration, null, 2)}`,
     `export const ramanConfiguration: OpticalConfigurationSpec = ${JSON.stringify(doc.raman_configuration, null, 2)}`,
+    `export const shgConfiguration: OpticalConfigurationSpec = ${JSON.stringify(doc.shg_configuration, null, 2)}`,
     `/** 已发布实验记录字段，按模块键分组。 */\nexport const experimentModules: Record<string, FieldMetadata[]> = ${JSON.stringify(experimentModules, null, 2)}`,
     `/** 三个一等实体的登记字段（material_lot / setup / instrument） */\nexport const entities: Record<string, FieldMetadata[]> = ${JSON.stringify(entities, null, 2)}`,
     `/** 稳定机器码 → 首选中文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsZh: Record<string, string> = ${JSON.stringify(preferredOptionLabels('zh'), null, 2)}`,

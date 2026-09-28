@@ -2,6 +2,14 @@
 // 字段标签（labelZh/labelEn）不放这里——它们由生成器⑤从 field-source.yaml 产出，
 // 见 src/shared/generated/field-metadata.ts。
 export const common = {
+  shg: {
+    register: '登记SHG设备配置',
+    invalidCatalog: '请补齐激发光源、物镜及检测配置。',
+    selectionRequired: '请选择激发光源、物镜及检测配置。',
+    peakRange: '峰位须位于光谱范围内。',
+    angleReferenceRequired: '请填写角度参照。',
+    polarizationAngleConflict: '入射偏振角与半波片机械角只记录其一。',
+  },
   pl: {
     register: '登记PL设备配置',
     widthUnit: '半高全宽单位',

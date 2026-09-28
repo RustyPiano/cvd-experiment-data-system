@@ -19,6 +19,7 @@ import {
   conditionMatches,
 } from '@/shared/characterization-conditions'
 import {
+  catalogMessages,
   conditionDraft,
   presetConditions,
   reconcileConditions,
@@ -98,7 +99,7 @@ function OMEntryEditor({
   const [nativeText, setNativeText] = useState(() =>
     (entry.native_extensions ?? []).join(', '),
   )
-  const context = {
+  const context: Record<string, string> = {
     ...(method === 'optical_microscopy' ? { observation_mode: 'digital' } : {}),
     ...draft,
   }
@@ -279,6 +280,14 @@ function OMEntryEditor({
               const field = characterizationProfiles[
                 method
               ].condition_fields.find((item) => item.key === key)!
+              // Hide settings this entry's recorded hardware rules out.
+              if (
+                Object.entries(field.when ?? {}).some(
+                  ([name, values]) =>
+                    context[name] && !values.includes(context[name]),
+                )
+              )
+                return null
               return (
                 <label key={key} className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -418,11 +427,9 @@ export function OMCatalogEditor({
       {!omCatalogValid(catalog, method) ? (
         <p role="alert" className="text-sm text-destructive">
           {t(
-            method === 'PL'
-              ? 'pl.invalidCatalog'
-              : method === 'Raman'
-                ? 'raman.invalidCatalog'
-                : 'om.invalid',
+            method === 'optical_microscopy'
+              ? 'om.invalid'
+              : `${catalogMessages(method)}.invalidCatalog`,
           )}
         </p>
       ) : null}

@@ -6,6 +6,8 @@
 
 | 类别 | 文档 | 作用 |
 |---|---|---|
+| SHG实施 | [reviews/2026-09-13-shg-implementation.md](reviews/2026-09-13-shg-implementation.md) | alpha.48检测方式与变化参数分类、设备目录、功率与测量位置、偏振角规则、预设及校准适用性；本地验证通过，未部署 |
+| SHG专项审查 | [reviews/2026-09-11-shg-field-review.md](reviews/2026-09-11-shg-field-review.md) | 43项条件、数据类型分类、设备目录、偏振/脉冲/功率序列、预设与切换、载体及校准的逐项建议；50组只读探针，未实施 |
 | PL实施 | [reviews/2026-09-11-pl-implementation.md](reviews/2026-09-11-pl-implementation.md) | alpha.47设备配置、扫描/偏振、光谱单位、逐文件校正与校准适用性；本地验证通过，未部署 |
 | PL专项审查 | [reviews/2026-09-11-pl-field-review.md](reviews/2026-09-11-pl-field-review.md) | 34项条件、设备配置、偏振/脉冲、光谱单位与校正、峰来源及校准的逐项建议；只读探针与测试证据，未实施 |
 | Raman实施 | [reviews/2026-09-11-raman-implementation.md](reviews/2026-09-11-raman-implementation.md) | alpha.46设备配置、功率与序列、峰来源、校准适用性和验证记录；本地未部署 |

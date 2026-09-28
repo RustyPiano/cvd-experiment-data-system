@@ -34,7 +34,11 @@ from app.schemas.generated.v2_module_payload import (
     TemperatureSensorPayload,
     TubeMaterialShapePayload,
 )
-from app.schemas.scientific import MeasurementConditions, validate_profile_conditions
+from app.schemas.scientific import (
+    MeasurementConditions,
+    shg_preset_context,
+    validate_profile_conditions,
+)
 from app.schemas.v2 import (
     V2EntityListResponse,
     V2EntityRead,
@@ -472,6 +476,18 @@ class V2EntityService:
             if code not in allowed or code in seen:
                 self._raise_invalid("capabilities", "value_or_duplicate")
             seen.add(code)
+            if set(configuration) - {"om", "raman", "pl", "shg", "presets", "method_names"}:
+                self._raise_invalid("capabilities", "configuration")
+            if "shg" in configuration:
+                try:
+                    if code != "SHG":
+                        raise ValueError("SHG catalog requires the SHG method")
+                    configuration["shg"] = validate_om_catalog(configuration["shg"], "SHG")
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={"invalid": [{"key": "capabilities", "reason": str(exc)}]},
+                    ) from exc
             if "pl" in configuration:
                 try:
                     if code != "PL":
@@ -532,16 +548,22 @@ class V2EntityService:
                                 "image_color_mode": "color",
                                 **conditions,
                             }
-                        elif code in {"Raman", "low_frequency_raman", "PL"}:
+                        elif code in {"Raman", "low_frequency_raman", "PL", "SHG"}:
                             if set(conditions) - set(
                                 self.doc[
-                                    "pl_configuration" if code == "PL" else "raman_configuration"
+                                    "raman_configuration"
+                                    if code == "low_frequency_raman"
+                                    else f"{code.lower()}_configuration"
                                 ]["preset_fields"]
                             ):
                                 raise ValueError(
                                     "Raman presets may contain only acquisition settings"
                                 )
-                            context = conditions
+                            context = (
+                                shg_preset_context(conditions) | conditions
+                                if code == "SHG"
+                                else conditions
+                            )
                         else:
                             context = conditions
                         validate_profile_conditions(

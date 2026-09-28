@@ -10,13 +10,16 @@ import {
   conditionMatches,
 } from '@/shared/characterization-conditions'
 import {
+  SHG_TIME_FIELDS,
   conditionDraft,
   instrumentPresets,
   instrumentPresetsAreValid,
   presetConditions,
   presetFields,
   reconcileConditions,
+  shgPresetContext,
 } from '@/shared/instrument-presets'
+import type { OMEntry } from '@/shared/om-configuration'
 
 export function InstrumentPresetsEditor({
   method,
@@ -33,6 +36,23 @@ export function InstrumentPresetsEditor({
   const { t, i18n } = useTranslation()
   const prefix = useId()
   const presets = instrumentPresets(configuration)
+  // Offer SHG preset settings only for registered detection paths.
+  const detections = (
+    configuration?.shg as { detections?: OMEntry[] } | undefined
+  )?.detections
+  const kinds = new Set(
+    detections?.map((entry) => String(entry.conditions.detection_kind)),
+  )
+  const shgFieldRegistered = (key: string) =>
+    !detections?.length ||
+    ({
+      integration_time_s: ['spectrometer', 'point_detector'],
+      pixel_dwell_time_us: ['point_detector'],
+      exposure_time_ms: ['camera'],
+      spectral_range_nm: ['spectrometer'],
+      slit_width_um: ['spectrometer'],
+    }[key]?.some((kind) => kinds.has(kind)) ??
+      true)
   const [drafts, setDrafts] = useState(() =>
     presets.map((preset) => conditionDraft(preset.conditions)),
   )
@@ -53,12 +73,17 @@ export function InstrumentPresetsEditor({
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {presets.map((preset, index) => {
+        const values = drafts[index] ?? conditionDraft(preset.conditions)
         const draft: Record<string, string> = {
           ...(method === 'optical_microscopy'
             ? { observation_mode: 'digital', image_color_mode: 'color' }
-            : {}),
-          ...(drafts[index] ?? conditionDraft(preset.conditions)),
+            : method === 'SHG'
+              ? shgPresetContext(values)
+              : {}),
+          ...values,
         }
+        // An SHG preset records one detection-specific time; offer all until one is set.
+        const shgTimes = SHG_TIME_FIELDS.filter((key) => values[key]?.trim())
         return (
           <details key={index} open className="min-w-0 rounded-md border p-3">
             <summary className="cursor-pointer break-words font-medium">
@@ -88,7 +113,10 @@ export function InstrumentPresetsEditor({
                   .filter(
                     (field) =>
                       !field.legacy_only &&
-                      conditionMatches(field.when, draft) &&
+                      (method === 'SHG' && SHG_TIME_FIELDS.includes(field.key)
+                        ? !shgTimes.length || shgTimes.includes(field.key)
+                        : conditionMatches(field.when, draft)) &&
+                      (method !== 'SHG' || shgFieldRegistered(field.key)) &&
                       (!presetFields(method) ||
                         presetFields(method)!.includes(field.key)),
                   )
@@ -117,7 +145,23 @@ export function InstrumentPresetsEditor({
                           draft[key] !== value
                         )
                           delete next.excitation_power_value
-                        const reconciled = reconcileConditions(method, next)
+                        const reconciled =
+                          method === 'SHG'
+                            ? Object.fromEntries(
+                                Object.entries(
+                                  reconcileConditions(method, {
+                                    ...shgPresetContext(next),
+                                    ...next,
+                                  }),
+                                ).filter(
+                                  ([name]) =>
+                                    ![
+                                      'detection_kind',
+                                      'acquisition_kind',
+                                    ].includes(name),
+                                ),
+                              )
+                            : reconcileConditions(method, next)
                         setDrafts((current) =>
                           presets.map((_, position) =>
                             position === index ? reconciled : current[position],

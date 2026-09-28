@@ -22,10 +22,13 @@ import type { PendingUpload } from './upload-recovery'
 import { invalidateRunQueries } from './status-logic'
 import { useRef, useState } from 'react'
 import {
+  SCAN_METHODS,
+  catalogMessages,
   conditionDraft,
   instrumentPresets,
   presetPowerUnitMatches,
   reconcileConditions,
+  shgTimeField,
 } from '@/shared/instrument-presets'
 import {
   ConditionInput,
@@ -636,7 +639,7 @@ export function SimpleCharacterizationWorkspace({
   }
   const updateCondition = (key: string, value: string) => {
     let next = { ...conditions, [key]: value }
-    if (['Raman', 'PL'].includes(method)) {
+    if (SCAN_METHODS.includes(method)) {
       if (
         key === 'power_setting_unit' &&
         value !== conditions.power_setting_unit
@@ -691,7 +694,7 @@ export function SimpleCharacterizationWorkspace({
       delete next.white_balance_temperature_K
     }
     next = reconcileConditions(method, next)
-    if (['Raman', 'PL'].includes(method))
+    if (SCAN_METHODS.includes(method))
       setVariableConditions((current) =>
         current.filter((conditionKey) =>
           conditionMatches(
@@ -705,6 +708,7 @@ export function SimpleCharacterizationWorkspace({
     if (
       [
         'data_type',
+        'detection_kind',
         'scan_axis',
         'mode',
         'spectrum_mode',
@@ -737,8 +741,13 @@ export function SimpleCharacterizationWorkspace({
           )[value],
         ),
       )
-    if (key === 'data_type')
-      setPeakSeries(emptyPeakSeries(profile?.peak_position_units?.[0] ?? ''))
+    if (key === 'data_type' || key === 'detection_kind')
+      setPeakSeries(
+        emptyPeakSeries(
+          profile?.peak_position_units?.[0] ?? '',
+          SCAN_METHODS.includes(method) ? '' : 'a.u.',
+        ),
+      )
     setConditions(next)
   }
 
@@ -806,10 +815,10 @@ export function SimpleCharacterizationWorkspace({
   const presets = selectedInstrumentSupportsMethod
     ? instrumentPresets(capability?.configuration)
     : []
-  const catalog = ['optical_microscopy', 'Raman', 'PL'].includes(method)
+  const catalog = ['optical_microscopy', ...SCAN_METHODS].includes(method)
     ? omCatalog(capability?.configuration, method)
     : undefined
-  const selectableOMFields = ['optical_microscopy', 'Raman', 'PL'].includes(
+  const selectableOMFields = ['optical_microscopy', ...SCAN_METHODS].includes(
     method,
   )
     ? omVisibleFields(catalog, omSelection, conditions, method)
@@ -823,16 +832,16 @@ export function SimpleCharacterizationWorkspace({
     setInstrumentVersion(version)
     setInstrumentSnapshot(snapshot)
     setOmSelection({})
-    if (['Raman', 'PL'].includes(method)) {
+    if (SCAN_METHODS.includes(method)) {
       setVariableConditions([])
       const nextCatalog = omCatalog(
         (Array.isArray(snapshot?.capabilities)
           ? snapshot.capabilities
           : []
         ).find((item) =>
-          (method === 'PL'
-            ? ['PL']
-            : ['Raman', 'low_frequency_raman']
+          (method === 'Raman'
+            ? ['Raman', 'low_frequency_raman']
+            : [method]
           ).includes(item?.code),
         )?.configuration,
         method,
@@ -895,8 +904,11 @@ export function SimpleCharacterizationWorkspace({
         ? (field.requires ?? [])
         : [],
     ),
-    ...(['Raman', 'PL'].includes(method) && catalog
+    ...(SCAN_METHODS.includes(method) && catalog
       ? (opticalSpec(method).required_acquisition_keys ?? [])
+      : []),
+    ...(method === 'SHG' && catalog && shgTimeField(conditions)
+      ? [shgTimeField(conditions)!]
       : []),
     ...(profile?.condition_fields ?? [])
       .filter(
@@ -915,6 +927,11 @@ export function SimpleCharacterizationWorkspace({
       (field) =>
         !field.legacy_only &&
         !variableConditions.includes(field.key) &&
+        !(
+          method === 'SHG' &&
+          field.key === 'incident_polarization_angle_deg' &&
+          variableConditions.includes('waveplate_angle_deg')
+        ) &&
         conditionMatches(field.when, conditions) &&
         (!selectableOMFields || selectableOMFields.includes(field.key)),
     )
@@ -943,12 +960,15 @@ export function SimpleCharacterizationWorkspace({
       (requiredConditionKeys.includes(field.key) ||
         profile?.common_condition_keys?.includes(field.key)),
   )
-  if (['Raman', 'PL'].includes(method))
-    commonConditions.sort(
-      (left, right) =>
-        (profile.common_condition_keys?.indexOf(left.key) ?? -1) -
-        (profile.common_condition_keys?.indexOf(right.key) ?? -1),
-    )
+  if (SCAN_METHODS.includes(method))
+    commonConditions.sort((left, right) => {
+      // Listed parameters first; conditionally required ones follow.
+      const order = (key: string) => {
+        const index = profile.common_condition_keys?.indexOf(key) ?? -1
+        return index < 0 ? Infinity : index
+      }
+      return order(left.key) - order(right.key)
+    })
   const extraConditions = optionalConditions.filter(
     (field) => field.section !== 'results' && !commonConditions.includes(field),
   )
@@ -1002,7 +1022,7 @@ export function SimpleCharacterizationWorkspace({
   const spectralIssue = peakUnits.length
     ? peakSeriesIssue(peakSeries, rawIndexes, method)
     : null
-  if (['Raman', 'PL'].includes(method)) {
+  if (SCAN_METHODS.includes(method)) {
     if (
       ['mapping', 'series'].includes(conditions.acquisition_kind) &&
       (scanFileIndex === null || !originalIndexes.includes(scanFileIndex))
@@ -1011,12 +1031,30 @@ export function SimpleCharacterizationWorkspace({
     if (conditions.acquisition_kind === 'series' && !variableConditions.length)
       fileIssues.push(t('raman.variablesRequired'))
     if (
-      ['incident_polarization_angle_deg', 'analyzer_angle_deg'].some(
+      [
+        'incident_polarization_angle_deg',
+        'analyzer_angle_deg',
+        'waveplate_angle_deg',
+        'sample_rotation_deg',
+      ].some(
         (key) => conditions[key]?.trim() || variableConditions.includes(key),
       ) &&
       !conditions.polarization_reference?.trim()
     )
-      fileIssues.push(t('raman.polarizationReferenceRequired'))
+      fileIssues.push(
+        t(
+          method === 'SHG'
+            ? 'shg.angleReferenceRequired'
+            : 'raman.polarizationReferenceRequired',
+        ),
+      )
+    if (
+      method === 'SHG' &&
+      ['incident_polarization_angle_deg', 'waveplate_angle_deg'].every(
+        (key) => conditions[key]?.trim() || variableConditions.includes(key),
+      )
+    )
+      fileIssues.push(t('shg.polarizationAngleConflict'))
     if (
       peakSeries.status &&
       ['mapping', 'series'].includes(conditions.acquisition_kind) &&
@@ -1025,15 +1063,15 @@ export function SimpleCharacterizationWorkspace({
       fileIssues.push(t('raman.peakLocatorRequired'))
     const rangeStart =
         conditions[
-          method === 'PL'
-            ? 'spectral_range_nm.min'
-            : 'raman_shift_range_cm1.start'
+          method === 'Raman'
+            ? 'raman_shift_range_cm1.start'
+            : 'spectral_range_nm.min'
         ],
       rangeEnd =
         conditions[
-          method === 'PL'
-            ? 'spectral_range_nm.max'
-            : 'raman_shift_range_cm1.end'
+          method === 'Raman'
+            ? 'raman_shift_range_cm1.end'
+            : 'spectral_range_nm.max'
         ]
     if (
       rangeStart &&
@@ -1041,15 +1079,15 @@ export function SimpleCharacterizationWorkspace({
       peakSeries.peaks.some(
         (peak) =>
           peak.position.trim() &&
-          ((method === 'PL' && peakSeries.positionUnit === 'eV'
+          ((method !== 'Raman' && peakSeries.positionUnit === 'eV'
             ? 1239.8419843320025 / Number(peak.position)
             : Number(peak.position)) < Number(rangeStart) ||
-            (method === 'PL' && peakSeries.positionUnit === 'eV'
+            (method !== 'Raman' && peakSeries.positionUnit === 'eV'
               ? 1239.8419843320025 / Number(peak.position)
               : Number(peak.position)) > Number(rangeEnd)),
       )
     )
-      fileIssues.push(t(method === 'PL' ? 'pl.peakRange' : 'raman.peakRange'))
+      fileIssues.push(t(`${catalogMessages(method)}.peakRange`))
     const source =
       peakSeries.sourceFileIndex ??
       (rawIndexes.length === 1 ? rawIndexes[0] : null)
@@ -1162,7 +1200,7 @@ export function SimpleCharacterizationWorkspace({
       omSelectionComplete(
         catalog,
         omSelection,
-        ['Raman', 'PL'].includes(method) ||
+        SCAN_METHODS.includes(method) ||
           conditions.observation_mode === 'digital',
         method,
       )) &&
@@ -1285,7 +1323,7 @@ export function SimpleCharacterizationWorkspace({
         const payload = {
           measurement: {
             ...(catalog ? { instrument_configuration: omSelection } : {}),
-            ...(['Raman', 'PL'].includes(method)
+            ...(SCAN_METHODS.includes(method)
               ? {
                   ...(scanFileIndex !== null
                     ? { scan_file_id: uploadedFileIds[scanFileIndex] }
@@ -1334,7 +1372,7 @@ export function SimpleCharacterizationWorkspace({
               : {}),
             measured_at: new Date(measuredAt).toISOString(),
             typed_conditions: typedConditions(
-              ['optical_microscopy', 'Raman', 'PL'].includes(method)
+              ['optical_microscopy', ...SCAN_METHODS].includes(method)
                 ? profile.condition_fields.filter(
                     (field) =>
                       !field.legacy_only &&
@@ -1625,7 +1663,7 @@ export function SimpleCharacterizationWorkspace({
                           emptyPeakSeries(
                             characterizationProfiles[value]
                               ?.peak_position_units?.[0] ?? '',
-                            ['Raman', 'PL'].includes(value) ? '' : 'a.u.',
+                            SCAN_METHODS.includes(value) ? '' : 'a.u.',
                           ),
                         )
                       }}
@@ -1806,7 +1844,7 @@ export function SimpleCharacterizationWorkspace({
                   ) : null}
                 </div>
 
-                {['optical_microscopy', 'Raman', 'PL'].includes(method) &&
+                {['optical_microscopy', ...SCAN_METHODS].includes(method) &&
                 eligibleSamples.find((sample) => sample.id === sampleId)
                   ?.current_carrier ? (
                   <p className="text-sm">
@@ -1823,13 +1861,13 @@ export function SimpleCharacterizationWorkspace({
                     catalog={catalog}
                     selection={omSelection}
                     digital={
-                      ['Raman', 'PL'].includes(method) ||
+                      SCAN_METHODS.includes(method) ||
                       conditions.observation_mode === 'digital'
                     }
                     disabled={controlsDisabled}
                     onChange={(selected) => {
                       setOmSelection(selected)
-                      if (['Raman', 'PL'].includes(method)) {
+                      if (SCAN_METHODS.includes(method)) {
                         setVariableConditions([])
                         const retained = Object.fromEntries(
                           Object.entries(conditions).filter(([key]) =>
@@ -1879,17 +1917,15 @@ export function SimpleCharacterizationWorkspace({
                 !omSelectionComplete(
                   catalog,
                   omSelection,
-                  ['Raman', 'PL'].includes(method) ||
+                  SCAN_METHODS.includes(method) ||
                     conditions.observation_mode === 'digital',
                   method,
                 ) ? (
                   <p className="text-sm text-destructive">
                     {t(
-                      method === 'PL'
-                        ? 'pl.selectionRequired'
-                        : method === 'Raman'
-                          ? 'raman.selectionRequired'
-                          : 'om.selectionRequired',
+                      SCAN_METHODS.includes(method)
+                        ? `${catalogMessages(method)}.selectionRequired`
+                        : 'om.selectionRequired',
                     )}
                   </p>
                 ) : null}
@@ -1910,7 +1946,7 @@ export function SimpleCharacterizationWorkspace({
                             Object.values(results).some(Boolean)) &&
                           !window.confirm(
                             t(
-                              ['optical_microscopy', 'Raman', 'PL'].includes(
+                              ['optical_microscopy', ...SCAN_METHODS].includes(
                                 method,
                               )
                                 ? 'om.applyPresetConfirm'
@@ -1919,7 +1955,7 @@ export function SimpleCharacterizationWorkspace({
                           )
                         )
                           return
-                        if (['Raman', 'PL'].includes(method)) {
+                        if (SCAN_METHODS.includes(method)) {
                           if (
                             !presetPowerUnitMatches(
                               preset.conditions,
@@ -2186,7 +2222,7 @@ export function SimpleCharacterizationWorkspace({
                   onRemove={removeRawFile}
                   disabled={controlsDisabled}
                 />
-                {['Raman', 'PL'].includes(method) &&
+                {SCAN_METHODS.includes(method) &&
                 ['mapping', 'series'].includes(conditions.acquisition_kind) ? (
                   <FieldGroup>
                     <OMSelect
@@ -2220,6 +2256,19 @@ export function SimpleCharacterizationWorkspace({
                             !conditionMatches(field.when, conditions)
                           )
                             return false
+                          const exclusive = [
+                            'incident_polarization_angle_deg',
+                            'waveplate_angle_deg',
+                          ]
+                          if (
+                            exclusive.includes(key) &&
+                            exclusive.some(
+                              (other) =>
+                                other !== key &&
+                                variableConditions.includes(other),
+                            )
+                          )
+                            return false
                           const fixed = catalog
                             ? omFixedConditions(catalog, omSelection, method)
                             : null
@@ -2251,6 +2300,8 @@ export function SimpleCharacterizationWorkspace({
                                     setConditions((current) => {
                                       const next = { ...current }
                                       delete next[key]
+                                      if (key === 'waveplate_angle_deg')
+                                        delete next.incident_polarization_angle_deg
                                       if (key === 'temperature_K')
                                         next.temperature_control = 'recorded'
                                       return next

@@ -1,5 +1,9 @@
 import { capabilityNamesAreValid } from '@/shared/additional-capabilities'
-import { instrumentPresetsAreValid } from '@/shared/instrument-presets'
+import {
+  SCAN_METHODS,
+  catalogMessages,
+  instrumentPresetsAreValid,
+} from '@/shared/instrument-presets'
 import { InstrumentPresetsEditor } from './instrument-presets-editor'
 import { omCatalog, omCatalogValid } from '@/shared/om-configuration'
 import { OMCatalogEditor } from './om-configuration-editor'
@@ -132,6 +136,13 @@ const INSTRUMENT_CAPABILITY_CODES = new Set(
   Object.keys(characterizationProfiles),
 )
 
+const catalogMethod = (code: string) =>
+  code === 'low_frequency_raman'
+    ? 'Raman'
+    : SCAN_METHODS.includes(code)
+      ? code
+      : 'optical_microscopy'
+
 function instrumentCapabilitiesAreValid(value: string | string[]): boolean {
   const capabilities = parseEntityJsonArray<InstrumentCapability>(value)
   return (
@@ -142,19 +153,8 @@ function instrumentCapabilitiesAreValid(value: string | string[]): boolean {
         typeof capability === 'object' &&
         INSTRUMENT_CAPABILITY_CODES.has(capability.code) &&
         omCatalogValid(
-          omCatalog(
-            capability.configuration,
-            ['Raman', 'low_frequency_raman'].includes(capability.code)
-              ? 'Raman'
-              : capability.code === 'PL'
-                ? 'PL'
-                : 'optical_microscopy',
-          ),
-          ['Raman', 'low_frequency_raman'].includes(capability.code)
-            ? 'Raman'
-            : capability.code === 'PL'
-              ? 'PL'
-              : 'optical_microscopy',
+          omCatalog(capability.configuration, catalogMethod(capability.code)),
+          catalogMethod(capability.code),
         ) &&
         instrumentPresetsAreValid(capability.code, capability.configuration) &&
         (capability.configuration === undefined ||
@@ -994,15 +994,12 @@ function EntityFieldControl({
                       item.code === code ||
                       (code === 'Raman' && item.code === 'low_frequency_raman'),
                   )
-                  const catalogMethod = ['Raman', 'PL'].includes(code)
-                    ? code
-                    : 'optical_microscopy'
-                  const catalogKey = ['Raman', 'PL'].includes(code)
+                  const catalogKey = SCAN_METHODS.includes(code)
                     ? code.toLowerCase()
                     : 'om'
                   const catalog = omCatalog(
                     capability?.configuration,
-                    catalogMethod,
+                    catalogMethod(code),
                   )
                   const methodNames = instrumentOtherMethodNames(
                     capability?.configuration,
@@ -1054,11 +1051,9 @@ function EntityFieldControl({
                                             ? { method_names: [''] }
                                             : code === 'optical_microscopy'
                                               ? { om: {} }
-                                              : code === 'Raman'
-                                                ? { raman: {} }
-                                                : code === 'PL'
-                                                  ? { pl: {} }
-                                                  : {},
+                                              : SCAN_METHODS.includes(code)
+                                                ? { [code.toLowerCase()]: {} }
+                                                : {},
                                       },
                                     ]
                                   : capabilities.filter(
@@ -1080,10 +1075,10 @@ function EntityFieldControl({
                         </span>
                       </label>
                       {selected &&
-                      ['optical_microscopy', 'Raman', 'PL'].includes(code) ? (
+                      ['optical_microscopy', ...SCAN_METHODS].includes(code) ? (
                         catalog ? (
                           <OMCatalogEditor
-                            method={catalogMethod}
+                            method={catalogMethod(code)}
                             catalog={catalog}
                             disabled={disabled}
                             onChange={(om) =>
@@ -1128,11 +1123,9 @@ function EntityFieldControl({
                             }
                           >
                             {t(
-                              code === 'PL'
-                                ? 'pl.register'
-                                : code === 'Raman'
-                                  ? 'raman.register'
-                                  : 'om.register',
+                              SCAN_METHODS.includes(code)
+                                ? `${catalogMessages(code)}.register`
+                                : 'om.register',
                             )}
                           </Button>
                         )

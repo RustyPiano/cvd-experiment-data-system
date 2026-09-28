@@ -605,7 +605,7 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
                 }
             )
         if (when := field.get("required_when")) and not (
-            code in {"Raman", "PL"}
+            code in {"Raman", "PL", "SHG"}
             and field["key"]
             in load_field_source()[f"{code.lower()}_configuration"]["series_fields"]
         ):
@@ -682,9 +682,9 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
         }
     }
 
-    if code not in {"optical_microscopy", "Raman", "PL"}:
+    if code not in {"optical_microscopy", "Raman", "PL", "SHG"}:
         measurement_properties["instrument_configuration"] = {"maxProperties": 0}
-    if code not in {"Raman", "PL"}:
+    if code not in {"Raman", "PL", "SHG"}:
         measurement_properties.update(
             {
                 "scan_file_id": {"type": "null"},
@@ -713,7 +713,7 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
             }
         }
     constraints = []
-    if code in {"Raman", "PL"}:
+    if code in {"Raman", "PL", "SHG"}:
         spec = load_field_source()[f"{code.lower()}_configuration"]
         measurement_properties["variable_conditions"] = {
             "type": "array",
@@ -735,6 +735,14 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
                     "then": {"properties": {"typed_conditions": {"not": {"required": [key]}}}},
                 }
             )
+            if key in typed_schema["required"]:
+                typed_schema["required"] = [k for k in typed_schema["required"] if k != key]
+                rules.append(
+                    {
+                        "if": {"not": variable},
+                        "then": {"properties": {"typed_conditions": {"required": [key]}}},
+                    }
+                )
             if field.get("requires"):
                 rules.append(
                     {

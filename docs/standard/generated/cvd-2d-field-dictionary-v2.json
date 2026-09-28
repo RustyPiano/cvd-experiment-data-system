@@ -1,6 +1,6 @@
 {
   "standard_id": "cvd-2d-process",
-  "version": "v4.0-alpha.47",
+  "version": "v4.0-alpha.48",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "characterization_properties": {
@@ -5290,88 +5290,80 @@
         "whole_sample"
       ],
       "required_condition_keys": [
-        "data_type",
-        "excitation_wavelength_nm"
+        "excitation_wavelength_nm",
+        "detection_kind"
       ],
       "optional_condition_keys": [
-        "excitation_power_value",
-        "excitation_power_basis",
-        "integration_time_s",
+        "acquisition_kind",
         "objective",
+        "objective_magnification",
+        "objective_na",
+        "objective_immersion",
         "excitation_mode",
         "pulse_width_fs",
         "repetition_rate_MHz",
+        "power_setting",
+        "power_setting_unit",
+        "measured_power_mW",
+        "power_measurement_position",
+        "detector",
+        "detector_gain",
+        "filter_configuration",
+        "collection_geometry",
+        "collection_geometry_other",
+        "grating_lines_per_mm",
+        "slit_width_um",
+        "spectral_range_nm",
+        "integration_time_s",
+        "pixel_dwell_time_us",
+        "exposure_time_ms",
+        "accumulations",
+        "accumulation_method",
+        "scan_coordinates",
+        "resolution_px",
+        "image_scale_um_per_px",
+        "image_scale_y_um_per_px",
+        "incident_polarization_state",
+        "analyzer_mode",
+        "incident_polarization_angle_deg",
+        "waveplate_angle_deg",
+        "sample_rotation_deg",
+        "analyzer_angle_deg",
+        "polarization_reference",
+        "elapsed_time_s",
+        "sample_preparation",
+        "acquisition_note",
+        "data_type",
+        "excitation_power_value",
+        "excitation_power_basis",
         "input_polarization",
         "analyzer_polarization",
         "angle_reference",
         "polarization_scan_axis",
         "angle_range_deg",
-        "objective_na",
-        "grating_lines_per_mm",
-        "slit_width_um",
-        "filter_configuration",
-        "detector",
-        "detector_gain",
-        "collection_geometry",
-        "incident_polarization_state",
-        "analyzer_mode",
-        "incident_polarization_angle_deg",
-        "analyzer_angle_deg",
-        "polarization_reference",
-        "collection_geometry_other",
-        "acquisition_kind",
-        "scan_coordinates",
-        "intensity_processing",
-        "accumulation_method",
         "scan_angle_quantity",
         "angle_step_deg",
         "power_scan_coordinates",
         "spot_size_um",
         "spot_size_definition",
-        "exposure_time_ms",
-        "pixel_dwell_time_us",
-        "resolution_px",
-        "image_scale_um_per_px",
-        "image_scale_y_um_per_px",
-        "sample_preparation",
-        "acquisition_note"
+        "intensity_processing"
       ],
       "common_condition_keys": [
-        "excitation_power_value",
-        "excitation_power_basis",
+        "detection_kind",
+        "acquisition_kind",
+        "excitation_wavelength_nm",
+        "objective",
+        "power_setting",
+        "power_setting_unit",
+        "measured_power_mW",
+        "power_measurement_position",
         "integration_time_s",
-        "excitation_mode",
-        "polarization_scan_axis"
+        "pixel_dwell_time_us",
+        "exposure_time_ms",
+        "accumulations",
+        "spectral_range_nm"
       ],
       "condition_fields": [
-        {
-          "key": "data_type",
-          "label_zh": "数据类型",
-          "label_en": "Data type",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "spectrum",
-              "label_zh": "光谱",
-              "label_en": "Spectrum"
-            },
-            {
-              "value": "polarization_scan",
-              "label_zh": "偏振扫描",
-              "label_en": "Polarization scan"
-            },
-            {
-              "value": "image",
-              "label_zh": "图像",
-              "label_en": "Image"
-            },
-            {
-              "value": "power_scan",
-              "label_zh": "功率扫描",
-              "label_en": "Power scan"
-            }
-          ]
-        },
         {
           "key": "excitation_wavelength_nm",
           "label_zh": "激发波长",
@@ -5380,56 +5372,117 @@
           "unit": "nm"
         },
         {
-          "key": "excitation_power_value",
-          "label_zh": "激光功率",
-          "label_en": "Laser power",
-          "value_type": "number",
-          "recommended": true,
-          "help_zh": "脉冲激光填写平均功率；保留样品处实测或仪器设置口径。",
-          "help_en": "For pulsed light, record average power and retain its at-sample or instrument-setting basis."
-        },
-        {
-          "key": "excitation_power_basis",
-          "label_zh": "功率单位",
-          "label_en": "Power unit",
+          "key": "detection_kind",
+          "label_zh": "检测方式",
+          "label_en": "Detection",
           "value_type": "select",
           "options": [
             {
-              "value": "sample_plane_mW",
-              "label_zh": "样品处功率（mW）",
-              "label_en": "At-sample power (mW)"
+              "value": "spectrometer",
+              "label_zh": "光谱仪",
+              "label_en": "Spectrometer"
             },
             {
-              "value": "instrument_percent",
-              "label_zh": "仪器设置（%）",
-              "label_en": "Instrument setting (%)"
+              "value": "point_detector",
+              "label_zh": "单通道探测器（PMT/APD）",
+              "label_en": "Single-channel detector (PMT/APD)"
+            },
+            {
+              "value": "camera",
+              "label_zh": "相机",
+              "label_en": "Camera"
             }
           ]
         },
         {
-          "key": "integration_time_s",
-          "label_zh": "单次采集时间",
-          "label_en": "Time per acquisition",
-          "value_type": "number",
-          "unit": "s",
-          "recommended": true
+          "key": "acquisition_kind",
+          "label_zh": "采集形式",
+          "label_en": "Acquisition type",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "single",
+              "label_zh": "单点/单幅",
+              "label_en": "Single point or image"
+            },
+            {
+              "value": "mapping",
+              "label_zh": "空间扫描",
+              "label_en": "Spatial scan"
+            },
+            {
+              "value": "series",
+              "label_zh": "参数序列",
+              "label_en": "Parameter series"
+            }
+          ]
         },
         {
           "key": "objective",
-          "label_zh": "物镜规格",
-          "label_en": "Objective specification",
+          "label_zh": "物镜",
+          "label_en": "Objective",
           "value_type": "text",
           "validation": {
             "max_length": 128
-          },
-          "placeholder_zh": "100×，NA 0.9",
-          "placeholder_en": "100×, NA 0.9",
-          "recommended": true
+          }
+        },
+        {
+          "key": "objective_magnification",
+          "label_zh": "物镜倍率",
+          "label_en": "Objective magnification",
+          "value_type": "number",
+          "unit": "×"
+        },
+        {
+          "key": "objective_na",
+          "label_zh": "物镜数值孔径 NA",
+          "label_en": "Objective numerical aperture",
+          "value_type": "number",
+          "conditional_validation": [
+            {
+              "when": {
+                "objective_immersion": [
+                  "air"
+                ]
+              },
+              "validation": {
+                "lt": 1
+              }
+            }
+          ]
+        },
+        {
+          "key": "objective_immersion",
+          "label_zh": "浸没介质",
+          "label_en": "Immersion medium",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "air",
+              "label_zh": "干式",
+              "label_en": "Dry"
+            },
+            {
+              "value": "oil",
+              "label_zh": "油浸",
+              "label_en": "Oil"
+            },
+            {
+              "value": "water",
+              "label_zh": "水浸",
+              "label_en": "Water"
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "Other"
+            }
+          ]
         },
         {
           "key": "excitation_mode",
-          "label_zh": "激光输出",
-          "label_en": "Laser output",
+          "label_zh": "激发方式",
+          "label_en": "Excitation mode",
           "value_type": "select",
           "options": [
             {
@@ -5446,8 +5499,8 @@
         },
         {
           "key": "pulse_width_fs",
-          "label_zh": "脉冲宽度",
-          "label_en": "Pulse duration",
+          "label_zh": "标称脉宽",
+          "label_en": "Nominal pulse duration",
           "value_type": "number",
           "unit": "fs",
           "when": {
@@ -5455,7 +5508,16 @@
               "pulsed"
             ]
           },
-          "recommended": true
+          "required_when": {
+            "excitation_mode": [
+              "pulsed"
+            ]
+          },
+          "display_units": [
+            "fs",
+            "ps",
+            "ns"
+          ]
         },
         {
           "key": "repetition_rate_MHz",
@@ -5468,134 +5530,83 @@
               "pulsed"
             ]
           },
-          "recommended": true
-        },
-        {
-          "key": "input_polarization",
-          "legacy_only": true,
-          "label_zh": "入射偏振",
-          "label_en": "Input polarization",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          }
-        },
-        {
-          "key": "analyzer_polarization",
-          "legacy_only": true,
-          "label_zh": "检偏设置",
-          "label_en": "Analyzer setting",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          }
-        },
-        {
-          "key": "angle_reference",
-          "label_zh": "角度零点",
-          "label_en": "Angular zero reference",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          },
-          "when": {
-            "data_type": [
-              "polarization_scan"
+          "required_when": {
+            "excitation_mode": [
+              "pulsed"
             ]
           },
-          "recommended": true,
-          "help_zh": "实验室零点与正方向；不要求填写晶体学取向。",
-          "help_en": "Laboratory zero and positive direction; no crystallographic assignment required."
+          "display_units": [
+            "MHz",
+            "kHz",
+            "Hz"
+          ]
         },
         {
-          "key": "polarization_scan_axis",
-          "label_zh": "旋转对象",
-          "label_en": "Rotated element",
+          "key": "power_setting",
+          "label_zh": "功率设置",
+          "label_en": "Power setting",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "power_setting_unit",
+          "label_zh": "功率设置单位",
+          "label_en": "Power setting unit",
           "value_type": "select",
           "options": [
             {
-              "value": "input_polarization",
-              "label_zh": "入射偏振",
-              "label_en": "Input polarization"
+              "value": "percent",
+              "label_zh": "%",
+              "label_en": "%"
             },
             {
-              "value": "analyzer",
-              "label_zh": "检偏器",
-              "label_en": "Analyzer"
+              "value": "mW",
+              "label_zh": "mW（仪器设置）",
+              "label_en": "mW (instrument setting)"
             },
             {
-              "value": "sample",
-              "label_zh": "样品",
-              "label_en": "Sample"
+              "value": "level",
+              "label_zh": "档位",
+              "label_en": "Setting"
             }
-          ],
-          "when": {
-            "data_type": [
-              "polarization_scan"
-            ]
-          },
-          "recommended": true
+          ]
         },
         {
-          "key": "angle_range_deg",
-          "label_zh": "角度范围",
-          "label_en": "Angular range",
-          "value_type": "range",
-          "unit": "°",
-          "components": [
+          "key": "measured_power_mW",
+          "label_zh": "测得功率",
+          "label_en": "Measured power",
+          "value_type": "number",
+          "unit": "mW",
+          "requires": [
+            "power_measurement_position"
+          ],
+          "help_zh": "脉冲光填写平均功率。",
+          "help_en": "Average power for pulsed excitation."
+        },
+        {
+          "key": "power_measurement_position",
+          "label_zh": "功率测量位置",
+          "label_en": "Power measurement position",
+          "value_type": "select",
+          "options": [
             {
-              "key": "start",
-              "label_zh": "起点",
-              "label_en": "Start"
+              "value": "sample_plane",
+              "label_zh": "样品处",
+              "label_en": "At sample"
             },
             {
-              "key": "end",
-              "label_zh": "终点",
-              "label_en": "End"
+              "value": "before_objective",
+              "label_zh": "物镜前",
+              "label_en": "Before objective"
             }
-          ],
-          "when": {
-            "data_type": [
-              "polarization_scan"
-            ]
-          },
-          "signed": true
-        },
-        {
-          "key": "objective_na",
-          "label_zh": "物镜数值孔径 NA",
-          "label_en": "Objective numerical aperture",
-          "value_type": "number"
-        },
-        {
-          "key": "grating_lines_per_mm",
-          "label_zh": "实际光栅刻线密度",
-          "label_en": "Grating groove density",
-          "value_type": "number",
-          "unit": "lines/mm"
-        },
-        {
-          "key": "slit_width_um",
-          "label_zh": "入口狭缝宽度",
-          "label_en": "Entrance slit width",
-          "value_type": "number",
-          "unit": "μm"
-        },
-        {
-          "key": "filter_configuration",
-          "label_zh": "实际滤光配置",
-          "label_en": "Filter configuration used",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          },
-          "placeholder_zh": "滤光片型号/通带/截止范围",
-          "placeholder_en": "Filter model / passband / cutoff"
+          ]
         },
         {
           "key": "detector",
-          "label_zh": "实际探测器/相机",
-          "label_en": "Detector / camera used",
+          "label_zh": "探测器",
+          "label_en": "Detector",
           "value_type": "text",
           "validation": {
             "max_length": 128
@@ -5603,30 +5614,39 @@
         },
         {
           "key": "detector_gain",
-          "label_zh": "探测器增益及单位/档位",
-          "label_en": "Detector gain and unit/setting",
+          "label_zh": "探测器增益",
+          "label_en": "Detector gain",
           "value_type": "text",
           "validation": {
             "max_length": 128
           },
-          "placeholder_zh": "例如 1×、6 dB；按仪器显示填写",
-          "placeholder_en": "e.g. 1× or 6 dB, as reported"
+          "placeholder_zh": "PMT 电压、增益或档位",
+          "placeholder_en": "PMT voltage, gain or setting"
+        },
+        {
+          "key": "filter_configuration",
+          "label_zh": "滤光配置",
+          "label_en": "Filter configuration",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
         },
         {
           "key": "collection_geometry",
-          "label_zh": "光学收集几何",
-          "label_en": "Optical collection geometry",
+          "label_zh": "收集光路",
+          "label_en": "Collection geometry",
           "value_type": "select",
           "options": [
             {
               "value": "reflection",
-              "label_zh": "反射/背散射",
-              "label_en": "Reflection / backscattering"
+              "label_zh": "反射（背向收集）",
+              "label_en": "Reflection (backward)"
             },
             {
               "value": "transmission",
-              "label_zh": "透射",
-              "label_en": "Transmission"
+              "label_zh": "透射（前向收集）",
+              "label_en": "Transmission (forward)"
             },
             {
               "value": "other",
@@ -5634,6 +5654,196 @@
               "label_en": "Other"
             }
           ]
+        },
+        {
+          "key": "collection_geometry_other",
+          "label_zh": "其他收集光路",
+          "label_en": "Other collection geometry",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          },
+          "when": {
+            "collection_geometry": [
+              "other"
+            ]
+          },
+          "required_when": {
+            "collection_geometry": [
+              "other"
+            ]
+          }
+        },
+        {
+          "key": "grating_lines_per_mm",
+          "label_zh": "光栅",
+          "label_en": "Grating",
+          "value_type": "number",
+          "unit": "lines/mm",
+          "when": {
+            "detection_kind": [
+              "spectrometer"
+            ]
+          }
+        },
+        {
+          "key": "slit_width_um",
+          "label_zh": "入口狭缝宽度",
+          "label_en": "Entrance slit width",
+          "value_type": "number",
+          "unit": "μm",
+          "when": {
+            "detection_kind": [
+              "spectrometer"
+            ]
+          }
+        },
+        {
+          "key": "spectral_range_nm",
+          "label_zh": "光谱范围",
+          "label_en": "Spectral range",
+          "value_type": "range",
+          "unit": "nm",
+          "components": [
+            {
+              "key": "min",
+              "label_zh": "最小值",
+              "label_en": "Minimum"
+            },
+            {
+              "key": "max",
+              "label_zh": "最大值",
+              "label_en": "Maximum"
+            }
+          ],
+          "validation": {
+            "gt": 0
+          },
+          "when": {
+            "detection_kind": [
+              "spectrometer"
+            ]
+          }
+        },
+        {
+          "key": "integration_time_s",
+          "label_zh": "积分时间",
+          "label_en": "Integration time",
+          "value_type": "number",
+          "unit": "s",
+          "when": {
+            "detection_kind": [
+              "spectrometer",
+              "point_detector"
+            ]
+          }
+        },
+        {
+          "key": "pixel_dwell_time_us",
+          "label_zh": "像素驻留时间",
+          "label_en": "Pixel dwell time",
+          "value_type": "number",
+          "unit": "μs",
+          "when": {
+            "detection_kind": [
+              "point_detector"
+            ],
+            "acquisition_kind": [
+              "mapping"
+            ]
+          }
+        },
+        {
+          "key": "exposure_time_ms",
+          "label_zh": "曝光时间",
+          "label_en": "Exposure time",
+          "value_type": "number",
+          "unit": "ms",
+          "when": {
+            "detection_kind": [
+              "camera"
+            ]
+          }
+        },
+        {
+          "key": "accumulations",
+          "label_zh": "累积或平均次数",
+          "label_en": "Accumulations or averages",
+          "value_type": "integer"
+        },
+        {
+          "key": "accumulation_method",
+          "label_zh": "累积方式",
+          "label_en": "Accumulation method",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "sum",
+              "label_zh": "求和",
+              "label_en": "Sum"
+            },
+            {
+              "value": "mean",
+              "label_zh": "平均",
+              "label_en": "Mean"
+            }
+          ]
+        },
+        {
+          "key": "scan_coordinates",
+          "label_zh": "扫描参数",
+          "label_en": "Scan parameters",
+          "value_type": "text",
+          "validation": {
+            "max_length": 1000
+          },
+          "multiline": true,
+          "when": {
+            "acquisition_kind": [
+              "mapping",
+              "series"
+            ]
+          },
+          "required_when": {
+            "acquisition_kind": [
+              "mapping",
+              "series"
+            ]
+          },
+          "help_zh": "文件中的轴名、单位及坐标或参数列。",
+          "help_en": "Axes, units and coordinate or parameter columns in the file."
+        },
+        {
+          "key": "resolution_px",
+          "label_zh": "图像尺寸",
+          "label_en": "Image size",
+          "value_type": "resolution",
+          "components": [
+            {
+              "key": "width",
+              "label_zh": "宽",
+              "label_en": "Width"
+            },
+            {
+              "key": "height",
+              "label_zh": "高",
+              "label_en": "Height"
+            }
+          ]
+        },
+        {
+          "key": "image_scale_um_per_px",
+          "label_zh": "X 像素尺寸",
+          "label_en": "X pixel size",
+          "value_type": "number",
+          "unit": "μm/px"
+        },
+        {
+          "key": "image_scale_y_um_per_px",
+          "label_zh": "Y 像素尺寸",
+          "label_en": "Y pixel size",
+          "value_type": "number",
+          "unit": "μm/px"
         },
         {
           "key": "incident_polarization_state",
@@ -5671,25 +5881,37 @@
           "options": [
             {
               "value": "none",
-              "label_zh": "未加检偏器",
-              "label_en": "No analyzer"
-            },
-            {
-              "value": "fixed",
-              "label_zh": "固定角度",
-              "label_en": "Fixed angle"
+              "label_zh": "未使用",
+              "label_en": "Not used"
             },
             {
               "value": "parallel",
-              "label_zh": "随动保持平行",
-              "label_en": "Parallel tracking"
+              "label_zh": "平行",
+              "label_en": "Parallel",
+              "when": {
+                "incident_polarization_state": [
+                  "linear"
+                ]
+              }
             },
             {
               "value": "crossed",
-              "label_zh": "随动保持交叉",
-              "label_en": "Crossed tracking"
+              "label_zh": "正交",
+              "label_en": "Crossed",
+              "when": {
+                "incident_polarization_state": [
+                  "linear"
+                ]
+              }
+            },
+            {
+              "value": "fixed",
+              "label_zh": "自定角度",
+              "label_en": "Custom angle"
             }
-          ]
+          ],
+          "help_zh": "平行、正交相对于入射偏振方向。",
+          "help_en": "Parallel and crossed are relative to incident polarization."
         },
         {
           "key": "incident_polarization_angle_deg",
@@ -5705,7 +5927,53 @@
             "incident_polarization_state": [
               "linear"
             ]
-          }
+          },
+          "requires": [
+            "polarization_reference",
+            "analyzer_mode"
+          ]
+        },
+        {
+          "key": "waveplate_angle_deg",
+          "label_zh": "半波片机械角",
+          "label_en": "Half-wave plate angle",
+          "value_type": "number",
+          "unit": "°",
+          "validation": {
+            "ge": -360,
+            "le": 360
+          },
+          "when": {
+            "incident_polarization_state": [
+              "linear"
+            ]
+          },
+          "requires": [
+            "polarization_reference",
+            "analyzer_mode"
+          ],
+          "help_zh": "偏振方向转角为机械角的 2 倍。",
+          "help_en": "The polarization rotates by twice the plate angle."
+        },
+        {
+          "key": "sample_rotation_deg",
+          "label_zh": "样品转角",
+          "label_en": "Sample rotation",
+          "value_type": "number",
+          "unit": "°",
+          "validation": {
+            "ge": -360,
+            "le": 360
+          },
+          "when": {
+            "incident_polarization_state": [
+              "linear"
+            ]
+          },
+          "requires": [
+            "polarization_reference",
+            "analyzer_mode"
+          ]
         },
         {
           "key": "analyzer_angle_deg",
@@ -5721,126 +5989,210 @@
             "analyzer_mode": [
               "fixed"
             ]
-          }
-        },
-        {
-          "key": "polarization_reference",
-          "label_zh": "偏振角参照/正方向",
-          "label_en": "Polarization reference / positive direction",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          }
-        },
-        {
-          "key": "collection_geometry_other",
-          "label_zh": "其他收集几何",
-          "label_en": "Other collection geometry",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          },
-          "when": {
-            "collection_geometry": [
-              "other"
-            ]
           },
           "required_when": {
-            "collection_geometry": [
-              "other"
+            "analyzer_mode": [
+              "fixed"
             ]
-          }
-        },
-        {
-          "key": "acquisition_kind",
-          "label_zh": "采集形式",
-          "label_en": "Acquisition type",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "single",
-              "label_zh": "单次采集",
-              "label_en": "Single acquisition"
-            },
-            {
-              "value": "mapping",
-              "label_zh": "映射",
-              "label_en": "Mapping"
-            },
-            {
-              "value": "series",
-              "label_zh": "时间/参数序列",
-              "label_en": "Time / parameter series"
-            }
+          },
+          "requires": [
+            "polarization_reference"
           ]
         },
         {
-          "key": "scan_coordinates",
-          "label_zh": "扫描轴/步距/逐点参数来源",
-          "label_en": "Scan axes / spacing / per-point metadata",
+          "key": "polarization_reference",
+          "label_zh": "角度参照",
+          "label_en": "Angle reference",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          },
+          "help_zh": "零点及正方向。",
+          "help_en": "Zero and positive direction."
+        },
+        {
+          "key": "elapsed_time_s",
+          "label_zh": "时间",
+          "label_en": "Elapsed time",
+          "value_type": "number",
+          "unit": "s",
+          "validation": {
+            "ge": 0
+          },
+          "when": {
+            "acquisition_kind": [
+              "series"
+            ]
+          }
+        },
+        {
+          "key": "sample_preparation",
+          "label_zh": "表征前处理",
+          "label_en": "Preparation before measurement",
           "value_type": "text",
           "validation": {
             "max_length": 1000
           },
-          "multiline": true,
-          "when": {
-            "acquisition_kind": [
-              "mapping",
-              "series"
-            ]
+          "multiline": true
+        },
+        {
+          "key": "acquisition_note",
+          "label_zh": "备注",
+          "label_en": "Notes",
+          "value_type": "text",
+          "validation": {
+            "max_length": 1000
           },
-          "placeholder_zh": "填写文件名及坐标/时间/功率等列名；参数变化不共用一个数值",
-          "placeholder_en": "File and coordinate/time/power columns; retain varying values per point"
+          "multiline": true
         },
         {
-          "key": "intensity_processing",
-          "label_zh": "强度处理口径",
-          "label_en": "Intensity processing",
+          "key": "data_type",
+          "legacy_only": true,
+          "label_zh": "数据类型",
+          "label_en": "Data type",
           "value_type": "select",
           "options": [
             {
-              "value": "unscaled",
-              "label_zh": "原始计数口径",
-              "label_en": "Unscaled acquisition counts"
+              "value": "spectrum",
+              "label_zh": "光谱",
+              "label_en": "Spectrum"
             },
             {
-              "value": "count_rate",
-              "label_zh": "计数率",
-              "label_en": "Count rate"
+              "value": "polarization_scan",
+              "label_zh": "偏振扫描",
+              "label_en": "Polarization scan"
             },
             {
-              "value": "normalized",
-              "label_zh": "归一化相对强度",
-              "label_en": "Normalized relative intensity"
-            }
-          ],
-          "section": "results"
-        },
-        {
-          "key": "accumulation_method",
-          "label_zh": "光谱累积处理",
-          "label_en": "Spectral accumulation method",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "sum",
-              "label_zh": "求和",
-              "label_en": "Sum"
+              "value": "image",
+              "label_zh": "图像",
+              "label_en": "Image"
             },
             {
-              "value": "mean",
-              "label_zh": "平均",
-              "label_en": "Mean"
-            },
-            {
-              "value": "separate",
-              "label_zh": "分别保存",
-              "label_en": "Kept separately"
+              "value": "power_scan",
+              "label_zh": "功率扫描",
+              "label_en": "Power scan"
             }
           ]
         },
         {
+          "key": "excitation_power_value",
+          "legacy_only": true,
+          "label_zh": "激光功率",
+          "label_en": "Laser power",
+          "value_type": "number"
+        },
+        {
+          "key": "excitation_power_basis",
+          "legacy_only": true,
+          "label_zh": "功率单位",
+          "label_en": "Power unit",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "sample_plane_mW",
+              "label_zh": "样品处功率（mW）",
+              "label_en": "At-sample power (mW)"
+            },
+            {
+              "value": "instrument_percent",
+              "label_zh": "仪器设置（%）",
+              "label_en": "Instrument setting (%)"
+            }
+          ]
+        },
+        {
+          "key": "input_polarization",
+          "legacy_only": true,
+          "label_zh": "入射偏振",
+          "label_en": "Input polarization",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "analyzer_polarization",
+          "legacy_only": true,
+          "label_zh": "检偏设置",
+          "label_en": "Analyzer setting",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "angle_reference",
+          "legacy_only": true,
+          "label_zh": "角度零点",
+          "label_en": "Angular zero reference",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          },
+          "when": {
+            "data_type": [
+              "polarization_scan"
+            ]
+          }
+        },
+        {
+          "key": "polarization_scan_axis",
+          "legacy_only": true,
+          "label_zh": "旋转对象",
+          "label_en": "Rotated element",
+          "value_type": "select",
+          "options": [
+            {
+              "value": "input_polarization",
+              "label_zh": "入射偏振",
+              "label_en": "Input polarization"
+            },
+            {
+              "value": "analyzer",
+              "label_zh": "检偏器",
+              "label_en": "Analyzer"
+            },
+            {
+              "value": "sample",
+              "label_zh": "样品",
+              "label_en": "Sample"
+            }
+          ],
+          "when": {
+            "data_type": [
+              "polarization_scan"
+            ]
+          }
+        },
+        {
+          "key": "angle_range_deg",
+          "legacy_only": true,
+          "label_zh": "角度范围",
+          "label_en": "Angular range",
+          "value_type": "range",
+          "unit": "°",
+          "components": [
+            {
+              "key": "start",
+              "label_zh": "起点",
+              "label_en": "Start"
+            },
+            {
+              "key": "end",
+              "label_zh": "终点",
+              "label_en": "End"
+            }
+          ],
+          "when": {
+            "data_type": [
+              "polarization_scan"
+            ]
+          },
+          "signed": true
+        },
+        {
           "key": "scan_angle_quantity",
+          "legacy_only": true,
           "label_zh": "扫描文件中的角度量",
           "label_en": "Angle quantity in scan file",
           "value_type": "select",
@@ -5870,11 +6222,11 @@
             "data_type": [
               "polarization_scan"
             ]
-          },
-          "recommended": true
+          }
         },
         {
           "key": "angle_step_deg",
+          "legacy_only": true,
           "label_zh": "角度步距",
           "label_en": "Angular step",
           "value_type": "number",
@@ -5887,6 +6239,7 @@
         },
         {
           "key": "power_scan_coordinates",
+          "legacy_only": true,
           "label_zh": "逐点功率/信号列及口径",
           "label_en": "Per-point power / signal columns and basis",
           "value_type": "text",
@@ -5898,11 +6251,11 @@
             "data_type": [
               "power_scan"
             ]
-          },
-          "recommended": true
+          }
         },
         {
           "key": "spot_size_um",
+          "legacy_only": true,
           "label_zh": "实测光斑尺寸",
           "label_en": "Measured spot size",
           "value_type": "number",
@@ -5910,6 +6263,7 @@
         },
         {
           "key": "spot_size_definition",
+          "legacy_only": true,
           "label_zh": "光斑尺寸定义/测量依据",
           "label_en": "Spot size definition / measurement source",
           "value_type": "text",
@@ -5918,99 +6272,29 @@
           }
         },
         {
-          "key": "exposure_time_ms",
-          "label_zh": "实际曝光时间",
-          "label_en": "Actual exposure time",
-          "value_type": "number",
-          "unit": "ms",
-          "when": {
-            "data_type": [
-              "image"
-            ]
-          }
-        },
-        {
-          "key": "pixel_dwell_time_us",
-          "label_zh": "每像素驻留时间",
-          "label_en": "Pixel dwell time",
-          "value_type": "number",
-          "unit": "μs",
-          "when": {
-            "data_type": [
-              "image"
-            ]
-          }
-        },
-        {
-          "key": "resolution_px",
-          "label_zh": "采样点数",
-          "label_en": "Sampling points",
-          "value_type": "resolution",
-          "components": [
+          "key": "intensity_processing",
+          "legacy_only": true,
+          "label_zh": "强度处理口径",
+          "label_en": "Intensity processing",
+          "value_type": "select",
+          "options": [
             {
-              "key": "width",
-              "label_zh": "宽",
-              "label_en": "Width"
+              "value": "unscaled",
+              "label_zh": "原始计数口径",
+              "label_en": "Unscaled acquisition counts"
             },
             {
-              "key": "height",
-              "label_zh": "高",
-              "label_en": "Height"
+              "value": "count_rate",
+              "label_zh": "计数率",
+              "label_en": "Count rate"
+            },
+            {
+              "value": "normalized",
+              "label_zh": "归一化相对强度",
+              "label_en": "Normalized relative intensity"
             }
           ],
-          "when": {
-            "data_type": [
-              "image"
-            ]
-          }
-        },
-        {
-          "key": "image_scale_um_per_px",
-          "label_zh": "X 像素尺度",
-          "label_en": "X pixel scale",
-          "value_type": "number",
-          "unit": "μm/px",
-          "when": {
-            "data_type": [
-              "image"
-            ]
-          }
-        },
-        {
-          "key": "image_scale_y_um_per_px",
-          "label_zh": "Y 像素尺度",
-          "label_en": "Y pixel scale",
-          "value_type": "number",
-          "unit": "μm/px",
-          "when": {
-            "data_type": [
-              "image"
-            ]
-          }
-        },
-        {
-          "key": "sample_preparation",
-          "label_zh": "表征前制样/处理记录",
-          "label_en": "Preparation before measurement",
-          "value_type": "text",
-          "validation": {
-            "max_length": 1000
-          },
-          "multiline": true,
-          "placeholder_zh": "处理时间、操作、载体/支撑膜；已有记录填写编号",
-          "placeholder_en": "Time, treatment, carrier/support; reference an existing record"
-        },
-        {
-          "key": "acquisition_note",
-          "label_zh": "采集条件来源/缺项说明",
-          "label_en": "Acquisition metadata source / missing information",
-          "value_type": "text",
-          "validation": {
-            "max_length": 1000
-          },
-          "multiline": true,
-          "placeholder_zh": "参数所在文件、报告页码或未记录的参数",
-          "placeholder_en": "Parameter source file, report page, or unrecorded parameters"
+          "section": "results"
         }
       ],
       "allowed_property_codes": [
@@ -6025,8 +6309,8 @@
       ],
       "property_conditions": {
         "spectral_peaks": {
-          "data_type": [
-            "spectrum"
+          "detection_kind": [
+            "spectrometer"
           ]
         }
       }

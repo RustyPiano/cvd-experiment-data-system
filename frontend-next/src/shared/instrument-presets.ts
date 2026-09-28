@@ -3,6 +3,7 @@ import {
   omConfiguration,
   ramanConfiguration,
   plConfiguration,
+  shgConfiguration,
 } from '@/shared/generated/field-metadata'
 import {
   characterizationConditionIssue,
@@ -25,7 +26,62 @@ export function presetPowerUnitMatches(
   )
 }
 
+/** Methods using optical catalogs with scan files and varying parameters. */
+export const SCAN_METHODS = ['Raman', 'PL', 'SHG']
+
+/** The per-point time recorded by an SHG detection path. */
+export function shgTimeField(conditions: Record<string, string | undefined>) {
+  const kind = conditions.detection_kind
+  if (kind === 'camera') return 'exposure_time_ms'
+  if (kind === 'point_detector' && conditions.acquisition_kind === 'mapping')
+    return 'pixel_dwell_time_us'
+  return kind === 'spectrometer' || kind === 'point_detector'
+    ? 'integration_time_s'
+    : undefined
+}
+
+/** i18n namespace for a catalog method's messages. */
+export const catalogMessages = (method: string) =>
+  method === 'SHG' ? 'shg' : method === 'PL' ? 'pl' : 'raman'
+
+export const SHG_TIME_FIELDS = [
+  'integration_time_s',
+  'pixel_dwell_time_us',
+  'exposure_time_ms',
+]
+
+const SHG_IMAGE_FIELDS = [
+  'resolution_px',
+  'image_scale_um_per_px',
+  'image_scale_y_um_per_px',
+]
+
+/** SHG conditions that do not apply to the chosen detection path. */
+export function shgInapplicable(
+  key: string,
+  conditions: Record<string, string | undefined>,
+) {
+  return (
+    (key === 'integration_time_s' &&
+      shgTimeField(conditions) !== 'integration_time_s') ||
+    (SHG_IMAGE_FIELDS.includes(key) &&
+      conditions.detection_kind !== 'camera' &&
+      conditions.acquisition_kind !== 'mapping')
+  )
+}
+
+/** Detection settings implied by an SHG preset's time fields. */
+export function shgPresetContext(
+  conditions: Record<string, unknown>,
+): Record<string, string> {
+  if (conditions.exposure_time_ms) return { detection_kind: 'camera' }
+  if (conditions.pixel_dwell_time_us)
+    return { detection_kind: 'point_detector', acquisition_kind: 'mapping' }
+  return { detection_kind: 'spectrometer' }
+}
+
 export function presetFields(method: string) {
+  if (method === 'SHG') return shgConfiguration.preset_fields
   if (method === 'PL') return plConfiguration.preset_fields
   return method === 'optical_microscopy'
     ? omConfiguration.preset_fields
@@ -64,6 +120,9 @@ export function reconcileConditions(
   const next = { ...draft }
   if (method === 'PL' && next.slit_setting_kind === 'bandwidth')
     delete next.slit_width_um
+  if (method === 'SHG')
+    for (const key of Object.keys(next))
+      if (shgInapplicable(key.split('.')[0], next)) delete next[key]
   let size: number
   do {
     size = Object.keys(next).length
@@ -125,7 +184,9 @@ export function instrumentPresetsAreValid(
       const draft: Record<string, string> = {
         ...(method === 'optical_microscopy'
           ? { observation_mode: 'digital', image_color_mode: 'color' }
-          : {}),
+          : method === 'SHG'
+            ? shgPresetContext(preset.conditions)
+            : {}),
         ...conditionDraft(preset.conditions),
       }
       return (
@@ -144,7 +205,12 @@ export function instrumentPresetsAreValid(
               !preset.conditions[field.key]),
         ) &&
         Boolean(draft.excitation_power_value) ===
-          Boolean(draft.excitation_power_basis)
+          Boolean(draft.excitation_power_basis) &&
+        !(
+          method === 'SHG' &&
+          draft.integration_time_s &&
+          shgTimeField(draft) !== 'integration_time_s'
+        )
       )
     })
   )

@@ -1,6 +1,17 @@
 // en locale. Mirrors the key shape of zh/common.ts (the authoritative default).
 // English UI polish is a post-v2.0 task (D12); keep keys in sync as文案 lands.
 export const common = {
+  shg: {
+    register: 'Register SHG configurations',
+    invalidCatalog:
+      'Complete the excitation source, objective and detection configurations.',
+    selectionRequired:
+      'Select the excitation source, objective and detection configuration.',
+    peakRange: 'Peak positions must lie within the spectral range.',
+    angleReferenceRequired: 'Enter the angle reference.',
+    polarizationAngleConflict:
+      'Record either the polarization angle or the half-wave plate angle.',
+  },
   pl: {
     register: 'Register PL configurations',
     widthUnit: 'FWHM unit',

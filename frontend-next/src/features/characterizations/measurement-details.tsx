@@ -1,3 +1,4 @@
+import { SCAN_METHODS } from '@/shared/instrument-presets'
 import { invalidateRunQueries } from '@/features/experiments-v2/status-logic'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -512,7 +513,7 @@ export function MeasurementDetails({
           </div>
         ) : null}
       </dl>
-      {['Raman', 'PL'].includes(measurement.method_profile) ? (
+      {SCAN_METHODS.includes(measurement.method_profile) ? (
         <dl className="grid gap-3 text-sm sm:grid-cols-2 [&_dd]:break-words [&_dt]:break-words">
           {Object.entries(measurement.file_response_corrections ?? {}).map(
             ([id, correction]) => (

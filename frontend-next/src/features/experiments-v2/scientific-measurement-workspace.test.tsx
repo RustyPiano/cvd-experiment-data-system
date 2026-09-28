@@ -446,6 +446,126 @@ describe('SimpleCharacterizationWorkspace', () => {
     ).toEqual({ 'file-1': { status: 'applied', source: 'PL curve 47' } })
   })
 
+  it('saves an SHG polarization series from the registered configuration', async () => {
+    const user = userEvent.setup()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const shg = {
+      lasers: [
+        {
+          name: 'Ti:S',
+          conditions: {
+            excitation_wavelength_nm: 800,
+            excitation_mode: 'pulsed',
+            power_setting_unit: 'percent',
+            pulse_width_fs: 140,
+            repetition_rate_MHz: 80,
+          },
+        },
+      ],
+      objectives: [
+        {
+          name: '60x',
+          conditions: {
+            objective_magnification: 60,
+            objective_na: 0.75,
+            objective_immersion: 'air',
+          },
+        },
+      ],
+      detections: [
+        {
+          name: 'PMT',
+          references: { lasers: 'Ti:S' },
+          conditions: {
+            detection_kind: 'point_detector',
+            detector: 'PMT',
+            filter_configuration: '400/40',
+            collection_geometry: 'reflection',
+            incident_polarization_state: 'linear',
+            analyzer_mode: 'parallel',
+            polarization_reference: 'stage x',
+          },
+        },
+      ],
+    }
+    entityApi.listEntityVersions.mockResolvedValue({
+      items: [
+        {
+          id: 'shg-version',
+          entity_id: 'instrument-1',
+          version: 2,
+          data: {
+            name_type: 'SHG',
+            capabilities: [
+              {
+                code: 'SHG',
+                configuration: {
+                  shg,
+                  presets: [
+                    {
+                      name: '1 s',
+                      conditions: {
+                        integration_time_s: 1,
+                        accumulations: 2,
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+    const { container } = renderWorkspace()
+    await chooseSampleAndMethod(user, 'SHG')
+    await user.click(screen.getByRole('button', { name: '选择表征仪器' }))
+    await user.click(screen.getByLabelText(/^仪器版本/))
+    await user.click(screen.getByRole('option', { name: /^v2/ }))
+    expect(screen.queryByLabelText(/^检测方式/)).toBeNull()
+    expect(screen.queryByLabelText(/^激发波长/)).toBeNull()
+    await user.type(screen.getByLabelText('观察说明'), 'six-fold pattern')
+    await user.click(screen.getByLabelText('仪器配置预设'))
+    await user.click(screen.getByRole('option', { name: '1 s' }))
+    expect(screen.getByLabelText(/^积分时间/)).toHaveValue(1)
+    expect(screen.getByLabelText('观察说明')).toHaveValue('six-fold pattern')
+    await user.type(screen.getByLabelText(/^功率设置/), '5')
+    await user.click(screen.getByLabelText(/^采集形式/))
+    await user.click(screen.getByRole('option', { name: '参数序列' }))
+    await user.type(screen.getByLabelText(/^扫描参数/), 'hwp_deg, counts')
+    await user.upload(
+      container.querySelector<HTMLInputElement>('#characterization-raw-files')!,
+      new File(['hwp_deg,counts\n0,20'], 'pshg.txt'),
+    )
+    await user.click(screen.getByLabelText('扫描数据文件'))
+    await user.click(screen.getByRole('option', { name: 'pshg.txt' }))
+    await user.click(screen.getByRole('checkbox', { name: '半波片机械角' }))
+    expect(screen.queryByRole('checkbox', { name: '入射偏振角' })).toBeNull()
+    expect(screen.queryByRole('spinbutton', { name: /^入射偏振角/ })).toBeNull()
+    await user.click(screen.getByRole('button', { name: '保存表征记录' }))
+    await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
+    const { measurement } = api.createMeasurement.mock.calls[0][0]
+    expect(measurement.instrument_configuration).toEqual({
+      lasers: 'Ti:S',
+      objectives: '60x',
+      detections: 'PMT',
+    })
+    expect(measurement.variable_conditions).toEqual(['waveplate_angle_deg'])
+    expect(measurement.scan_file_id).toBe('file-1')
+    expect(measurement.typed_conditions).toMatchObject({
+      detection_kind: 'point_detector',
+      excitation_wavelength_nm: 800,
+      acquisition_kind: 'series',
+      integration_time_s: 1,
+      accumulations: 2,
+      power_setting: '5',
+    })
+    expect(measurement.typed_conditions).not.toHaveProperty(
+      'incident_polarization_angle_deg',
+    )
+    confirm.mockRestore()
+  }, 30_000)
+
   describe('measurement settings constraints', () => {
     it('accepts zero and negative bounded values and caps percentage power', () => {
       const tilt = characterizationProfiles.SEM.condition_fields.find(
@@ -525,25 +645,49 @@ describe('SimpleCharacterizationWorkspace', () => {
       ).toBe(false)
     })
 
-    it('shows SHG pulse parameters only for pulsed excitation and clears hidden values', async () => {
+    it('derives SHG fields from the detection path and clears hidden values', async () => {
       const user = userEvent.setup()
       renderWorkspace()
       await waitFor(() => expect(api.listSamples).toHaveBeenCalled())
       await chooseSampleAndMethod(user, 'SHG')
-      await user.click(screen.getByLabelText(/^数据类型/))
-      await user.click(screen.getByRole('option', { name: '偏振扫描' }))
+      await user.click(screen.getByLabelText(/^检测方式/))
+      await user.click(
+        screen.getByRole('option', { name: '单通道探测器（PMT/APD）' }),
+      )
       expect(screen.queryByRole('button', { name: '添加峰' })).toBeNull()
-      await user.click(screen.getByLabelText('激光输出'))
-      await user.click(screen.getByRole('option', { name: '脉冲' }))
+      await user.type(screen.getByLabelText(/^积分时间/), '1')
+      await user.click(screen.getByLabelText(/^采集形式/))
+      await user.click(screen.getByRole('option', { name: '空间扫描' }))
+      expect(screen.queryByLabelText(/^积分时间/)).toBeNull()
+      expect(screen.getByLabelText(/^像素驻留时间/)).toBeInTheDocument()
+      await user.click(screen.getByLabelText(/^检测方式/))
+      await user.click(screen.getByRole('option', { name: '相机' }))
+      expect(screen.queryByLabelText(/^像素驻留时间/)).toBeNull()
+      expect(screen.getByLabelText(/^曝光时间/)).toBeInTheDocument()
+      await user.click(screen.getByLabelText(/^采集形式/))
+      await user.click(screen.getByRole('option', { name: '单点/单幅' }))
+      expect(screen.getByText(/^图像尺寸/)).toBeInTheDocument()
+      await user.click(screen.getByLabelText(/^检测方式/))
+      await user.click(screen.getByRole('option', { name: '光谱仪' }))
+      expect(screen.getByRole('button', { name: '添加峰' })).toBeInTheDocument()
+      expect(screen.queryByText(/^图像尺寸/)).toBeNull()
+      expect(screen.getByLabelText(/^积分时间/)).toHaveValue(null)
       await user.click(screen.getByText('其他采集参数'))
-      await user.type(screen.getByLabelText('脉冲宽度（fs）'), '100')
-      await user.click(screen.getByLabelText('激光输出'))
-      await user.click(screen.getByRole('option', { name: '连续' }))
-      expect(screen.queryByLabelText('脉冲宽度（fs）')).toBeNull()
-      await user.click(screen.getByLabelText('激光输出'))
+      await user.click(screen.getByLabelText('激发方式'))
       await user.click(screen.getByRole('option', { name: '脉冲' }))
-      expect(screen.getByLabelText('脉冲宽度（fs）')).toHaveValue(null)
-    })
+      await user.type(
+        screen.getByRole('spinbutton', { name: /^标称脉宽/ }),
+        '100',
+      )
+      await user.click(screen.getByLabelText('激发方式'))
+      await user.click(screen.getByRole('option', { name: '连续' }))
+      expect(screen.queryByRole('spinbutton', { name: /^标称脉宽/ })).toBeNull()
+      await user.click(screen.getByLabelText('激发方式'))
+      await user.click(screen.getByRole('option', { name: '脉冲' }))
+      expect(screen.getByRole('spinbutton', { name: /^标称脉宽/ })).toHaveValue(
+        null,
+      )
+    }, 20_000)
   })
 
   it('does not auto-select a sample and hides technical result editors', async () => {

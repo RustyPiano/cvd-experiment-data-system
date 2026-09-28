@@ -2408,18 +2408,68 @@ export interface components {
                 /** @constant */
                 method_profile: "SHG";
                 typed_conditions: {
+                    excitation_wavelength_nm?: number;
                     /** @enum {string} */
-                    data_type: "spectrum" | "polarization_scan" | "image" | "power_scan";
-                    excitation_wavelength_nm: number;
-                    excitation_power_value?: number;
+                    detection_kind: "spectrometer" | "point_detector" | "camera";
                     /** @enum {string} */
-                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
-                    integration_time_s?: number;
+                    acquisition_kind?: "single" | "mapping" | "series";
                     objective?: string;
+                    objective_magnification?: number;
+                    objective_na?: number;
+                    /** @enum {string} */
+                    objective_immersion?: "air" | "oil" | "water" | "other";
                     /** @enum {string} */
                     excitation_mode?: "continuous" | "pulsed";
                     pulse_width_fs?: number;
                     repetition_rate_MHz?: number;
+                    power_setting?: string;
+                    /** @enum {string} */
+                    power_setting_unit?: "percent" | "mW" | "level";
+                    measured_power_mW?: number;
+                    /** @enum {string} */
+                    power_measurement_position?: "sample_plane" | "before_objective";
+                    detector?: string;
+                    detector_gain?: string;
+                    filter_configuration?: string;
+                    /** @enum {string} */
+                    collection_geometry?: "reflection" | "transmission" | "other";
+                    collection_geometry_other?: string;
+                    grating_lines_per_mm?: number;
+                    slit_width_um?: number;
+                    spectral_range_nm?: {
+                        min: number;
+                        max: number;
+                    };
+                    integration_time_s?: number;
+                    pixel_dwell_time_us?: number;
+                    exposure_time_ms?: number;
+                    accumulations?: number;
+                    /** @enum {string} */
+                    accumulation_method?: "sum" | "mean";
+                    scan_coordinates?: string;
+                    resolution_px?: {
+                        width: number;
+                        height: number;
+                    };
+                    image_scale_um_per_px?: number;
+                    image_scale_y_um_per_px?: number;
+                    /** @enum {string} */
+                    incident_polarization_state?: "linear" | "circular" | "elliptical" | "unpolarized";
+                    /** @enum {string} */
+                    analyzer_mode?: "none" | "parallel" | "crossed" | "fixed";
+                    incident_polarization_angle_deg?: number;
+                    waveplate_angle_deg?: number;
+                    sample_rotation_deg?: number;
+                    analyzer_angle_deg?: number;
+                    polarization_reference?: string;
+                    elapsed_time_s?: number;
+                    sample_preparation?: string;
+                    acquisition_note?: string;
+                    /** @enum {string} */
+                    data_type?: "spectrum" | "polarization_scan" | "image" | "power_scan";
+                    excitation_power_value?: number;
+                    /** @enum {string} */
+                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
                     input_polarization?: string;
                     analyzer_polarization?: string;
                     angle_reference?: string;
@@ -2429,46 +2479,15 @@ export interface components {
                         start: number;
                         end: number;
                     };
-                    objective_na?: number;
-                    grating_lines_per_mm?: number;
-                    slit_width_um?: number;
-                    filter_configuration?: string;
-                    detector?: string;
-                    detector_gain?: string;
-                    /** @enum {string} */
-                    collection_geometry?: "reflection" | "transmission" | "other";
-                    /** @enum {string} */
-                    incident_polarization_state?: "linear" | "circular" | "elliptical" | "unpolarized";
-                    /** @enum {string} */
-                    analyzer_mode?: "none" | "fixed" | "parallel" | "crossed";
-                    incident_polarization_angle_deg?: number;
-                    analyzer_angle_deg?: number;
-                    polarization_reference?: string;
-                    collection_geometry_other?: string;
-                    /** @enum {string} */
-                    acquisition_kind?: "single" | "mapping" | "series";
-                    scan_coordinates?: string;
-                    /** @enum {string} */
-                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
-                    /** @enum {string} */
-                    accumulation_method?: "sum" | "mean" | "separate";
                     /** @enum {string} */
                     scan_angle_quantity?: "waveplate" | "polarization" | "analyzer" | "sample";
                     angle_step_deg?: number;
                     power_scan_coordinates?: string;
                     spot_size_um?: number;
                     spot_size_definition?: string;
-                    exposure_time_ms?: number;
-                    pixel_dwell_time_us?: number;
-                    resolution_px?: {
-                        width: number;
-                        height: number;
-                    };
-                    image_scale_um_per_px?: number;
-                    image_scale_y_um_per_px?: number;
-                    sample_preparation?: string;
-                    acquisition_note?: string;
-                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
+                    /** @enum {string} */
+                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "selected_area" | "whole_sample";
@@ -2477,12 +2496,9 @@ export interface components {
                 /** Format: uuid */
                 instrument_id: string;
                 instrument_version: number;
-                instrument_configuration?: unknown;
-                scan_file_id?: null;
-                variable_conditions?: unknown;
-                file_intensity_units?: unknown;
                 file_response_corrections?: unknown;
-            };
+                variable_conditions?: ("power_setting" | "measured_power_mW" | "excitation_wavelength_nm" | "incident_polarization_angle_deg" | "waveplate_angle_deg" | "sample_rotation_deg" | "analyzer_angle_deg" | "elapsed_time_s")[];
+            } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
             properties?: unknown;
             assertions?: unknown;
         } & (unknown & {
@@ -2504,6 +2520,16 @@ export interface components {
             power_setting_unit?: string | null;
             /** Sample Power Mw */
             sample_power_mW?: number | null;
+            /** Measured Power Mw */
+            measured_power_mW?: number | null;
+            /** Power Measurement Position */
+            power_measurement_position?: string | null;
+            /** Detection Kind */
+            detection_kind?: string | null;
+            /** Waveplate Angle Deg */
+            waveplate_angle_deg?: number | null;
+            /** Sample Rotation Deg */
+            sample_rotation_deg?: number | null;
             /** Environment Kind */
             environment_kind?: string | null;
             /** Temperature Control */

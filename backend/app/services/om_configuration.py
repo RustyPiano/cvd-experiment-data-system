@@ -3,7 +3,11 @@
 import re
 from copy import deepcopy
 
-from app.schemas.scientific import MeasurementConditions, validate_profile_conditions
+from app.schemas.scientific import (
+    SCAN_METHODS,
+    MeasurementConditions,
+    validate_profile_conditions,
+)
 from app.services.v2_field_source import load_field_source
 
 
@@ -11,7 +15,7 @@ def resolve_om_configuration(
     catalog: dict, selection: dict, digital: bool = True, method: str = "optical_microscopy"
 ) -> tuple[dict, set]:
     config = load_field_source()[
-        f"{method.lower()}_configuration" if method in {"Raman", "PL"} else "om_configuration"
+        f"{method.lower()}_configuration" if method in SCAN_METHODS else "om_configuration"
     ]
     spec = config["sections"]
     if set(selection) - set(spec):
@@ -48,7 +52,7 @@ def resolve_om_configuration(
 
 def validate_om_catalog(catalog: dict, method: str = "optical_microscopy") -> dict:
     spec = load_field_source()[
-        f"{method.lower()}_configuration" if method in {"Raman", "PL"} else "om_configuration"
+        f"{method.lower()}_configuration" if method in SCAN_METHODS else "om_configuration"
     ]
     if not isinstance(catalog, dict) or set(catalog) - set(spec["sections"]):
         raise ValueError("invalid instrument catalog")

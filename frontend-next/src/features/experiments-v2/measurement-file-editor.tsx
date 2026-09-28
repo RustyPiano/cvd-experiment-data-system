@@ -1,3 +1,4 @@
+import { SCAN_METHODS } from '@/shared/instrument-presets'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -96,7 +97,7 @@ export function MeasurementFileEditor({
                     </SelectContent>
                   </Select>
                 </Field>
-                {['Raman', 'PL'].includes(method ?? '') &&
+                {SCAN_METHODS.includes(method ?? '') &&
                 item.role !== 'supporting' ? (
                   <Field>
                     <FieldLabel htmlFor={`file-intensity-${index}`}>
