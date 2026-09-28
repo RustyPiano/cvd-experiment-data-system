@@ -367,13 +367,7 @@
       "validation": "非空字符串列表；每个名称去除首尾空白后长度 1–128，忽略大小写不得重复。",
       "history": "不改既有仪器版本；新建或新增版本选择其他时须填写名称。"
     },
-    "result_chain": "Sample → MeasurementRun (instrument + calibration-at-measurement snapshot) → AnalysisRun → PropertyValue / MaterialAssertion",
-    "sample_actual_states": [
-      "unknown",
-      "growth_present",
-      "no_growth",
-      "uncertain"
-    ],
+    "result_chain": "Sample → MeasurementRun (instrument configuration snapshot) → AnalysisRun → PropertyValue",
     "property_units": {
       "spectral_peaks": "—",
       "afm_step_height": "nm",

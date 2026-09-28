@@ -250,7 +250,7 @@ Sample + RunRevision
 
 只有**当前修订、当前样品、质量为 `valid` 的测量**中的有效 PropertyValue，或该方法配置允许的有效原始文件，才构成当前结果证据。`suspect` / `invalid` 测量、失效或被 supersede 的结果、旧修订证据、软删样品及未绑定暂存文件均不清除“结果缺失”待办，也不进入默认训练数据集。**当已锁定/复核炉次的当前修订没有任何有效证据时，该炉次进入“结果缺失”待办清单**，直到补录，或由用户显式标注“暂未表征”。管理员可审计解锁，因此 `locked` 是正常业务终态而非绝对不可逆状态。
 
-旧 `direct_observation` / `MeasuredProduct` 仅为历史只读与无损导出兼容，不再接受新写入；新的直接观察同样使用 `optical_microscopy` MeasurementRun 表达。
+直接观察使用 `optical_microscopy` MeasurementRun 表达。
 
 > **决定（2026-07-06，经 Fable 评审修正）**：
 > - **不设主观成败标签**（v1 的 `outcome_category` success/partial/failed 不纳入 v2）——成 / 败由**分析端**从「目标产物 ↔ 实测产物 + 过程事件」推断，免去"这算 failed 还是 partial"的录入端争议。

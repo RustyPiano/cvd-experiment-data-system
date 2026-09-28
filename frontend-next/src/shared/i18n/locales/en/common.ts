@@ -1207,13 +1207,6 @@ export const common = {
         particle: 'Particle',
       },
       sampleMeasurements: '{{count}} measurement records',
-      sampleStates: {
-        unknown: 'Not characterized',
-        growth_present: 'Growth observed',
-        no_growth: 'No growth observed',
-        uncertain: 'Conclusion uncertain',
-        asserted: 'Material assignment recorded',
-      },
       instrument: { unsupported: 'Does not support this method' },
       filesSelected: '{{count}} files selected',
       selectedFiles: 'Selected data files',

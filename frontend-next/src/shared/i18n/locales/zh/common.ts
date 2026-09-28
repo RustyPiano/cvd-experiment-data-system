@@ -1135,13 +1135,6 @@ export const common = {
         particle: '颗粒',
       },
       sampleMeasurements: '{{count}} 条表征',
-      sampleStates: {
-        unknown: '未表征',
-        growth_present: '已观察到生长',
-        no_growth: '未观察到生长',
-        uncertain: '结论不确定',
-        asserted: '已有材料结论',
-      },
       instrument: { unsupported: '不支持当前方法' },
       filesSelected: '已选择 {{count}} 个文件',
       selectedFiles: '已选择的数据文件',
