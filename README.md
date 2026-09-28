@@ -2,7 +2,7 @@
 
 面向二维材料课题组的炉次、样品、表征与实测数据采集系统。仓库当前是 **v2 单轨**：唯一前端为 `frontend-next/`，唯一 API 命名空间为 `/api/v1`，字段与词表以 `docs/standard/field-source.yaml` 为单一机器源。
 
-> 先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)。它是项目现状、已定决策和下一步的唯一入口；完整文档索引见 [`docs/README.md`](docs/README.md)。
+> 先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)。它是项目现状与已定决策的唯一入口；交接说明见 [`docs/HANDOVER.md`](docs/HANDOVER.md)；完整文档索引见 [`docs/README.md`](docs/README.md)。
 >
 > 香港生产环境已于 2026-07-24 切换到 v2；旧 v1 数据库已离线归档，部署证据见 [`docs/operations/production-deployment-report-2026-07-24.md`](docs/operations/production-deployment-report-2026-07-24.md)。
 
@@ -12,9 +12,9 @@
 2. 在炉次中分节填写目标产物、装置、前驱体、衬底和过程步骤；基础资料可以就地新建，引用固定为“实体 + 版本”快照。
 3. 炉次状态只有 `draft → locked`。锁定前检查全部必填项与 R0 最小可复现字段。
 4. 锁定工艺时，系统按衬底在同一事务中生成 `growth` 样品。管理员可将炉次解锁回 `draft`。
-5. `locked` 只锁工艺数据；全组成员仍可为可见炉次补录直接观察、表征结果和附件，也可以确认“暂未表征”。新增结果会自动清除该确认。
+5. `locked` 只锁工艺数据；全组成员仍可为可见炉次的样品补录表征记录和附件，也可以确认“暂未表征”。新增结果会自动清除该确认。
 6. 样品类型为 `growth / derived / control`。样品保留来源快照和父子谱系；实验与文件不做物理删除。
-7. 炉次支持组合筛选、操作记录和嵌套 JSON 导出；批量 ZIP 含七张业务 CSV、模块明细、字段字典、schema manifest 与权威无损 `records.json`；界面支持中英文切换。
+7. 炉次支持组合筛选、操作记录和嵌套 JSON 导出；批量 ZIP 含多张业务 CSV、模块明细、字段字典、schema manifest 与权威无损 `records.json`；界面支持中英文切换。
 
 产品规格见 [`docs/product/run-first-workflow-and-copy-design.md`](docs/product/run-first-workflow-and-copy-design.md)，浏览器验收结果见 [`docs/operations/e2e-run-first-report-2026-07-17.md`](docs/operations/e2e-run-first-report-2026-07-17.md)。
 
