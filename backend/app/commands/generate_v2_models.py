@@ -1418,8 +1418,7 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f'{indent}            raise ValueError("additional capability names must be nonblank, unique and at most 128 characters")',
                 f"{indent}        self.field_device_other_names = names",
                 f"{indent}    configured = 'other' in (self.field_devices or [])",
-                f"{indent}    recorded = names if names is not None else (self.field_device_other_name or '').strip()",
-                f"{indent}    if configured != bool(recorded):",
+                f"{indent}    if configured != bool(names):",
                 f'{indent}        raise ValueError("named additional capabilities are required only for other")',
                 f"{indent}    return self",
             ]

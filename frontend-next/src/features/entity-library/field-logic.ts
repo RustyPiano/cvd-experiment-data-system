@@ -391,8 +391,6 @@ export function isFieldVisible(
   field: FieldMetadata,
   values: EntityFormValues,
 ): boolean {
-  if (kind === 'setup' && field.key === 'field_device_other_name') return false
-
   if (kind === 'instrument' && field.key === 'name_type') return false
 
   const subcategory = parseSubcategory(field.labelZh)

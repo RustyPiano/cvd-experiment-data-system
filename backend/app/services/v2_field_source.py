@@ -294,8 +294,6 @@ def canonicalize_controlled_values(
     } | {
         "role",
         "option",
-        "file_kind",
-        "observed_phenomenon",
         *STRUCTURED_CONTROLLED_KEYS,
     }
     if isinstance(value, dict):
@@ -412,11 +410,8 @@ def condition_matches(condition: dict[str, Any], value: Any) -> bool:
 
 
 def additional_capability_names(attrs: dict[str, Any]) -> list[str]:
-    names = attrs.get("field_device_other_names")
-    if isinstance(names, list):
-        return [name.strip() for name in names if isinstance(name, str) and name.strip()]
-    legacy = attrs.get("field_device_other_name")
-    return [legacy.strip()] if isinstance(legacy, str) and legacy.strip() else []
+    names = attrs.get("field_device_other_names") or []
+    return [name.strip() for name in names if isinstance(name, str) and name.strip()]
 
 
 def additional_capability_is_available(field: dict[str, Any], attrs: dict[str, Any]) -> bool:

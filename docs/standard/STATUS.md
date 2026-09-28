@@ -7,7 +7,7 @@
 - **CVD 二维材料实验数据采集系统**，v2 单轨：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`。单轨化计划与执行记录见 [`v2-single-track-plan.md`](../engineering/v2-single-track-plan.md)（批0–批8）。
 - **香港生产**：`304c96f / v4.0-alpha.43`，Alembic `20260909_0016 (head)`。2026-07-24 切换到 v2，2026-08-07 经用户授权清空测试数据。旧 v1 库离线归档为 `cvd_v1_archive_20260724`。发布证据见 [`production-deployment-report-2026-07-24.md`](../operations/production-deployment-report-2026-07-24.md)。
 - **仓库**：`v4.0-alpha.49 / INTERNAL_VALIDATION`，Alembic `20260928_0017 (head)`，未发布。alpha.44–48 为表征仪器配置整改：[OM](../reviews/2026-09-10-om-implementation.md)、[Raman](../reviews/2026-09-11-raman-implementation.md)、[PL](../reviews/2026-09-11-pl-implementation.md)、[SHG](../reviews/2026-09-13-shg-implementation.md)。
-- **字段**：115 个实验字段（90 个进入前端/JSON 契约）、3 张一等实体表 66 个字段（54 个进入前端元数据）、26 个 R0 标记。`字段草案-v3.xlsx` 已按 alpha.49 重生成。
+- **字段**：114 个实验字段（89 个进入前端/JSON 契约）、3 张一等实体表 65 个字段（53 个进入前端元数据）、26 个 R0 标记。`字段草案-v3.xlsx` 已按 alpha.49 重生成。
 - **评审输入**：2026-07-07 导师书面批注（已纳入 v3.4）；2026-07-24 线上走查 M/A/F；发布后试填与终审 U-01—U-32。计划见 [`2026-07-24-meeting-remediation-plan.md`](../product/2026-07-24-meeting-remediation-plan.md)，逐项状态见 [`2026-07-24-teacher-meeting-remediation.md`](../reviews/2026-07-24-teacher-meeting-remediation.md)。
 - 已定决策见 §4，不重开。工程技术决策 D1–D12 见 [`v2-implementation-plan.md`](../engineering/v2-implementation-plan.md)。
 - 读序：本文件 → [`docs/README.md`](../README.md) → [`run-first-workflow-and-copy-design.md`](../product/run-first-workflow-and-copy-design.md) → [`cvd-2d-process-data-standard-v2.0.md`](cvd-2d-process-data-standard-v2.0.md) → `字段草案-v3.xlsx` → [`metadata-v2-review-and-redesign.md`](metadata-v2-review-and-redesign.md) →（写代码）根 `AGENTS.md`。
@@ -95,7 +95,7 @@
 | 09-28 | 删除死代码：旧一代制备表单编辑器、旧结果接口与 `V2ResultsService`、无调用方的后端私有方法和前端辅助函数 |
 | 09-28 | 删除无界面入口的容器实例、设备组件、组件绑定、设备生命周期事件和草稿导出接口 |
 | 09-28 | alpha.49：删除仪器校准事件与校准快照、源容器实例引用、装置部件绑定及对应表（迁移 `20260928_0017`） |
-| 09-28 | alpha.49：删除旧数据兼容层——旧扁平结果 `MeasuredProduct`、表征 legacy 字段与不可达属性、低波数 Raman 别名、按仪器类型推断方法；生产库核查无真实数据 |
+| 09-28 | alpha.49：删除旧数据兼容层——旧扁平结果 `MeasuredProduct`、表征 legacy 字段与不可达属性、低波数 Raman 别名、按仪器类型推断方法；生产库核查无真实数据；另删文件 `file_kind` 重复列与单名称外场字段 |
 
 ## 6. 已归档
 

@@ -263,7 +263,6 @@ def test_postgres_entity_file_can_only_be_bound_once(db_session, active_user) ->
         method="entity_reference",
         file_category="raw",
         asset_role="entity_attachment",
-        file_kind="entity_reference",
         metadata_json={},
     )
     db_session.add(asset)

@@ -128,7 +128,6 @@ class FileAsset(Base):
         index=True,
     )
     note: Mapped[str | None] = mapped_column(String(FILE_NOTE_MAX_LENGTH), nullable=True)
-    file_kind: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     metadata_json: Mapped[dict] = mapped_column(json_payload_type, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

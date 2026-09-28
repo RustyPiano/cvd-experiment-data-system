@@ -6243,32 +6243,6 @@
       "source_part": "experiment_record",
       "module": "设备",
       "module_key": "equipment",
-      "key": "field_device_other_name",
-      "label": "其他附加能力名称（历史）",
-      "label_en": "Other external-field capability name",
-      "meaning": "所引用装置登记的其他外场能力名称，只读带出",
-      "input": "文本",
-      "example": "磁场",
-      "help": null,
-      "help_en": null,
-      "machine_type": "string",
-      "schema_path": "$.modules.equipment.properties.field_device_other_name",
-      "r0": false,
-      "condition": {
-        "field": "设备.装置附加能力",
-        "op": "eq",
-        "value": "other"
-      },
-      "requirement": "optional",
-      "otherwise": null,
-      "validation": null,
-      "unit": null,
-      "options": null
-    },
-    {
-      "source_part": "experiment_record",
-      "module": "设备",
-      "module_key": "equipment",
       "key": "field_device_other_names",
       "label": "其他附加能力",
       "label_en": "Other additional capabilities",
@@ -8509,32 +8483,6 @@
       "source_part": "entity",
       "module": "装置Setup",
       "module_key": "setup",
-      "key": "field_device_other_name",
-      "label": "其他附加能力名称（历史）",
-      "label_en": "Other external-field capability name",
-      "meaning": "外场能力选择“其他”时填写可复用的能力名称",
-      "input": "文本",
-      "example": "磁场",
-      "help": null,
-      "help_en": null,
-      "machine_type": "string",
-      "schema_path": "$.entities.setup.properties.field_device_other_name",
-      "r0": false,
-      "condition": {
-        "field": "装置Setup.装置附加能力",
-        "op": "eq",
-        "value": "other"
-      },
-      "requirement": "optional",
-      "otherwise": null,
-      "validation": null,
-      "unit": null,
-      "options": null
-    },
-    {
-      "source_part": "entity",
-      "module": "装置Setup",
-      "module_key": "setup",
       "key": "field_device_other_names",
       "label": "其他附加能力",
       "label_en": "Other additional capabilities",
@@ -8796,5 +8744,5 @@
       "options": null
     }
   ],
-  "field_count": 144
+  "field_count": 142
 }

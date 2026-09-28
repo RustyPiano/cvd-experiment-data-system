@@ -211,20 +211,6 @@ def test_upload_file_rejects_unknown_method(active_user) -> None:
     assert response.json()["detail"] == "Invalid file method"
 
 
-def test_upload_file_accepts_legacy_file_kind_alias(active_user) -> None:
-    experiment_id = create_experiment(active_user.email)
-
-    response = client.post(
-        f"/api/v1/experiments/{experiment_id}/files",
-        headers=auth_headers(active_user.email),
-        data={"file_kind": "Raman"},
-        files={"file": ("legacy.txt", b"legacy", "text/plain")},
-    )
-
-    assert response.status_code == 201
-    assert response.json()["method"] == "Raman"
-
-
 def test_upload_file_rejects_payloads_over_size_limit(active_user, monkeypatch) -> None:
     experiment_id = create_experiment(active_user.email)
     monkeypatch.setattr(get_settings(), "file_upload_max_bytes", 4)
@@ -539,7 +525,6 @@ def test_direct_observation_files_are_legacy_read_only(active_user, db_session) 
         method="direct_observation_file",
         file_category="raw",
         asset_role="direct_observation_file",
-        file_kind="direct_observation_file",
         metadata_json={},
     )
     db_session.add(legacy)

@@ -484,7 +484,6 @@ def test_entity_version_can_reuse_its_existing_attachment(db_session, admin_user
         method="entity_reference",
         file_category="raw",
         asset_role="entity_attachment",
-        file_kind="entity_reference",
         metadata_json={},
     )
     db_session.add(asset)

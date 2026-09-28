@@ -1674,19 +1674,18 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
 def test_additional_capability_names_round_trip_without_rewriting_versions(admin_user) -> None:
     headers = _headers(admin_user.email)
     payload = setup_payload(
-        setup_code="SETUP-CAPABILITIES", field_devices=["other"], field_device_other_name="磁场"
+        setup_code="SETUP-CAPABILITIES", field_devices=["other"], field_device_other_names=["磁场"]
     )
     created = client.post("/api/v1/setups", headers=headers, json=payload)
     assert created.status_code == 201, created.text
     entity_id = created.json()["id"]
-    payload.pop("field_device_other_name")
     payload["field_device_other_names"] = [" 磁场 ", "机械振动"]
     updated = client.post(f"/api/v1/setups/{entity_id}/versions", headers=headers, json=payload)
     assert updated.status_code == 201, updated.text
     assert updated.json()["data"]["field_device_other_names"] == ["磁场", "机械振动"]
     versions = client.get(f"/api/v1/setups/{entity_id}/versions", headers=headers)
     old = next(item for item in versions.json()["items"] if item["version"] == 1)
-    assert old["data"]["field_device_other_name"] == "磁场"
+    assert old["data"]["field_device_other_names"] == ["磁场"]
     assert old["data"] == created.json()["latest_version"]["data"]
     payload["field_device_other_names"] = ["磁场", " 磁场 "]
     invalid = client.post(f"/api/v1/setups/{entity_id}/versions", headers=headers, json=payload)

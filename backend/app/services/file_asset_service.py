@@ -393,7 +393,6 @@ class FileAssetService:
                 file_category=resolved_category,
                 asset_role=resolved_asset_role,
                 note=normalized_note,
-                file_kind=resolved_method,
                 metadata_json=metadata_json,
             )
             saved = self.files.create(file_asset)

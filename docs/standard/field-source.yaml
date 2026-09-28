@@ -5486,24 +5486,6 @@ experiment_record:
       source: 2026-07-24导师走查
       note: 只读投影；不得当成本炉实际使用记录
     - module: 设备
-      label: 其他附加能力名称（历史）
-      label_en: Other external-field capability name
-      key: field_device_other_name
-      meaning: 所引用装置登记的其他外场能力名称，只读带出
-      input: 文本
-      options: —
-      unit: —
-      requirement:
-        raw: 历史单名称兼容
-        level: optional
-        condition:
-          field: 设备.装置附加能力
-          op: eq
-          value: 其他
-      example: 磁场
-      source: 2026-09-03用户在线复核
-      note: 只读投影；实际使用时仍需记录时间区间和具名参数
-    - module: 设备
       label: 其他附加能力
       label_en: Other additional capabilities
       key: field_device_other_names
@@ -7788,27 +7770,6 @@ entities:
       example: 无
       source: 2026-07-24导师走查
       note: 这里只登记能力；每炉实际使用情况在反应条件中记录
-    - module: 装置Setup
-      label: 其他附加能力名称（历史）
-      label_en: Other external-field capability name
-      key: field_device_other_name
-      storage: attrs
-      meaning: 外场能力选择“其他”时填写可复用的能力名称
-      input: 文本
-      options: —
-      unit: —
-      requirement:
-        raw: 历史单名称兼容
-        level: optional
-        condition:
-          field: 装置Setup.装置附加能力
-          op: eq
-          value: 其他
-      example: 磁场
-      source: 2026-09-03用户在线复核
-      note: 一个装置版本登记一个其他外场名称；不同能力需要分别登记时再扩展为结构化列表
-      placeholder: 例如 磁场
-      placeholder_en: e.g. magnetic field
     - module: 装置Setup
       label: 其他附加能力
       label_en: Other additional capabilities

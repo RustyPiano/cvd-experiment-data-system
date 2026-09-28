@@ -6657,18 +6657,6 @@
           "default": null,
           "title": "Field Devices"
         },
-        "field_device_other_name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Field Device Other Name"
-        },
         "field_device_other_names": {
           "anyOf": [
             {
@@ -11288,18 +11276,6 @@
           },
           "title": "Field Devices",
           "type": "array"
-        },
-        "field_device_other_name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Field Device Other Name"
         },
         "field_device_other_names": {
           "anyOf": [

@@ -32,6 +32,9 @@ def _timestamps() -> list[sa.Column]:
 
 
 def upgrade() -> None:
+    with op.batch_alter_table("file_assets") as batch:
+        batch.drop_index("ix_file_assets_file_kind")
+        batch.drop_column("file_kind")
     with op.batch_alter_table("source_loads") as batch:
         batch.drop_index("ix_source_loads_container_instance_id")
         batch.drop_column("container_state_at_loading")
@@ -50,6 +53,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    with op.batch_alter_table("file_assets") as batch:
+        batch.add_column(sa.Column("file_kind", sa.String(64), nullable=True))
+        batch.create_index("ix_file_assets_file_kind", ["file_kind"])
     op.create_table(
         "measured_products",
         sa.Column("id", sa.Uuid(), nullable=False),

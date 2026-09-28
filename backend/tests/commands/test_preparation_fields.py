@@ -64,7 +64,7 @@ def test_alloy_and_doping_are_validated_per_target_region() -> None:
         TargetSpecPayload.model_validate({**target, "film_form": "continuous"})
 
 
-def test_named_capabilities_preserve_legacy_and_bind_each_use() -> None:
+def test_named_capabilities_bind_each_use() -> None:
     setup = SetupVersionPayload.model_validate(
         setup_payload(field_devices=["other"], field_device_other_names=["磁场", "机械振动"])
     )
@@ -76,9 +76,6 @@ def test_named_capabilities_preserve_legacy_and_bind_each_use() -> None:
         {"field_type": "other", "capability_name": "未登记"}, attrs
     )
     assert not additional_capability_is_available({"field_type": "other"}, attrs)
-    legacy = setup_payload(field_devices=["other"], field_device_other_name="磁场")
-    assert SetupVersionPayload.model_validate(legacy).field_device_other_name == "磁场"
-    assert additional_capability_is_available({"field_type": "other"}, legacy)
     for names in ([""], ["磁场", " 磁场 "], []):
         with pytest.raises(ValueError):
             SetupVersionPayload.model_validate(

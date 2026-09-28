@@ -2,13 +2,12 @@ export function additionalCapabilityNames(
   snapshot?: Record<string, unknown> | null,
 ): string[] {
   const values = snapshot?.field_device_other_names
-  if (Array.isArray(values))
-    return values
-      .filter((value): value is string => typeof value === 'string')
-      .map((name) => name.trim())
-      .filter(Boolean)
-  const legacy = snapshot?.field_device_other_name
-  return typeof legacy === 'string' && legacy.trim() ? [legacy.trim()] : []
+  return Array.isArray(values)
+    ? values
+        .filter((value): value is string => typeof value === 'string')
+        .map((name) => name.trim())
+        .filter(Boolean)
+    : []
 }
 
 export function capabilityNamesAreValid(names: string[]): boolean {

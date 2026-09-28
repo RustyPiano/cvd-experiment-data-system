@@ -867,8 +867,6 @@ export interface components {
             binding_id?: string | null;
             /** Note */
             note?: string | null;
-            /** File Kind */
-            file_kind?: string | null;
         };
         /** ControlSampleCreate */
         ControlSampleCreate: {
@@ -2919,8 +2917,6 @@ export interface components {
             wall_type?: ("cold_wall" | "hot_wall") | null;
             /** Field Devices */
             field_devices: ("electric_field" | "light" | "none" | "other" | "plasma")[];
-            /** Field Device Other Name */
-            field_device_other_name?: string | null;
             /** Field Device Other Names */
             field_device_other_names?: string[] | null;
             setup_diagram?: components["schemas"]["FileAssetReferencePayload"] | null;

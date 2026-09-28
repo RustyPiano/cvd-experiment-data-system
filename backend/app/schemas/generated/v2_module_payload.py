@@ -782,7 +782,6 @@ class EquipmentPayload(V2PayloadBase):
     coordinate_system: str | None = None
     temperature_sensors: Annotated[list[TemperatureSensorPayload], Field(min_length=1)]
     field_devices: list[Literal['electric_field', 'light', 'none', 'other', 'plasma']] | None = None
-    field_device_other_name: str | None = None
     field_device_other_names: list[NonBlankStr] | None = None
     setup_diagram: FileAssetReferencePayload | None = None
     tube_usage_history: TubeUsageHistoryPayload
@@ -796,8 +795,7 @@ class EquipmentPayload(V2PayloadBase):
                 raise ValueError("additional capability names must be nonblank, unique and at most 128 characters")
             self.field_device_other_names = names
         configured = 'other' in (self.field_devices or [])
-        recorded = names if names is not None else (self.field_device_other_name or '').strip()
-        if configured != bool(recorded):
+        if configured != bool(names):
             raise ValueError("named additional capabilities are required only for other")
         return self
 
@@ -868,11 +866,6 @@ class EquipmentPayload(V2PayloadBase):
             and not _missing(self.modification_details)
         ):
             raise ValueError("modification_details is not applicable")
-        if (
-            not _matches({'op': 'eq', 'value': 'other'}, self.field_devices)
-            and not _missing(self.field_device_other_name)
-        ):
-            raise ValueError("field_device_other_name is not applicable")
         return self
 
 
@@ -1238,7 +1231,6 @@ class SetupVersionPayload(V2PayloadBase):
     tube_outer_diameter_wall_mm: TubeDimensionsPayload
     wall_type: Literal['cold_wall', 'hot_wall'] | None = None
     field_devices: list[Literal['electric_field', 'light', 'none', 'other', 'plasma']]
-    field_device_other_name: str | None = None
     field_device_other_names: list[NonBlankStr] | None = None
     setup_diagram: FileAssetReferencePayload | None = None
 
@@ -1251,8 +1243,7 @@ class SetupVersionPayload(V2PayloadBase):
                 raise ValueError("additional capability names must be nonblank, unique and at most 128 characters")
             self.field_device_other_names = names
         configured = 'other' in (self.field_devices or [])
-        recorded = names if names is not None else (self.field_device_other_name or '').strip()
-        if configured != bool(recorded):
+        if configured != bool(names):
             raise ValueError("named additional capabilities are required only for other")
         return self
 
@@ -1323,11 +1314,6 @@ class SetupVersionPayload(V2PayloadBase):
             and not _missing(self.modification_details)
         ):
             raise ValueError("modification_details is not applicable")
-        if (
-            not _matches({'op': 'eq', 'value': 'other'}, self.field_devices)
-            and not _missing(self.field_device_other_name)
-        ):
-            raise ValueError("field_device_other_name is not applicable")
         return self
 
 

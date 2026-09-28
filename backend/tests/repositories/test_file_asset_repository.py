@@ -31,7 +31,6 @@ def test_sqlite_file_lock_serializes_writers(active_user, db_session) -> None:
         method="entity_reference",
         file_category="raw",
         asset_role="entity_attachment",
-        file_kind="entity_reference",
         metadata_json={},
     )
     db_session.add(asset)

@@ -151,7 +151,6 @@ def _file(
         method=method,
         file_category="raw" if record else "processed",
         asset_role="characterization_file",
-        file_kind=method,
         metadata_json={"stage": "baseline"},
         deleted_at=(datetime(2026, 8, 30, 13, tzinfo=UTC) if deleted else None),
     )

@@ -65,7 +65,6 @@ class EntityFileService:
             file_category="raw",
             asset_role=ENTITY_ASSET_ROLE,
             note=normalized_note,
-            file_kind=ENTITY_REFERENCE_METHOD,
             metadata_json={},
         )
         try:

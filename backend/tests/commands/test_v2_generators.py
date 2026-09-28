@@ -673,9 +673,9 @@ def test_setup_and_instrument_entity_contracts() -> None:
     assert setup.orientation == "horizontal"
 
     named_field_setup = SetupVersionPayload.model_validate(
-        _setup(field_devices=["other"], field_device_other_name="magnetic field")
+        _setup(field_devices=["other"], field_device_other_names=["magnetic field"])
     )
-    assert named_field_setup.field_device_other_name == "magnetic field"
+    assert named_field_setup.field_device_other_names == ["magnetic field"]
     with pytest.raises(ValueError, match="named additional capabilities"):
         SetupVersionPayload.model_validate(_setup(field_devices=["other"]))
 
