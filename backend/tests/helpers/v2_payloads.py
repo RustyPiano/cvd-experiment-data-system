@@ -3,43 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 
-def basic_info_payload(
-    *,
-    run_code: str = "CVD-2026-0001",
-    started_at: str = "2026-07-24T09:30:00+08:00",
-    synthesis_method: str = "CVD",
-    operator: str = "Tester",
-    **overrides: Any,
-) -> dict[str, Any]:
-    payload = {
-        "started_at": started_at,
-        "synthesis_method": synthesis_method,
-        "operator": operator,
-        "run_code": run_code,
-        "ambient_temperature_C": 25.0,
-        "ambient_humidity_percent": 45.0,
-        "precheck_confirmed": True,
-    }
-    payload.update(overrides)
-    return payload
-
-
-def target_product_payload(
-    *,
-    chemical_formula: str = "MoS2",
-    structure_type: str = "intrinsic",
-    target_morphology: str = "continuous_film",
-    **overrides: Any,
-) -> dict[str, Any]:
-    payload = {
-        "chemical_formula": chemical_formula,
-        "structure_type": structure_type,
-        "target_morphology": target_morphology,
-    }
-    payload.update(overrides)
-    return payload
-
-
 def temperature_sensor(
     *,
     zone_index: int = 1,
@@ -180,50 +143,5 @@ def substrate_item(
     }
     if material == "sio2_si":
         payload["oxide_thickness_nm"] = 285.0
-    payload.update(overrides)
-    return payload
-
-
-def reaction_step(
-    gas_lot: dict[str, Any],
-    *,
-    duration_min: float = 30.0,
-    zone_count: int = 2,
-    **overrides: Any,
-) -> dict[str, Any]:
-    payload = {
-        "stage_type": "reaction_conditions",
-        "temperature_program": {
-            "zones": [
-                {
-                    "zone_index": zone_index,
-                    "points": [
-                        {"elapsed_min": 0.0, "setpoint_C": 25.0},
-                        {"elapsed_min": duration_min, "setpoint_C": 750.0},
-                    ],
-                }
-                for zone_index in range(1, zone_count + 1)
-            ]
-        },
-        "gas_feeds": [
-            {
-                "species": "Ar",
-                "lot_ref": lot_reference(gas_lot),
-                "measurement_source": "mfc",
-                "intervals": [
-                    {
-                        "start_min": 0.0,
-                        "end_min": duration_min,
-                        "flow_sccm": 80.0,
-                    }
-                ],
-            }
-        ],
-        "pressure_system": {
-            "value": 101325.0,
-            "option": "atmospheric_pressure",
-        },
-        "duration_cycles": {"duration_min": duration_min},
-    }
     payload.update(overrides)
     return payload
