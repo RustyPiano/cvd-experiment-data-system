@@ -7,6 +7,7 @@
 | 类别 | 文档 | 作用 |
 |---|---|---|
 | 现状 | [`standard/STATUS.md`](standard/STATUS.md) | 当前版本与已定决策 |
+| 交接 | [`HANDOVER.md`](HANDOVER.md) | 访问、运维、回滚与待办 |
 | 标准 | [`standard/cvd-2d-process-data-standard-v2.0.md`](standard/cvd-2d-process-data-standard-v2.0.md) | CVD-2D 元数据规则书 |
 | 字段 | [`standard/field-source.yaml`](standard/field-source.yaml) | 字段、词表和必填规则的唯一机器源 |
 | 字段表 | [`standard/字段草案-v3.xlsx`](standard/字段草案-v3.xlsx) | 由字段单一源生成的人读表格 |
