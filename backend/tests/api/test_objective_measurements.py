@@ -1,4 +1,3 @@
-from copy import deepcopy
 from uuid import uuid4
 
 import pytest
@@ -12,7 +11,6 @@ def peak_payload(method="Raman", unit="cm⁻¹"):
     source_id = str(uuid4())
     conditions = {
         "Raman": {"laser_wavelength_nm": 532},
-        "low_frequency_raman": {"laser_wavelength_nm": 532},
         "PL": {"excitation_wavelength_nm": 532},
         "XRD": {
             "radiation_source": "Cu",
@@ -54,7 +52,6 @@ def peak_payload(method="Raman", unit="cm⁻¹"):
     ("method", "unit"),
     [
         ("Raman", "cm⁻¹"),
-        ("low_frequency_raman", "cm⁻¹"),
         ("PL", "nm"),
         ("PL", "eV"),
         ("XRD", "° 2θ"),
@@ -101,24 +98,6 @@ def test_invalid_or_interpretive_peak_payloads_are_rejected(mutation):
     mutation(payload["properties"][0]["structured_value"])
     with pytest.raises(ValueError):
         MeasurementBundleCreate.model_validate(payload)
-
-
-@pytest.mark.parametrize("power", [100, 101])
-def test_power_percentage_bound_matches_exported_contract(power):
-    payload = peak_payload()
-    payload["measurement"]["typed_conditions"].update(
-        excitation_power_value=power, excitation_power_basis="instrument_percent"
-    )
-    validator = Draft202012Validator(
-        export_v2_schema(output_dir=None)["json_schema_doc"]["result_models"]["measurement_bundle"]
-    )
-    if power == 100:
-        MeasurementBundleCreate.model_validate(payload)
-        validator.validate(payload)
-    else:
-        with pytest.raises(ValueError, match="cannot exceed 100"):
-            MeasurementBundleCreate.model_validate(payload)
-        assert not validator.is_valid(payload)
 
 
 @pytest.mark.parametrize("tilt", [-90, -20, 0, 90])
@@ -207,57 +186,15 @@ def test_tem_stem_and_eds_can_coexist():
             "spectrum_mode": "EDS",
         },
     )
-    payload["properties"] = [
-        {
-            "property_code": "elemental_composition",
-            "structured_value": {
-                "basis": "atomic_fraction",
-                "components": [{"species": "Mo", "fraction": 1}],
-            },
-        }
-    ]
+    payload["properties"] = []
     MeasurementBundleCreate.model_validate(payload)
     Draft202012Validator(
         export_v2_schema(output_dir=None)["json_schema_doc"]["result_models"]["measurement_bundle"]
     ).validate(payload)
 
 
-def test_legacy_assigned_peaks_and_material_verdicts_cannot_be_new_results():
+def test_material_verdicts_cannot_be_new_results():
     payload = peak_payload()
-    assigned = deepcopy(payload)
-    assigned["properties"] = [
-        {"property_code": "raman_a1g_peak_position", "numeric_value": 405, "unit": "cm⁻¹"}
-    ]
-    with pytest.raises(ValueError, match="do not apply"):
-        MeasurementBundleCreate.model_validate(assigned)
     payload["assertions"] = [{"assertion_type": "layer_count", "value": {"count": 1}}]
     with pytest.raises(ValueError, match="assertions do not apply"):
-        MeasurementBundleCreate.model_validate(payload)
-
-
-def test_eds_accepts_element_quantification_but_not_lattice_or_site_assignments():
-    payload = peak_payload()
-    payload["measurement"].update(
-        method_profile="TEM", typed_conditions={"accelerating_voltage_kV": 80, "mode": "EDS"}
-    )
-    payload["properties"] = [
-        {
-            "property_code": "elemental_composition",
-            "structured_value": {
-                "basis": "atomic_fraction",
-                "components": [
-                    {"species": "Mo", "fraction": 0.4},
-                    {"species": "S", "fraction": 0.6},
-                ],
-            },
-        }
-    ]
-    MeasurementBundleCreate.model_validate(payload)
-    payload["properties"][0]["structured_value"]["basis"] = "site_fraction"
-    with pytest.raises(ValueError):
-        MeasurementBundleCreate.model_validate(payload)
-    payload["properties"] = [
-        {"property_code": "tem_lattice_spacing", "numeric_value": 0.3, "unit": "nm"}
-    ]
-    with pytest.raises(ValueError, match="does not apply"):
         MeasurementBundleCreate.model_validate(payload)

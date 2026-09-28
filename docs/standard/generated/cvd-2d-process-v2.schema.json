@@ -381,7 +381,7 @@
       "file_contexts": "measurement.supplementary_files[{file_id,role,source_file_ids,description,software_name,software_version}]；role=processed 或 supporting；单层来源仅引用本次原始文件。",
       "operator": "measurement.operator_name 与 operator_institution 为实际测试者；performed_by_id 保留系统录入账号，不猜测代测身份。",
       "result_evidence": "property.source_file_id/source_locator/processing_note；峰使用 structured_value.source_file_id/source_locator/extraction_method/baseline_method。",
-      "policy": "只保留定义明确的采集参数与有文件依据的结果；legacy_only 仅从新录入表单移除，历史 API、详情与导出保留。",
+      "policy": "只保留定义明确的采集参数与有文件依据的结果。",
       "deferred": "图像统计、粗糙度、元素定量、通用分析面板、统计与不确定度编辑器",
       "result_source": "峰参数、台阶高度与晶格间距填写对应数据文件中已有的结果，不自动推断统计方式。",
       "peak_entry": "不显示状态下拉；空白不生成峰结果，添加峰后自动记为 recorded，仅显式勾选未检出记为 not_detected；历史 not_analyzed 保留。"
@@ -400,29 +400,7 @@
     ],
     "property_units": {
       "spectral_peaks": "—",
-      "elemental_composition": "—",
-      "image_object_size_um": "μm",
-      "image_object_density_cm2": "cm⁻²",
-      "afm_ra_roughness": "nm",
-      "raman_e2g_peak_position": "cm⁻¹",
-      "raman_a1g_peak_position": "cm⁻¹",
-      "raman_peak_separation": "cm⁻¹",
-      "raman_peak_fwhm": "cm⁻¹",
-      "raman_intensity_ratio": "ratio",
-      "shear_mode_peak_position": "cm⁻¹",
-      "low_frequency_peak_fwhm": "cm⁻¹",
-      "pl_a_exciton_peak_energy": "eV",
-      "pl_b_exciton_peak_energy": "eV",
-      "pl_integrated_intensity": "a.u.",
-      "pl_peak_fwhm": "meV",
       "afm_step_height": "nm",
-      "afm_rms_roughness": "nm",
-      "coverage_percent": "%",
-      "domain_size_um": "μm",
-      "nucleation_density_cm2": "cm⁻²",
-      "xrd_peak_2theta": "° 2θ",
-      "xrd_peak_fwhm": "° 2θ",
-      "xrd_d_spacing": "nm",
       "tem_lattice_spacing": "nm",
       "observation_note": "—"
     }
@@ -1170,234 +1148,12 @@
         ]
       }
     },
-    "elemental_composition": {
-      "legacy_only": true,
-      "label_zh": "元素定量",
-      "label_en": "Elemental quantification",
-      "value_type": "structured",
-      "validation": {},
-      "structured_schema": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "basis",
-          "components"
-        ],
-        "properties": {
-          "basis": {
-            "enum": [
-              "atomic_fraction",
-              "mass_fraction"
-            ]
-          },
-          "components": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 118,
-            "items": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "species",
-                "fraction"
-              ],
-              "properties": {
-                "species": {
-                  "type": "string",
-                  "pattern": "^[A-Z][a-z]?$"
-                },
-                "fraction": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 1
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "image_object_size_um": {
-      "legacy_only": true,
-      "label_zh": "图像对象尺寸",
-      "label_en": "Image object size",
-      "value_type": "numeric",
-      "validation": {
-        "gt": 0
-      }
-    },
-    "image_object_density_cm2": {
-      "legacy_only": true,
-      "label_zh": "图像对象数量密度",
-      "label_en": "Image object number density",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0
-      }
-    },
-    "coverage_percent": {
-      "legacy_only": true,
-      "label_zh": "覆盖率",
-      "label_en": "Coverage",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0,
-        "le": 100
-      }
-    },
-    "domain_size_um": {
-      "label_zh": "晶畴尺寸",
-      "label_en": "Domain size",
-      "value_type": "numeric",
-      "validation": {
-        "gt": 0
-      }
-    },
-    "nucleation_density_cm2": {
-      "label_zh": "成核密度",
-      "label_en": "Nucleation density",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0
-      }
-    },
-    "raman_e2g_peak_position": {
-      "label_zh": "Raman E₂g / E′ 代表峰位",
-      "label_en": "Representative Raman E2g / E-prime peak position",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0
-      }
-    },
-    "raman_a1g_peak_position": {
-      "label_zh": "Raman A₁g / A₁′ 代表峰位",
-      "label_en": "Representative Raman A1g / A1-prime peak position",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0
-      }
-    },
-    "raman_peak_separation": {
-      "label_zh": "Raman 峰间距",
-      "label_en": "Raman peak separation",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0
-      }
-    },
-    "raman_peak_fwhm": {
-      "label_zh": "Raman 峰宽",
-      "label_en": "Raman peak FWHM",
-      "value_type": "numeric",
-      "validation": {
-        "gt": 0
-      }
-    },
-    "raman_intensity_ratio": {
-      "label_zh": "Raman 强度比",
-      "label_en": "Raman intensity ratio",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0
-      }
-    },
-    "shear_mode_peak_position": {
-      "label_zh": "剪切模峰位",
-      "label_en": "Shear-mode peak position",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0
-      }
-    },
-    "low_frequency_peak_fwhm": {
-      "label_zh": "低频 Raman 峰宽",
-      "label_en": "Low-frequency Raman peak FWHM",
-      "value_type": "numeric",
-      "validation": {
-        "gt": 0
-      }
-    },
-    "pl_a_exciton_peak_energy": {
-      "label_zh": "PL A 激子峰能量",
-      "label_en": "PL A-exciton peak energy",
-      "value_type": "numeric",
-      "validation": {
-        "gt": 0
-      }
-    },
-    "pl_b_exciton_peak_energy": {
-      "label_zh": "PL B 激子峰能量",
-      "label_en": "PL B-exciton peak energy",
-      "value_type": "numeric",
-      "validation": {
-        "gt": 0
-      }
-    },
-    "pl_integrated_intensity": {
-      "label_zh": "PL 积分强度",
-      "label_en": "PL integrated intensity",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0
-      }
-    },
-    "pl_peak_fwhm": {
-      "label_zh": "PL 峰宽",
-      "label_en": "PL peak FWHM",
-      "value_type": "numeric",
-      "validation": {
-        "gt": 0
-      }
-    },
-    "afm_ra_roughness": {
-      "legacy_only": true,
-      "label_zh": "AFM 算术平均粗糙度",
-      "label_en": "AFM arithmetic roughness",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0
-      }
-    },
-    "afm_rms_roughness": {
-      "legacy_only": true,
-      "label_zh": "AFM 均方根粗糙度",
-      "label_en": "AFM RMS roughness",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0
-      }
-    },
     "afm_step_height": {
       "label_zh": "AFM 台阶高度",
       "label_en": "AFM step height",
       "value_type": "numeric",
       "validation": {
         "ge": 0
-      }
-    },
-    "xrd_peak_2theta": {
-      "label_zh": "XRD 代表衍射峰位",
-      "label_en": "Representative XRD peak 2-theta",
-      "value_type": "numeric",
-      "validation": {
-        "ge": 0,
-        "le": 180
-      }
-    },
-    "xrd_peak_fwhm": {
-      "label_zh": "XRD 代表峰宽",
-      "label_en": "Representative XRD peak FWHM",
-      "value_type": "numeric",
-      "validation": {
-        "gt": 0
-      }
-    },
-    "xrd_d_spacing": {
-      "label_zh": "XRD 代表晶面间距",
-      "label_en": "Representative XRD d-spacing",
-      "value_type": "numeric",
-      "validation": {
-        "gt": 0
       }
     },
     "tem_lattice_spacing": {
@@ -1420,13 +1176,6 @@
   },
   "characterization_profiles": {
     "optical_microscopy": {
-      "legacy_property_codes": [
-        "domain_size_um",
-        "nucleation_density_cm2"
-      ],
-      "legacy_assertion_types": [
-        "growth_presence"
-      ],
       "label_zh": "OM",
       "label_en": "OM",
       "instrument_required": false,
@@ -1444,10 +1193,7 @@
       ],
       "optional_condition_keys": [
         "objective_magnification",
-        "image_object_type",
-        "image_size_metric",
         "objective",
-        "illumination_mode",
         "image_scale_um_per_px",
         "optical_path",
         "contrast_method",
@@ -1484,42 +1230,6 @@
       ],
       "condition_fields": [
         {
-          "key": "image_object_type",
-          "legacy_only": true,
-          "label_zh": "统计对象",
-          "label_en": "Counted objects",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          },
-          "section": "results"
-        },
-        {
-          "key": "image_size_metric",
-          "legacy_only": true,
-          "label_zh": "尺寸定义",
-          "label_en": "Size definition",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "maximum_length",
-              "label_zh": "最大长度",
-              "label_en": "Maximum length"
-            },
-            {
-              "value": "equivalent_diameter",
-              "label_zh": "等效圆直径",
-              "label_en": "Equivalent circular diameter"
-            },
-            {
-              "value": "width",
-              "label_zh": "宽度",
-              "label_en": "Width"
-            }
-          ],
-          "section": "results"
-        },
-        {
           "key": "objective_magnification",
           "label_zh": "物镜倍率",
           "label_en": "Objective magnification",
@@ -1536,16 +1246,6 @@
           },
           "placeholder_zh": "物镜型号或名称",
           "placeholder_en": "Objective model or name"
-        },
-        {
-          "key": "illumination_mode",
-          "legacy_only": true,
-          "label_zh": "照明模式",
-          "label_en": "Illumination mode",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          }
         },
         {
           "key": "image_scale_um_per_px",
@@ -2170,9 +1870,6 @@
         }
       ],
       "allowed_property_codes": [
-        "coverage_percent",
-        "image_object_size_um",
-        "image_object_density_cm2",
         "observation_note"
       ],
       "default_property_codes": [
@@ -2198,19 +1895,6 @@
       ]
     },
     "Raman": {
-      "legacy_property_codes": [
-        "raman_e2g_peak_position",
-        "raman_a1g_peak_position",
-        "raman_peak_separation",
-        "raman_peak_fwhm",
-        "raman_intensity_ratio"
-      ],
-      "legacy_assertion_types": [
-        "phase_identity",
-        "polytype",
-        "stacking_order",
-        "layer_count"
-      ],
       "label_zh": "Raman",
       "label_en": "Raman spectroscopy",
       "instrument_required": true,
@@ -2227,8 +1911,6 @@
         "laser_wavelength_nm"
       ],
       "optional_condition_keys": [
-        "excitation_power_value",
-        "excitation_power_basis",
         "objective",
         "integration_time_s",
         "accumulations",
@@ -2251,7 +1933,6 @@
         "scan_coordinates",
         "measurement_environment",
         "temperature_basis",
-        "intensity_processing",
         "accumulation_method",
         "confocal_aperture_um",
         "filter_cutoff",
@@ -2275,32 +1956,6 @@
           "label_en": "Laser wavelength",
           "value_type": "number",
           "unit": "nm"
-        },
-        {
-          "key": "excitation_power_value",
-          "label_zh": "激光功率",
-          "label_en": "Laser power",
-          "value_type": "number",
-          "legacy_only": true
-        },
-        {
-          "key": "excitation_power_basis",
-          "label_zh": "功率单位",
-          "label_en": "Power unit",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "sample_plane_mW",
-              "label_zh": "样品处功率（mW）",
-              "label_en": "At-sample power (mW)"
-            },
-            {
-              "value": "instrument_percent",
-              "label_zh": "仪器设置（%）",
-              "label_en": "Instrument setting (%)"
-            }
-          ],
-          "legacy_only": true
         },
         {
           "key": "objective",
@@ -2696,31 +2351,6 @@
           }
         },
         {
-          "key": "intensity_processing",
-          "label_zh": "强度处理口径",
-          "label_en": "Intensity processing",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "unscaled",
-              "label_zh": "原始计数口径",
-              "label_en": "Unscaled acquisition counts"
-            },
-            {
-              "value": "count_rate",
-              "label_zh": "计数率",
-              "label_en": "Count rate"
-            },
-            {
-              "value": "normalized",
-              "label_zh": "归一化相对强度",
-              "label_en": "Normalized relative intensity"
-            }
-          ],
-          "section": "results",
-          "legacy_only": true
-        },
-        {
           "key": "accumulation_method",
           "label_zh": "累积方式",
           "label_en": "Accumulation method",
@@ -2989,117 +2619,7 @@
         "scan_coordinates"
       ]
     },
-    "low_frequency_raman": {
-      "legacy_property_codes": [
-        "shear_mode_peak_position",
-        "low_frequency_peak_fwhm"
-      ],
-      "legacy_assertion_types": [
-        "polytype",
-        "stacking_order",
-        "layer_count"
-      ],
-      "label_zh": "低频 Raman",
-      "label_en": "Low-frequency Raman spectroscopy",
-      "instrument_required": true,
-      "raw_files_required": true,
-      "show_growth_presence": false,
-      "raw_file_guidance_zh": "请上传原始光谱或仪器导出文件。",
-      "allowed_region_types": [
-        "point",
-        "line",
-        "whole_sample",
-        "selected_area"
-      ],
-      "required_condition_keys": [
-        "laser_wavelength_nm"
-      ],
-      "optional_condition_keys": [
-        "excitation_power_value",
-        "excitation_power_basis",
-        "objective",
-        "integration_time_s",
-        "accumulations"
-      ],
-      "condition_fields": [
-        {
-          "key": "laser_wavelength_nm",
-          "label_zh": "激光波长",
-          "label_en": "Laser wavelength",
-          "value_type": "number",
-          "unit": "nm"
-        },
-        {
-          "key": "excitation_power_value",
-          "label_zh": "激光功率",
-          "label_en": "Laser power",
-          "value_type": "number"
-        },
-        {
-          "key": "excitation_power_basis",
-          "label_zh": "功率单位",
-          "label_en": "Power unit",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "sample_plane_mW",
-              "label_zh": "样品处功率（mW）",
-              "label_en": "At-sample power (mW)"
-            },
-            {
-              "value": "instrument_percent",
-              "label_zh": "仪器设置（%）",
-              "label_en": "Instrument setting (%)"
-            }
-          ]
-        },
-        {
-          "key": "objective",
-          "label_zh": "物镜规格",
-          "label_en": "Objective specification",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          },
-          "placeholder_zh": "100×，NA 0.9",
-          "placeholder_en": "100×, NA 0.9"
-        },
-        {
-          "key": "integration_time_s",
-          "label_zh": "单次采集时间",
-          "label_en": "Time per acquisition",
-          "value_type": "number",
-          "unit": "s"
-        },
-        {
-          "key": "accumulations",
-          "label_zh": "光谱累积次数",
-          "label_en": "Spectral accumulations",
-          "value_type": "integer"
-        }
-      ],
-      "allowed_property_codes": [
-        "spectral_peaks",
-        "observation_note"
-      ],
-      "default_property_codes": [],
-      "allowed_assertion_types": [],
-      "peak_position_units": [
-        "cm⁻¹"
-      ],
-      "legacy_only": true
-    },
     "PL": {
-      "legacy_property_codes": [
-        "pl_a_exciton_peak_energy",
-        "pl_b_exciton_peak_energy",
-        "pl_integrated_intensity",
-        "pl_peak_fwhm"
-      ],
-      "legacy_assertion_types": [
-        "phase_identity",
-        "layer_count"
-      ],
       "label_zh": "PL",
       "label_en": "Photoluminescence",
       "instrument_required": true,
@@ -3116,8 +2636,6 @@
         "excitation_wavelength_nm"
       ],
       "optional_condition_keys": [
-        "excitation_power_value",
-        "excitation_power_basis",
         "integration_time_s",
         "spectral_range_nm",
         "temperature_K",
@@ -3140,10 +2658,7 @@
         "scan_coordinates",
         "measurement_environment",
         "temperature_basis",
-        "intensity_processing",
         "accumulation_method",
-        "response_correction",
-        "response_correction_source",
         "excitation_mode",
         "pulse_width_fs",
         "repetition_rate_MHz",
@@ -3177,35 +2692,6 @@
           "label_en": "Excitation wavelength",
           "value_type": "number",
           "unit": "nm"
-        },
-        {
-          "key": "excitation_power_value",
-          "label_zh": "激光功率",
-          "label_en": "Laser power",
-          "value_type": "number",
-          "recommended": true,
-          "help_zh": "脉冲激光填写平均功率；保留样品处实测或仪器设置口径。",
-          "help_en": "For pulsed light, record average power and retain its at-sample or instrument-setting basis.",
-          "legacy_only": true
-        },
-        {
-          "key": "excitation_power_basis",
-          "label_zh": "功率单位",
-          "label_en": "Power unit",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "sample_plane_mW",
-              "label_zh": "样品处功率（mW）",
-              "label_en": "At-sample power (mW)"
-            },
-            {
-              "value": "instrument_percent",
-              "label_zh": "仪器设置（%）",
-              "label_en": "Instrument setting (%)"
-            }
-          ],
-          "legacy_only": true
         },
         {
           "key": "integration_time_s",
@@ -3621,31 +3107,6 @@
           }
         },
         {
-          "key": "intensity_processing",
-          "label_zh": "强度处理口径",
-          "label_en": "Intensity processing",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "unscaled",
-              "label_zh": "原始计数口径",
-              "label_en": "Unscaled acquisition counts"
-            },
-            {
-              "value": "count_rate",
-              "label_zh": "计数率",
-              "label_en": "Count rate"
-            },
-            {
-              "value": "normalized",
-              "label_zh": "归一化相对强度",
-              "label_en": "Normalized relative intensity"
-            }
-          ],
-          "section": "results",
-          "legacy_only": true
-        },
-        {
           "key": "accumulation_method",
           "label_zh": "累积方式",
           "label_en": "Accumulation method",
@@ -3662,42 +3123,6 @@
               "label_en": "Mean"
             }
           ]
-        },
-        {
-          "key": "response_correction",
-          "label_zh": "光谱响应校正",
-          "label_en": "Spectral response correction",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "applied",
-              "label_zh": "已应用",
-              "label_en": "Applied"
-            },
-            {
-              "value": "not_applied",
-              "label_zh": "未应用",
-              "label_en": "Not applied"
-            }
-          ],
-          "section": "results",
-          "legacy_only": true
-        },
-        {
-          "key": "response_correction_source",
-          "label_zh": "响应校正配置/报告",
-          "label_en": "Response correction configuration / report",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          },
-          "when": {
-            "response_correction": [
-              "applied"
-            ]
-          },
-          "section": "results",
-          "legacy_only": true
         },
         {
           "key": "excitation_mode",
@@ -4182,10 +3607,6 @@
       ]
     },
     "AFM": {
-      "legacy_property_codes": [],
-      "legacy_assertion_types": [
-        "layer_count"
-      ],
       "label_zh": "AFM",
       "label_en": "Atomic force microscopy",
       "instrument_required": true,
@@ -4494,8 +3915,6 @@
         }
       ],
       "allowed_property_codes": [
-        "afm_ra_roughness",
-        "afm_rms_roughness",
         "afm_step_height",
         "observation_note"
       ],
@@ -4509,14 +3928,6 @@
       ]
     },
     "SEM": {
-      "legacy_property_codes": [
-        "domain_size_um",
-        "nucleation_density_cm2"
-      ],
-      "legacy_assertion_types": [
-        "growth_presence",
-        "composition"
-      ],
       "label_zh": "SEM",
       "label_en": "Scanning electron microscopy",
       "instrument_required": true,
@@ -4534,8 +3945,6 @@
         "mode"
       ],
       "optional_condition_keys": [
-        "image_object_type",
-        "image_size_metric",
         "working_distance_mm",
         "beam_current_nA",
         "detector",
@@ -4566,42 +3975,6 @@
         "acquisition_note"
       ],
       "condition_fields": [
-        {
-          "key": "image_object_type",
-          "legacy_only": true,
-          "label_zh": "统计对象",
-          "label_en": "Counted objects",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          },
-          "section": "results"
-        },
-        {
-          "key": "image_size_metric",
-          "legacy_only": true,
-          "label_zh": "尺寸定义",
-          "label_en": "Size definition",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "maximum_length",
-              "label_zh": "最大长度",
-              "label_en": "Maximum length"
-            },
-            {
-              "value": "equivalent_diameter",
-              "label_zh": "等效圆直径",
-              "label_en": "Equivalent circular diameter"
-            },
-            {
-              "value": "width",
-              "label_zh": "宽度",
-              "label_en": "Width"
-            }
-          ],
-          "section": "results"
-        },
         {
           "key": "accelerating_voltage_kV",
           "label_zh": "加速电压",
@@ -4973,46 +4346,14 @@
         }
       ],
       "allowed_property_codes": [
-        "coverage_percent",
-        "image_object_size_um",
-        "image_object_density_cm2",
-        "elemental_composition",
         "observation_note"
       ],
       "default_property_codes": [
         "observation_note"
       ],
-      "allowed_assertion_types": [],
-      "property_modes": {
-        "coverage_percent": [
-          "secondary_electron",
-          "backscattered_electron"
-        ],
-        "image_object_size_um": [
-          "secondary_electron",
-          "backscattered_electron"
-        ],
-        "image_object_density_cm2": [
-          "secondary_electron",
-          "backscattered_electron"
-        ],
-        "elemental_composition": [
-          "EDS"
-        ]
-      }
+      "allowed_assertion_types": []
     },
     "XRD": {
-      "legacy_property_codes": [
-        "xrd_peak_2theta",
-        "xrd_peak_fwhm",
-        "xrd_d_spacing"
-      ],
-      "legacy_assertion_types": [
-        "phase_identity",
-        "polytype",
-        "stacking_order",
-        "orientation_relationship"
-      ],
       "label_zh": "XRD",
       "label_en": "X-ray diffraction",
       "instrument_required": true,
@@ -5032,7 +4373,6 @@
       ],
       "optional_condition_keys": [
         "geometry",
-        "scan_range_2theta_deg",
         "step_size_deg",
         "count_time_s",
         "scan_rate_deg_min",
@@ -5151,26 +4491,6 @@
           "label_en": "X-ray wavelength",
           "value_type": "number",
           "unit": "nm"
-        },
-        {
-          "key": "scan_range_2theta_deg",
-          "label_zh": "2θ 扫描范围",
-          "label_en": "2-theta scan range",
-          "value_type": "range",
-          "unit": "°",
-          "components": [
-            {
-              "key": "start",
-              "label_zh": "起点",
-              "label_en": "Start"
-            },
-            {
-              "key": "end",
-              "label_zh": "终点",
-              "label_en": "End"
-            }
-          ],
-          "legacy_only": true
         },
         {
           "key": "step_size_deg",
@@ -5423,15 +4743,6 @@
       ]
     },
     "TEM": {
-      "legacy_property_codes": [],
-      "legacy_assertion_types": [
-        "phase_identity",
-        "composition",
-        "polytype",
-        "stacking_order",
-        "orientation_relationship",
-        "layer_count"
-      ],
       "label_zh": "TEM",
       "label_en": "Transmission electron microscopy",
       "instrument_required": true,
@@ -5449,7 +4760,6 @@
         "data_type"
       ],
       "optional_condition_keys": [
-        "mode",
         "sample_preparation",
         "acquisition_mode",
         "image_mode",
@@ -5519,45 +4829,6 @@
           "label_en": "Accelerating voltage",
           "value_type": "number",
           "unit": "kV"
-        },
-        {
-          "key": "mode",
-          "label_zh": "成像或分析模式",
-          "label_en": "Imaging or analysis mode",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "bright_field",
-              "label_zh": "明场 TEM",
-              "label_en": "Bright-field TEM"
-            },
-            {
-              "value": "HRTEM",
-              "label_zh": "高分辨 TEM（HRTEM）",
-              "label_en": "High-resolution TEM (HRTEM)"
-            },
-            {
-              "value": "SAED",
-              "label_zh": "选区电子衍射（SAED）",
-              "label_en": "Selected-area electron diffraction (SAED)"
-            },
-            {
-              "value": "STEM",
-              "label_zh": "扫描透射（STEM）",
-              "label_en": "Scanning TEM (STEM)"
-            },
-            {
-              "value": "EDS",
-              "label_zh": "能谱分析（EDS/EDX）",
-              "label_en": "Energy-dispersive spectroscopy (EDS/EDX)"
-            },
-            {
-              "value": "EELS",
-              "label_zh": "电子能量损失谱（EELS）",
-              "label_en": "Electron energy-loss spectroscopy (EELS)"
-            }
-          ],
-          "legacy_only": true
         },
         {
           "key": "sample_preparation",
@@ -6102,7 +5373,6 @@
       ],
       "allowed_property_codes": [
         "tem_lattice_spacing",
-        "elemental_composition",
         "observation_note"
       ],
       "default_property_codes": [
@@ -6121,15 +5391,6 @@
           "data_type": [
             "image",
             "diffraction"
-          ]
-        },
-        "elemental_composition": {
-          "data_type": [
-            "spectrum"
-          ],
-          "spectrum_mode": [
-            "EDS",
-            "EELS"
           ]
         }
       }
@@ -6254,21 +5515,7 @@
         "polarization_reference",
         "elapsed_time_s",
         "sample_preparation",
-        "acquisition_note",
-        "data_type",
-        "excitation_power_value",
-        "excitation_power_basis",
-        "input_polarization",
-        "analyzer_polarization",
-        "angle_reference",
-        "polarization_scan_axis",
-        "angle_range_deg",
-        "scan_angle_quantity",
-        "angle_step_deg",
-        "power_scan_coordinates",
-        "spot_size_um",
-        "spot_size_definition",
-        "intensity_processing"
+        "acquisition_note"
       ],
       "common_condition_keys": [
         "detection_kind",
@@ -6966,257 +6213,6 @@
             "max_length": 1000
           },
           "multiline": true
-        },
-        {
-          "key": "data_type",
-          "legacy_only": true,
-          "label_zh": "数据类型",
-          "label_en": "Data type",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "spectrum",
-              "label_zh": "光谱",
-              "label_en": "Spectrum"
-            },
-            {
-              "value": "polarization_scan",
-              "label_zh": "偏振扫描",
-              "label_en": "Polarization scan"
-            },
-            {
-              "value": "image",
-              "label_zh": "图像",
-              "label_en": "Image"
-            },
-            {
-              "value": "power_scan",
-              "label_zh": "功率扫描",
-              "label_en": "Power scan"
-            }
-          ]
-        },
-        {
-          "key": "excitation_power_value",
-          "legacy_only": true,
-          "label_zh": "激光功率",
-          "label_en": "Laser power",
-          "value_type": "number"
-        },
-        {
-          "key": "excitation_power_basis",
-          "legacy_only": true,
-          "label_zh": "功率单位",
-          "label_en": "Power unit",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "sample_plane_mW",
-              "label_zh": "样品处功率（mW）",
-              "label_en": "At-sample power (mW)"
-            },
-            {
-              "value": "instrument_percent",
-              "label_zh": "仪器设置（%）",
-              "label_en": "Instrument setting (%)"
-            }
-          ]
-        },
-        {
-          "key": "input_polarization",
-          "legacy_only": true,
-          "label_zh": "入射偏振",
-          "label_en": "Input polarization",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          }
-        },
-        {
-          "key": "analyzer_polarization",
-          "legacy_only": true,
-          "label_zh": "检偏设置",
-          "label_en": "Analyzer setting",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          }
-        },
-        {
-          "key": "angle_reference",
-          "legacy_only": true,
-          "label_zh": "角度零点",
-          "label_en": "Angular zero reference",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          },
-          "when": {
-            "data_type": [
-              "polarization_scan"
-            ]
-          }
-        },
-        {
-          "key": "polarization_scan_axis",
-          "legacy_only": true,
-          "label_zh": "旋转对象",
-          "label_en": "Rotated element",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "input_polarization",
-              "label_zh": "入射偏振",
-              "label_en": "Input polarization"
-            },
-            {
-              "value": "analyzer",
-              "label_zh": "检偏器",
-              "label_en": "Analyzer"
-            },
-            {
-              "value": "sample",
-              "label_zh": "样品",
-              "label_en": "Sample"
-            }
-          ],
-          "when": {
-            "data_type": [
-              "polarization_scan"
-            ]
-          }
-        },
-        {
-          "key": "angle_range_deg",
-          "legacy_only": true,
-          "label_zh": "角度范围",
-          "label_en": "Angular range",
-          "value_type": "range",
-          "unit": "°",
-          "components": [
-            {
-              "key": "start",
-              "label_zh": "起点",
-              "label_en": "Start"
-            },
-            {
-              "key": "end",
-              "label_zh": "终点",
-              "label_en": "End"
-            }
-          ],
-          "when": {
-            "data_type": [
-              "polarization_scan"
-            ]
-          },
-          "signed": true
-        },
-        {
-          "key": "scan_angle_quantity",
-          "legacy_only": true,
-          "label_zh": "扫描文件中的角度量",
-          "label_en": "Angle quantity in scan file",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "waveplate",
-              "label_zh": "半波片机械角",
-              "label_en": "Half-wave plate mechanical angle"
-            },
-            {
-              "value": "polarization",
-              "label_zh": "入射偏振角",
-              "label_en": "Incident polarization angle"
-            },
-            {
-              "value": "analyzer",
-              "label_zh": "检偏器角",
-              "label_en": "Analyzer angle"
-            },
-            {
-              "value": "sample",
-              "label_zh": "样品转角",
-              "label_en": "Sample rotation"
-            }
-          ],
-          "when": {
-            "data_type": [
-              "polarization_scan"
-            ]
-          }
-        },
-        {
-          "key": "angle_step_deg",
-          "legacy_only": true,
-          "label_zh": "角度步距",
-          "label_en": "Angular step",
-          "value_type": "number",
-          "unit": "°",
-          "when": {
-            "data_type": [
-              "polarization_scan"
-            ]
-          }
-        },
-        {
-          "key": "power_scan_coordinates",
-          "legacy_only": true,
-          "label_zh": "逐点功率/信号列及口径",
-          "label_en": "Per-point power / signal columns and basis",
-          "value_type": "text",
-          "validation": {
-            "max_length": 1000
-          },
-          "multiline": true,
-          "when": {
-            "data_type": [
-              "power_scan"
-            ]
-          }
-        },
-        {
-          "key": "spot_size_um",
-          "legacy_only": true,
-          "label_zh": "实测光斑尺寸",
-          "label_en": "Measured spot size",
-          "value_type": "number",
-          "unit": "μm"
-        },
-        {
-          "key": "spot_size_definition",
-          "legacy_only": true,
-          "label_zh": "光斑尺寸定义/测量依据",
-          "label_en": "Spot size definition / measurement source",
-          "value_type": "text",
-          "validation": {
-            "max_length": 128
-          }
-        },
-        {
-          "key": "intensity_processing",
-          "legacy_only": true,
-          "label_zh": "强度处理口径",
-          "label_en": "Intensity processing",
-          "value_type": "select",
-          "options": [
-            {
-              "value": "unscaled",
-              "label_zh": "原始计数口径",
-              "label_en": "Unscaled acquisition counts"
-            },
-            {
-              "value": "count_rate",
-              "label_zh": "计数率",
-              "label_en": "Count rate"
-            },
-            {
-              "value": "normalized",
-              "label_zh": "归一化相对强度",
-              "label_en": "Normalized relative intensity"
-            }
-          ],
-          "section": "results"
         }
       ],
       "allowed_property_codes": [
@@ -13511,20 +12507,6 @@
               "default": null,
               "title": "Temperature Basis"
             },
-            "intensity_processing": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Intensity Processing"
-            },
             "accumulation_method": {
               "anyOf": [
                 {
@@ -13565,34 +12547,6 @@
               ],
               "default": null,
               "title": "Filter Cutoff"
-            },
-            "response_correction": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Response Correction"
-            },
-            "response_correction_source": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Response Correction Source"
             },
             "scan_rate_definition": {
               "anyOf": [
@@ -14168,74 +13122,6 @@
               "default": null,
               "title": "Zero Loss Calibration"
             },
-            "scan_angle_quantity": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Scan Angle Quantity"
-            },
-            "angle_step_deg": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Angle Step Deg"
-            },
-            "power_scan_coordinates": {
-              "anyOf": [
-                {
-                  "maxLength": 1000,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Power Scan Coordinates"
-            },
-            "spot_size_um": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Spot Size Um"
-            },
-            "spot_size_definition": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Spot Size Definition"
-            },
             "laser_wavelength_nm": {
               "anyOf": [
                 {
@@ -14274,17 +13160,6 @@
               "default": null
             },
             "scan_range_deg": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/SignedScanRange"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "angle_range_deg": {
               "anyOf": [
                 {
                   "$ref": "#/$defs/SignedScanRange"
@@ -14625,62 +13500,6 @@
               "default": null,
               "title": "Excitation Mode"
             },
-            "input_polarization": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Input Polarization"
-            },
-            "analyzer_polarization": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Analyzer Polarization"
-            },
-            "angle_reference": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Angle Reference"
-            },
-            "polarization_scan_axis": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Polarization Scan Axis"
-            },
             "power_setting": {
               "anyOf": [
                 {
@@ -14694,35 +13513,6 @@
               ],
               "default": null,
               "title": "Power Setting"
-            },
-            "excitation_power_value": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Excitation Power Value"
-            },
-            "excitation_power_basis": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "sample_plane_mW",
-                    "instrument_percent"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Excitation Power Basis"
             },
             "objective": {
               "anyOf": [
@@ -14956,17 +13746,6 @@
               "default": null,
               "title": "Source Wavelength Nm"
             },
-            "scan_range_2theta_deg": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ScanRange"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
             "step_size_deg": {
               "anyOf": [
                 {
@@ -15062,48 +13841,6 @@
               "default": null,
               "title": "Height Processing"
             },
-            "illumination_mode": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Illumination Mode"
-            },
-            "image_object_type": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Image Object Type"
-            },
-            "image_size_metric": {
-              "anyOf": [
-                {
-                  "maxLength": 128,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Image Size Metric"
-            },
             "method_description": {
               "anyOf": [
                 {
@@ -15121,56 +13858,7 @@
             }
           },
           "title": "MeasurementConditions",
-          "type": "object",
-          "allOf": [
-            {
-              "if": {
-                "required": [
-                  "excitation_power_basis"
-                ],
-                "properties": {
-                  "excitation_power_basis": {
-                    "const": "instrument_percent"
-                  }
-                }
-              },
-              "then": {
-                "properties": {
-                  "excitation_power_value": {
-                    "maximum": 100
-                  }
-                }
-              }
-            },
-            {
-              "oneOf": [
-                {
-                  "properties": {
-                    "excitation_power_value": {
-                      "type": "null"
-                    },
-                    "excitation_power_basis": {
-                      "type": "null"
-                    }
-                  }
-                },
-                {
-                  "required": [
-                    "excitation_power_value",
-                    "excitation_power_basis"
-                  ],
-                  "properties": {
-                    "excitation_power_value": {
-                      "type": "number"
-                    },
-                    "excitation_power_basis": {
-                      "type": "string"
-                    }
-                  }
-                }
-              ]
-            }
-          ]
+          "type": "object"
         },
         "MeasurementRunCreate": {
           "additionalProperties": false,
@@ -15941,625 +14629,11 @@
                 {
                   "properties": {
                     "property_code": {
-                      "const": "elemental_composition"
-                    },
-                    "numeric_value": {
-                      "type": "null"
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "basis",
-                        "components"
-                      ],
-                      "properties": {
-                        "basis": {
-                          "enum": [
-                            "atomic_fraction",
-                            "mass_fraction"
-                          ]
-                        },
-                        "components": {
-                          "type": "array",
-                          "minItems": 1,
-                          "maxItems": 118,
-                          "items": {
-                            "type": "object",
-                            "additionalProperties": false,
-                            "required": [
-                              "species",
-                              "fraction"
-                            ],
-                            "properties": {
-                              "species": {
-                                "type": "string",
-                                "pattern": "^[A-Z][a-z]?$"
-                              },
-                              "fraction": {
-                                "type": "number",
-                                "minimum": 0,
-                                "maximum": 1
-                              }
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "unit": {
-                      "type": "null"
-                    },
-                    "uncertainty_value": {
-                      "type": "null"
-                    },
-                    "uncertainty_type": {
-                      "type": "null"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "structured_value"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "image_object_size_um"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "exclusiveMinimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "μm",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "image_object_density_cm2"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "cm⁻²",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "coverage_percent"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0,
-                      "maximum": 100
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "%",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "domain_size_um"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "exclusiveMinimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "μm",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "nucleation_density_cm2"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "cm⁻²",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "raman_e2g_peak_position"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "cm⁻¹",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "raman_a1g_peak_position"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "cm⁻¹",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "raman_peak_separation"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "cm⁻¹",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "raman_peak_fwhm"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "exclusiveMinimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "cm⁻¹",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "raman_intensity_ratio"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "ratio",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "shear_mode_peak_position"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "cm⁻¹",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "low_frequency_peak_fwhm"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "exclusiveMinimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "cm⁻¹",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "pl_a_exciton_peak_energy"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "exclusiveMinimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "eV",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "pl_b_exciton_peak_energy"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "exclusiveMinimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "eV",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "pl_integrated_intensity"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "a.u.",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "pl_peak_fwhm"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "exclusiveMinimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "meV",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "afm_ra_roughness"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "nm",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "afm_rms_roughness"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "nm",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
                       "const": "afm_step_height"
                     },
                     "numeric_value": {
                       "type": "number",
                       "minimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "nm",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "xrd_peak_2theta"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "minimum": 0,
-                      "maximum": 180
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "° 2θ",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "xrd_peak_fwhm"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "exclusiveMinimum": 0
-                    },
-                    "text_value": {
-                      "type": "null"
-                    },
-                    "structured_value": {
-                      "type": "null"
-                    },
-                    "unit": {
-                      "const": "° 2θ",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "property_code",
-                    "numeric_value",
-                    "unit"
-                  ]
-                },
-                {
-                  "properties": {
-                    "property_code": {
-                      "const": "xrd_d_spacing"
-                    },
-                    "numeric_value": {
-                      "type": "number",
-                      "exclusiveMinimum": 0
                     },
                     "text_value": {
                       "type": "null"
@@ -17209,31 +15283,6 @@
             }
           ]
         },
-        "ScanRange": {
-          "additionalProperties": false,
-          "properties": {
-            "start": {
-              "minimum": 0,
-              "title": "Start",
-              "type": "number"
-            },
-            "end": {
-              "exclusiveMinimum": 0,
-              "title": "End",
-              "type": "number"
-            }
-          },
-          "required": [
-            "start",
-            "end"
-          ],
-          "title": "ScanRange",
-          "type": "object",
-          "x-cvd-ordered": [
-            "start",
-            "end"
-          ]
-        },
         "SignedScanRange": {
           "additionalProperties": false,
           "properties": {
@@ -17377,28 +15426,10 @@
                     "typed_conditions": {
                       "type": "object",
                       "properties": {
-                        "image_object_type": {
-                          "type": "string",
-                          "maxLength": 128,
-                          "pattern": "\\S"
-                        },
-                        "image_size_metric": {
-                          "type": "string",
-                          "enum": [
-                            "maximum_length",
-                            "equivalent_diameter",
-                            "width"
-                          ]
-                        },
                         "objective_magnification": {
                           "type": "number"
                         },
                         "objective": {
-                          "type": "string",
-                          "maxLength": 128,
-                          "pattern": "\\S"
-                        },
-                        "illumination_mode": {
                           "type": "string",
                           "maxLength": 128,
                           "pattern": "\\S"
@@ -18318,9 +16349,6 @@
                     "properties": {
                       "property_code": {
                         "enum": [
-                          "coverage_percent",
-                          "image_object_size_um",
-                          "image_object_density_cm2",
                           "observation_note"
                         ]
                       }
@@ -18375,75 +16403,6 @@
                       }
                     }
                   }
-                },
-                {
-                  "if": {
-                    "required": [
-                      "properties"
-                    ],
-                    "properties": {
-                      "properties": {
-                        "contains": {
-                          "required": [
-                            "property_code"
-                          ],
-                          "properties": {
-                            "property_code": {
-                              "const": "image_object_size_um"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "then": {
-                    "properties": {
-                      "measurement": {
-                        "properties": {
-                          "typed_conditions": {
-                            "required": [
-                              "image_object_type",
-                              "image_size_metric"
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "if": {
-                    "required": [
-                      "properties"
-                    ],
-                    "properties": {
-                      "properties": {
-                        "contains": {
-                          "required": [
-                            "property_code"
-                          ],
-                          "properties": {
-                            "property_code": {
-                              "const": "image_object_density_cm2"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "then": {
-                    "properties": {
-                      "measurement": {
-                        "properties": {
-                          "typed_conditions": {
-                            "required": [
-                              "image_object_type"
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  }
                 }
               ]
             },
@@ -18459,16 +16418,6 @@
                       "properties": {
                         "laser_wavelength_nm": {
                           "type": "number"
-                        },
-                        "excitation_power_value": {
-                          "type": "number"
-                        },
-                        "excitation_power_basis": {
-                          "type": "string",
-                          "enum": [
-                            "sample_plane_mW",
-                            "instrument_percent"
-                          ]
                         },
                         "objective": {
                           "type": "string",
@@ -18597,14 +16546,6 @@
                             "ambient",
                             "stage_setpoint",
                             "sample_measured"
-                          ]
-                        },
-                        "intensity_processing": {
-                          "type": "string",
-                          "enum": [
-                            "unscaled",
-                            "count_rate",
-                            "normalized"
                           ]
                         },
                         "accumulation_method": {
@@ -19728,156 +17669,6 @@
                 "measurement": {
                   "properties": {
                     "method_profile": {
-                      "const": "low_frequency_raman"
-                    },
-                    "typed_conditions": {
-                      "type": "object",
-                      "properties": {
-                        "laser_wavelength_nm": {
-                          "type": "number"
-                        },
-                        "excitation_power_value": {
-                          "type": "number"
-                        },
-                        "excitation_power_basis": {
-                          "type": "string",
-                          "enum": [
-                            "sample_plane_mW",
-                            "instrument_percent"
-                          ]
-                        },
-                        "objective": {
-                          "type": "string",
-                          "maxLength": 128,
-                          "pattern": "\\S"
-                        },
-                        "integration_time_s": {
-                          "type": "number"
-                        },
-                        "accumulations": {
-                          "type": "integer"
-                        }
-                      },
-                      "required": [
-                        "laser_wavelength_nm"
-                      ],
-                      "additionalProperties": false,
-                      "dependentRequired": {}
-                    },
-                    "sample_region": {
-                      "type": [
-                        "object",
-                        "null"
-                      ],
-                      "properties": {
-                        "geometry_type": {
-                          "enum": [
-                            "point",
-                            "line",
-                            "whole_sample",
-                            "selected_area"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "geometry_type"
-                      ]
-                    },
-                    "raw_file_ids": {
-                      "type": "array",
-                      "minItems": 1
-                    },
-                    "instrument_id": {
-                      "type": "string",
-                      "format": "uuid"
-                    },
-                    "instrument_version": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "instrument_configuration": {
-                      "maxProperties": 0
-                    },
-                    "scan_file_id": {
-                      "type": "null"
-                    },
-                    "variable_conditions": {
-                      "maxItems": 0
-                    },
-                    "file_intensity_units": {
-                      "maxProperties": 0
-                    },
-                    "file_response_corrections": {
-                      "maxProperties": 0
-                    }
-                  },
-                  "required": [
-                    "method_profile",
-                    "typed_conditions",
-                    "raw_file_ids",
-                    "instrument_id",
-                    "instrument_version"
-                  ]
-                },
-                "properties": {
-                  "items": {
-                    "properties": {
-                      "property_code": {
-                        "enum": [
-                          "spectral_peaks",
-                          "observation_note"
-                        ]
-                      }
-                    }
-                  }
-                },
-                "assertions": {
-                  "maxItems": 0
-                }
-              },
-              "allOf": [
-                {
-                  "properties": {
-                    "properties": {
-                      "items": {
-                        "if": {
-                          "properties": {
-                            "property_code": {
-                              "const": "spectral_peaks"
-                            }
-                          }
-                        },
-                        "then": {
-                          "properties": {
-                            "structured_value": {
-                              "properties": {
-                                "position_unit": {
-                                  "enum": [
-                                    "cm⁻¹"
-                                  ]
-                                },
-                                "peaks": {
-                                  "items": {
-                                    "properties": {
-                                      "d_spacing_nm": false
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "properties": {
-                "measurement": {
-                  "properties": {
-                    "method_profile": {
                       "const": "PL"
                     },
                     "typed_conditions": {
@@ -19885,16 +17676,6 @@
                       "properties": {
                         "excitation_wavelength_nm": {
                           "type": "number"
-                        },
-                        "excitation_power_value": {
-                          "type": "number"
-                        },
-                        "excitation_power_basis": {
-                          "type": "string",
-                          "enum": [
-                            "sample_plane_mW",
-                            "instrument_percent"
-                          ]
                         },
                         "integration_time_s": {
                           "type": "number"
@@ -20029,32 +17810,12 @@
                             "sample_measured"
                           ]
                         },
-                        "intensity_processing": {
-                          "type": "string",
-                          "enum": [
-                            "unscaled",
-                            "count_rate",
-                            "normalized"
-                          ]
-                        },
                         "accumulation_method": {
                           "type": "string",
                           "enum": [
                             "sum",
                             "mean"
                           ]
-                        },
-                        "response_correction": {
-                          "type": "string",
-                          "enum": [
-                            "applied",
-                            "not_applied"
-                          ]
-                        },
-                        "response_correction_source": {
-                          "type": "string",
-                          "maxLength": 128,
-                          "pattern": "\\S"
                         },
                         "excitation_mode": {
                           "type": "string",
@@ -20422,32 +18183,6 @@
                               "temperature_control": {
                                 "enum": [
                                   "recorded"
-                                ]
-                              }
-                            }
-                          }
-                        },
-                        {
-                          "if": {
-                            "required": [
-                              "response_correction_source"
-                            ],
-                            "properties": {
-                              "response_correction_source": {
-                                "not": {
-                                  "type": "null"
-                                }
-                              }
-                            }
-                          },
-                          "then": {
-                            "required": [
-                              "response_correction"
-                            ],
-                            "properties": {
-                              "response_correction": {
-                                "enum": [
-                                  "applied"
                                 ]
                               }
                             }
@@ -22082,8 +19817,6 @@
                     "properties": {
                       "property_code": {
                         "enum": [
-                          "afm_ra_roughness",
-                          "afm_rms_roughness",
                           "afm_step_height",
                           "observation_note"
                         ]
@@ -22106,19 +19839,6 @@
                     "typed_conditions": {
                       "type": "object",
                       "properties": {
-                        "image_object_type": {
-                          "type": "string",
-                          "maxLength": 128,
-                          "pattern": "\\S"
-                        },
-                        "image_size_metric": {
-                          "type": "string",
-                          "enum": [
-                            "maximum_length",
-                            "equivalent_diameter",
-                            "width"
-                          ]
-                        },
                         "accelerating_voltage_kV": {
                           "type": "number"
                         },
@@ -22530,10 +20250,6 @@
                     "properties": {
                       "property_code": {
                         "enum": [
-                          "coverage_percent",
-                          "image_object_size_um",
-                          "image_object_density_cm2",
-                          "elemental_composition",
                           "observation_note"
                         ]
                       }
@@ -22543,245 +20259,7 @@
                 "assertions": {
                   "maxItems": 0
                 }
-              },
-              "allOf": [
-                {
-                  "if": {
-                    "required": [
-                      "properties"
-                    ],
-                    "properties": {
-                      "properties": {
-                        "contains": {
-                          "required": [
-                            "property_code"
-                          ],
-                          "properties": {
-                            "property_code": {
-                              "const": "coverage_percent"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "then": {
-                    "properties": {
-                      "measurement": {
-                        "properties": {
-                          "typed_conditions": {
-                            "required": [
-                              "mode"
-                            ],
-                            "properties": {
-                              "mode": {
-                                "enum": [
-                                  "secondary_electron",
-                                  "backscattered_electron"
-                                ]
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "if": {
-                    "required": [
-                      "properties"
-                    ],
-                    "properties": {
-                      "properties": {
-                        "contains": {
-                          "required": [
-                            "property_code"
-                          ],
-                          "properties": {
-                            "property_code": {
-                              "const": "image_object_size_um"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "then": {
-                    "properties": {
-                      "measurement": {
-                        "properties": {
-                          "typed_conditions": {
-                            "required": [
-                              "mode"
-                            ],
-                            "properties": {
-                              "mode": {
-                                "enum": [
-                                  "secondary_electron",
-                                  "backscattered_electron"
-                                ]
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "if": {
-                    "required": [
-                      "properties"
-                    ],
-                    "properties": {
-                      "properties": {
-                        "contains": {
-                          "required": [
-                            "property_code"
-                          ],
-                          "properties": {
-                            "property_code": {
-                              "const": "image_object_density_cm2"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "then": {
-                    "properties": {
-                      "measurement": {
-                        "properties": {
-                          "typed_conditions": {
-                            "required": [
-                              "mode"
-                            ],
-                            "properties": {
-                              "mode": {
-                                "enum": [
-                                  "secondary_electron",
-                                  "backscattered_electron"
-                                ]
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "if": {
-                    "required": [
-                      "properties"
-                    ],
-                    "properties": {
-                      "properties": {
-                        "contains": {
-                          "required": [
-                            "property_code"
-                          ],
-                          "properties": {
-                            "property_code": {
-                              "const": "elemental_composition"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "then": {
-                    "properties": {
-                      "measurement": {
-                        "properties": {
-                          "typed_conditions": {
-                            "required": [
-                              "mode"
-                            ],
-                            "properties": {
-                              "mode": {
-                                "enum": [
-                                  "EDS"
-                                ]
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "if": {
-                    "required": [
-                      "properties"
-                    ],
-                    "properties": {
-                      "properties": {
-                        "contains": {
-                          "required": [
-                            "property_code"
-                          ],
-                          "properties": {
-                            "property_code": {
-                              "const": "image_object_size_um"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "then": {
-                    "properties": {
-                      "measurement": {
-                        "properties": {
-                          "typed_conditions": {
-                            "required": [
-                              "image_object_type",
-                              "image_size_metric"
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "if": {
-                    "required": [
-                      "properties"
-                    ],
-                    "properties": {
-                      "properties": {
-                        "contains": {
-                          "required": [
-                            "property_code"
-                          ],
-                          "properties": {
-                            "property_code": {
-                              "const": "image_object_density_cm2"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "then": {
-                    "properties": {
-                      "measurement": {
-                        "properties": {
-                          "typed_conditions": {
-                            "required": [
-                              "image_object_type"
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              ]
+              }
             },
             {
               "properties": {
@@ -22838,25 +20316,6 @@
                         },
                         "source_wavelength_nm": {
                           "type": "number"
-                        },
-                        "scan_range_2theta_deg": {
-                          "type": "object",
-                          "properties": {
-                            "start": {
-                              "type": "number"
-                            },
-                            "end": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "start",
-                            "end"
-                          ],
-                          "x-cvd-ordered": [
-                            "start",
-                            "end"
-                          ]
                         },
                         "step_size_deg": {
                           "type": "number"
@@ -23484,17 +20943,6 @@
                         },
                         "accelerating_voltage_kV": {
                           "type": "number"
-                        },
-                        "mode": {
-                          "type": "string",
-                          "enum": [
-                            "bright_field",
-                            "HRTEM",
-                            "SAED",
-                            "STEM",
-                            "EDS",
-                            "EELS"
-                          ]
                         },
                         "sample_preparation": {
                           "type": "string",
@@ -24303,7 +21751,6 @@
                       "property_code": {
                         "enum": [
                           "tem_lattice_spacing",
-                          "elemental_composition",
                           "observation_note"
                         ]
                       }
@@ -24348,54 +21795,6 @@
                                 "enum": [
                                   "image",
                                   "diffraction"
-                                ]
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "if": {
-                    "required": [
-                      "properties"
-                    ],
-                    "properties": {
-                      "properties": {
-                        "contains": {
-                          "required": [
-                            "property_code"
-                          ],
-                          "properties": {
-                            "property_code": {
-                              "const": "elemental_composition"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "then": {
-                    "properties": {
-                      "measurement": {
-                        "properties": {
-                          "typed_conditions": {
-                            "required": [
-                              "data_type",
-                              "spectrum_mode"
-                            ],
-                            "properties": {
-                              "data_type": {
-                                "enum": [
-                                  "spectrum"
-                                ]
-                              },
-                              "spectrum_mode": {
-                                "enum": [
-                                  "EDS",
-                                  "EELS"
                                 ]
                               }
                             }
@@ -24770,100 +22169,6 @@
                           "type": "string",
                           "maxLength": 1000,
                           "pattern": "\\S"
-                        },
-                        "data_type": {
-                          "type": "string",
-                          "enum": [
-                            "spectrum",
-                            "polarization_scan",
-                            "image",
-                            "power_scan"
-                          ]
-                        },
-                        "excitation_power_value": {
-                          "type": "number"
-                        },
-                        "excitation_power_basis": {
-                          "type": "string",
-                          "enum": [
-                            "sample_plane_mW",
-                            "instrument_percent"
-                          ]
-                        },
-                        "input_polarization": {
-                          "type": "string",
-                          "maxLength": 128,
-                          "pattern": "\\S"
-                        },
-                        "analyzer_polarization": {
-                          "type": "string",
-                          "maxLength": 128,
-                          "pattern": "\\S"
-                        },
-                        "angle_reference": {
-                          "type": "string",
-                          "maxLength": 128,
-                          "pattern": "\\S"
-                        },
-                        "polarization_scan_axis": {
-                          "type": "string",
-                          "enum": [
-                            "input_polarization",
-                            "analyzer",
-                            "sample"
-                          ]
-                        },
-                        "angle_range_deg": {
-                          "type": "object",
-                          "properties": {
-                            "start": {
-                              "type": "number"
-                            },
-                            "end": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "start",
-                            "end"
-                          ],
-                          "x-cvd-ordered": [
-                            "start",
-                            "end"
-                          ]
-                        },
-                        "scan_angle_quantity": {
-                          "type": "string",
-                          "enum": [
-                            "waveplate",
-                            "polarization",
-                            "analyzer",
-                            "sample"
-                          ]
-                        },
-                        "angle_step_deg": {
-                          "type": "number"
-                        },
-                        "power_scan_coordinates": {
-                          "type": "string",
-                          "maxLength": 1000,
-                          "pattern": "\\S"
-                        },
-                        "spot_size_um": {
-                          "type": "number"
-                        },
-                        "spot_size_definition": {
-                          "type": "string",
-                          "maxLength": 128,
-                          "pattern": "\\S"
-                        },
-                        "intensity_processing": {
-                          "type": "string",
-                          "enum": [
-                            "unscaled",
-                            "count_rate",
-                            "normalized"
-                          ]
                         }
                       },
                       "required": [
@@ -25284,162 +22589,6 @@
                               "acquisition_kind": {
                                 "enum": [
                                   "series"
-                                ]
-                              }
-                            }
-                          }
-                        },
-                        {
-                          "if": {
-                            "required": [
-                              "angle_reference"
-                            ],
-                            "properties": {
-                              "angle_reference": {
-                                "not": {
-                                  "type": "null"
-                                }
-                              }
-                            }
-                          },
-                          "then": {
-                            "required": [
-                              "data_type"
-                            ],
-                            "properties": {
-                              "data_type": {
-                                "enum": [
-                                  "polarization_scan"
-                                ]
-                              }
-                            }
-                          }
-                        },
-                        {
-                          "if": {
-                            "required": [
-                              "polarization_scan_axis"
-                            ],
-                            "properties": {
-                              "polarization_scan_axis": {
-                                "not": {
-                                  "type": "null"
-                                }
-                              }
-                            }
-                          },
-                          "then": {
-                            "required": [
-                              "data_type"
-                            ],
-                            "properties": {
-                              "data_type": {
-                                "enum": [
-                                  "polarization_scan"
-                                ]
-                              }
-                            }
-                          }
-                        },
-                        {
-                          "if": {
-                            "required": [
-                              "angle_range_deg"
-                            ],
-                            "properties": {
-                              "angle_range_deg": {
-                                "not": {
-                                  "type": "null"
-                                }
-                              }
-                            }
-                          },
-                          "then": {
-                            "required": [
-                              "data_type"
-                            ],
-                            "properties": {
-                              "data_type": {
-                                "enum": [
-                                  "polarization_scan"
-                                ]
-                              }
-                            }
-                          }
-                        },
-                        {
-                          "if": {
-                            "required": [
-                              "scan_angle_quantity"
-                            ],
-                            "properties": {
-                              "scan_angle_quantity": {
-                                "not": {
-                                  "type": "null"
-                                }
-                              }
-                            }
-                          },
-                          "then": {
-                            "required": [
-                              "data_type"
-                            ],
-                            "properties": {
-                              "data_type": {
-                                "enum": [
-                                  "polarization_scan"
-                                ]
-                              }
-                            }
-                          }
-                        },
-                        {
-                          "if": {
-                            "required": [
-                              "angle_step_deg"
-                            ],
-                            "properties": {
-                              "angle_step_deg": {
-                                "not": {
-                                  "type": "null"
-                                }
-                              }
-                            }
-                          },
-                          "then": {
-                            "required": [
-                              "data_type"
-                            ],
-                            "properties": {
-                              "data_type": {
-                                "enum": [
-                                  "polarization_scan"
-                                ]
-                              }
-                            }
-                          }
-                        },
-                        {
-                          "if": {
-                            "required": [
-                              "power_scan_coordinates"
-                            ],
-                            "properties": {
-                              "power_scan_coordinates": {
-                                "not": {
-                                  "type": "null"
-                                }
-                              }
-                            }
-                          },
-                          "then": {
-                            "required": [
-                              "data_type"
-                            ],
-                            "properties": {
-                              "data_type": {
-                                "enum": [
-                                  "power_scan"
                                 ]
                               }
                             }

@@ -20,7 +20,7 @@ from app.models.scientific import (
     TransformationOutput,
 )
 from app.models.user import User
-from app.models.v2_results import CharacterizationRecord, MeasuredProduct
+from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.sample_repository import SampleRepository
 from app.schemas.sample import ControlSampleCreate, SampleListResponse, SampleRead, SampleUpdate
@@ -408,11 +408,6 @@ class SampleService:
             .limit(1)
         )
         if record is not None:
-            return True
-        product = self.db.scalar(
-            select(MeasuredProduct.id).where(MeasuredProduct.sample_id == sample_id).limit(1)
-        )
-        if product is not None:
             return True
         file_asset = self.db.scalar(
             select(FileAsset.id)

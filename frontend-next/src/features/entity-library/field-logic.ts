@@ -164,10 +164,7 @@ export function instrumentCapabilitiesSummary(
         ),
       ]
       if (!Array.isArray(presets) || !presets.length) return method
-      const fields =
-        characterizationProfiles[
-          item.code === 'low_frequency_raman' ? 'Raman' : item.code
-        ]?.condition_fields ?? []
+      const fields = characterizationProfiles[item.code]?.condition_fields ?? []
       return (
         method +
         '\n' +

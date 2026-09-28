@@ -85,7 +85,7 @@ export function presetFields(method: string) {
   if (method === 'PL') return plConfiguration.preset_fields
   return method === 'optical_microscopy'
     ? omConfiguration.preset_fields
-    : ['Raman', 'low_frequency_raman'].includes(method)
+    : method === 'Raman'
       ? ramanConfiguration.preset_fields
       : undefined
 }
@@ -173,7 +173,6 @@ export function instrumentPresetsAreValid(
   method: string,
   configuration: Record<string, unknown> | undefined,
 ) {
-  if (method === 'low_frequency_raman') method = 'Raman'
   const presets = instrumentPresets(configuration)
   const fields = characterizationProfiles[method]?.condition_fields ?? []
   return (

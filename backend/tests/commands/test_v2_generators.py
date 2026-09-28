@@ -160,20 +160,23 @@ def test_measurement_json_schema_enforces_property_and_profile_contract() -> Non
     payload = {
         "measurement": {
             "sample_id": "00000000-0000-0000-0000-000000000001",
-            "method_profile": "optical_microscopy",
+            "method_profile": "AFM",
+            "instrument_id": "00000000-0000-0000-0000-000000000002",
+            "instrument_version": 1,
             "measured_at": "2026-08-30T12:00:00+00:00",
             "sample_region": {
                 "geometry_type": "whole_sample",
                 "label": "whole sample",
                 "coordinate_system": "sample_local",
             },
-            "typed_conditions": {"observation_mode": "visual"},
+            "typed_conditions": {"scan_size_um": {"x": 5, "y": 5}},
+            "raw_file_ids": ["00000000-0000-0000-0000-000000000003"],
         },
         "properties": [
             {
-                "property_code": "coverage_percent",
-                "numeric_value": 80,
-                "unit": "%",
+                "property_code": "afm_step_height",
+                "numeric_value": 0.8,
+                "unit": "nm",
                 "quality_flag": "valid",
             }
         ],
@@ -182,13 +185,13 @@ def test_measurement_json_schema_enforces_property_and_profile_contract() -> Non
 
     wrong_representation = deepcopy(payload)
     wrong_representation["properties"][0] = {
-        "property_code": "coverage_percent",
+        "property_code": "afm_step_height",
         "text_value": "negative",
     }
     assert list(validator.iter_errors(wrong_representation))
 
     out_of_range = deepcopy(payload)
-    out_of_range["properties"][0]["numeric_value"] = 101
+    out_of_range["properties"][0]["numeric_value"] = -1
     assert list(validator.iter_errors(out_of_range))
 
     numeric_below_limit = deepcopy(payload)
@@ -210,7 +213,7 @@ def test_measurement_json_schema_enforces_property_and_profile_contract() -> Non
     assert list(validator.iter_errors(wrong_profile))
 
     missing_evidence = deepcopy(payload)
-    missing_evidence["properties"] = []
+    missing_evidence["measurement"]["raw_file_ids"] = []
     assert list(validator.iter_errors(missing_evidence))
 
     other = {
@@ -263,13 +266,7 @@ def test_measurement_json_schema_and_openapi_reject_runtime_invalid_shapes() -> 
             },
             "typed_conditions": {"observation_mode": "visual"},
         },
-        "properties": [
-            {
-                "property_code": "coverage_percent",
-                "numeric_value": 80,
-                "unit": "%",
-            }
-        ],
+        "properties": [{"property_code": "observation_note", "text_value": "Visible islands"}],
     }
     invalid_payloads: list[dict] = []
 

@@ -204,12 +204,6 @@ export function characterizationConditionIssue(
         value: `${bound}${unit}`,
       }).trim()
   }
-  if (
-    field.key === 'excitation_power_value' &&
-    conditions.excitation_power_basis === 'instrument_percent' &&
-    numbers[0] > 100
-  )
-    return translate('le', { label: '', value: '100%' }).trim()
   return numbers.every((value) =>
     typeof ge === 'number' || typeof gt === 'number' ? true : value > 0,
   )

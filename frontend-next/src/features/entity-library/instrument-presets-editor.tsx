@@ -32,7 +32,6 @@ export function InstrumentPresetsEditor({
   disabled: boolean
   onChange: (configuration: Record<string, unknown>) => void
 }) {
-  if (method === 'low_frequency_raman') method = 'Raman'
   const { t, i18n } = useTranslation()
   const prefix = useId()
   const presets = instrumentPresets(configuration)
@@ -112,7 +111,6 @@ export function InstrumentPresetsEditor({
                 {characterizationProfiles[method].condition_fields
                   .filter(
                     (field) =>
-                      !field.legacy_only &&
                       (method === 'SHG' && SHG_TIME_FIELDS.includes(field.key)
                         ? !shgTimes.length || shgTimes.includes(field.key)
                         : conditionMatches(field.when, draft)) &&

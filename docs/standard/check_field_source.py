@@ -34,7 +34,7 @@ KNOWN_LEVELS = {
     "conditional_required",
     "conditional_recommended",
 }
-EXPECTED_FIELDS = 125
+EXPECTED_FIELDS = 115
 EXPECTED_ENTITY_FIELDS = 66
 EXPECTED_R0 = 26
 
@@ -429,12 +429,6 @@ for profile_code, profile in (doc.get("characterization_profiles") or {}).items(
         )
     if not set(profile.get("default_property_codes") or []) <= allowed_properties:
         err(f"characterization_profiles.{profile_code}: 默认属性不属于允许属性")
-    if any(
-        properties[code].get("legacy_only")
-        for code in profile.get("default_property_codes", [])
-        if code in properties
-    ):
-        err(f"characterization_profiles.{profile_code}: 默认录入包含暂缓字段")
     unknown_assertions = (
         set(profile.get("allowed_assertion_types") or []) - known_assertions
     )

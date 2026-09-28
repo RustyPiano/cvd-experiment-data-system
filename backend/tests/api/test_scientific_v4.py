@@ -927,16 +927,10 @@ def test_scientific_revision_measurement_and_query_chain(
                 "typed_conditions": {
                     "observation_mode": "visual",
                     "objective": "50x",
-                    "illumination_mode": "bright_field",
                 },
             },
             "properties": [
-                {
-                    "property_code": "coverage_percent",
-                    "numeric_value": 0,
-                    "unit": "%",
-                    "statistic": "single_observation",
-                }
+                {"property_code": "observation_note", "text_value": "Continuous film at center"}
             ],
             "assertions": [],
         },
@@ -1001,12 +995,7 @@ def test_scientific_revision_measurement_and_query_chain(
         "/api/v1/datasets/query",
         json={
             "filters": [
-                {
-                    "field": "property",
-                    "property_code": "coverage_percent",
-                    "operator": "eq",
-                    "value": 0,
-                },
+                {"field": "max_temperature_measured_C", "operator": "eq", "value": 750},
             ]
         },
         headers=headers,
@@ -1026,31 +1015,13 @@ def test_scientific_revision_measurement_and_query_chain(
     assert dataset.json()["query_manifest"]["run_revision_ids"] == [revision_1]
     not_equal_existing = client.post(
         "/api/v1/datasets/query",
-        json={
-            "filters": [
-                {
-                    "field": "property",
-                    "property_code": "coverage_percent",
-                    "operator": "ne",
-                    "value": 0,
-                }
-            ]
-        },
+        json={"filters": [{"field": "max_temperature_measured_C", "operator": "ne", "value": 750}]},
         headers=headers,
     )
     assert not_equal_existing.json()["items"] == []
     not_equal_missing = client.post(
         "/api/v1/datasets/query",
-        json={
-            "filters": [
-                {
-                    "field": "property",
-                    "property_code": "coverage_percent",
-                    "operator": "ne",
-                    "value": 1,
-                }
-            ]
-        },
+        json={"filters": [{"field": "max_temperature_measured_C", "operator": "ne", "value": 1}]},
         headers=headers,
     )
     assert [item["run_id"] for item in not_equal_missing.json()["items"]] == [run_id]
@@ -1114,12 +1085,12 @@ def test_scientific_revision_measurement_and_query_chain(
         "measurement_run_id": measurement.json()["id"],
         "sample_id": sample["id"],
         "analysis_run_id": None,
-        "property_code": "coverage_percent",
-        "numeric_value": 0.0,
-        "text_value": None,
+        "property_code": "observation_note",
+        "numeric_value": None,
+        "text_value": "Continuous film at center",
         "structured_value": None,
-        "unit": "%",
-        "statistic": "single_observation",
+        "unit": None,
+        "statistic": None,
         "uncertainty_value": None,
         "uncertainty_type": None,
         "sample_count": None,
@@ -1150,7 +1121,6 @@ def test_scientific_revision_measurement_and_query_chain(
                 "typed_conditions": {
                     "observation_mode": "visual",
                     "objective": "10x",
-                    "illumination_mode": "bright_field",
                 },
             },
             "properties": [{"property_code": "observation_note", "text_value": "Visible islands"}],
@@ -1280,16 +1250,7 @@ def test_scientific_revision_measurement_and_query_chain(
     ]
     current_revision_query = client.post(
         "/api/v1/datasets/query",
-        json={
-            "filters": [
-                {
-                    "field": "property",
-                    "property_code": "coverage_percent",
-                    "operator": "eq",
-                    "value": 0,
-                }
-            ]
-        },
+        json={"filters": [{"field": "provenance_complete", "operator": "eq", "value": True}]},
         headers=headers,
     )
     assert current_revision_query.status_code == 200

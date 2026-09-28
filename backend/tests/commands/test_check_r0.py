@@ -10,7 +10,6 @@ from app.models.module_payload import ExperimentModulePayload
 from app.models.sample import Sample, SampleRole
 from app.models.scientific import RunRevision
 from app.models.v2_entities import MaterialLot, MaterialLotVersion
-from app.models.v2_results import MeasuredProduct
 from app.services.v2_field_source import experiment_fields, load_field_source
 from app.services.v2_r0_service import build_run_report
 
@@ -232,7 +231,6 @@ def test_check_r0_reports_conditional_required_fields_and_rejects_pvd_as_noncomp
     )
     db_session.add(sample)
     db_session.flush()
-    db_session.add(MeasuredProduct(sample_id=sample.id, observed_phenomena=["不连续覆盖"]))
     _add_payload(
         db_session,
         pvd.id,

@@ -43,7 +43,6 @@ const DETAIL_KEYS = {
   'characterization_record_id must belong to the sample':
     'errors.details.characterizationSampleMismatch',
   'Invalid method_instrument': 'errors.details.invalidMethodInstrument',
-  'Invalid observed_phenomena': 'errors.details.invalidObservedPhenomena',
   'Record not found': 'errors.details.recordNotFound',
   'Product not found': 'errors.details.productNotFound',
   'Entity not found': 'errors.details.entityNotFound',

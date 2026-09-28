@@ -17,7 +17,7 @@ from app.models.file_asset import FileAsset
 from app.models.sample import Sample
 from app.models.scientific import RunRevision
 from app.models.v2_entities import MaterialLotVersion
-from app.models.v2_results import CharacterizationRecord, MeasuredProduct
+from app.models.v2_results import CharacterizationRecord
 from app.schemas.generated.v2_module_payload import MaterialLotVersionPayload
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_field_source import SCHEMA_VERSION
@@ -236,14 +236,6 @@ def test_postgres_single_export_uses_one_repeatable_read_snapshot(
                     method_instrument="Raman",
                 )
                 writer.add(record)
-                writer.flush()
-                writer.add(
-                    MeasuredProduct(
-                        sample_id=sample_id,
-                        characterization_record_id=record.id,
-                        observed_phenomena=["no_growth"],
-                    )
-                )
                 writer.commit()
             return records
 
@@ -256,7 +248,6 @@ def test_postgres_single_export_uses_one_repeatable_read_snapshot(
     assert b'"measurements": []' in content
     with Session(bind=db_session.get_bind()) as verifier:
         assert verifier.query(CharacterizationRecord).filter_by(sample_id=sample_id).count() == 1
-        assert verifier.query(MeasuredProduct).filter_by(sample_id=sample_id).count() == 1
 
 
 def test_postgres_entity_file_can_only_be_bound_once(db_session, active_user) -> None:

@@ -428,7 +428,6 @@ export interface CharacterizationConditionField {
   multiline?: boolean
   signed?: boolean
   section?: "results"
-  legacy_only?: boolean
   placeholder_zh?: string
   placeholder_en?: string
   key: string
@@ -463,7 +462,6 @@ export interface OpticalConfigurationSpec {
 
 export interface CharacterizationProfile {
   common_condition_keys?: string[]
-  legacy_only?: boolean
   property_conditions?: Record<string, Record<string, string[]>>
   label_zh: string
   label_en: string
@@ -480,12 +478,9 @@ export interface CharacterizationProfile {
   allowed_assertion_types: string[]
   peak_position_units?: string[]
   property_modes?: Record<string, string[]>
-  legacy_property_codes?: string[]
-  legacy_assertion_types?: string[]
 }
 
 export interface CharacterizationProperty {
-  legacy_only?: boolean
   label_zh: string
   label_en: string
   value_type: 'numeric' | 'text' | 'structured'

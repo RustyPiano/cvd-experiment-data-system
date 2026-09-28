@@ -24,7 +24,6 @@ PAYLOAD_MODULE_KEYS = (
     "process_events",
 )
 ARRAY_MODULE_KEYS = {"precursors", "substrates", "process_steps", "process_events"}
-RESULT_MODULE_KEYS = {"characterization", "measured_products"}
 STRUCTURED_CONTROLLED_KEYS = {
     "field_type",
     "material",

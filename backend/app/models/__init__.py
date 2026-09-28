@@ -39,7 +39,7 @@ from app.models.v2_entities import (
     SubstrateLayer,
     SubstrateStack,
 )
-from app.models.v2_results import CharacterizationRecord, MeasuredProduct
+from app.models.v2_results import CharacterizationRecord
 
 __all__ = [
     "AuditEvent",
@@ -57,7 +57,6 @@ __all__ = [
     "MaterialAssertion",
     "MaterialLot",
     "MaterialLotVersion",
-    "MeasuredProduct",
     "ProcessChannel",
     "ProcessSegment",
     "PropertyValue",

@@ -1363,12 +1363,8 @@ export interface components {
                 /** @constant */
                 method_profile: "optical_microscopy";
                 typed_conditions: {
-                    image_object_type?: string;
-                    /** @enum {string} */
-                    image_size_metric?: "maximum_length" | "equivalent_diameter" | "width";
                     objective_magnification?: number;
                     objective?: string;
-                    illumination_mode?: string;
                     image_scale_um_per_px?: number;
                     /** @enum {string} */
                     observation_mode: "visual" | "digital";
@@ -1434,15 +1430,12 @@ export interface components {
             });
             properties?: unknown;
             assertions?: unknown;
-        } & (unknown & unknown & unknown)) | ({
+        } & unknown) | ({
             measurement?: {
                 /** @constant */
                 method_profile: "Raman";
                 typed_conditions: {
                     laser_wavelength_nm: number;
-                    excitation_power_value?: number;
-                    /** @enum {string} */
-                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
                     objective?: string;
                     integration_time_s?: number;
                     accumulations?: number;
@@ -1473,8 +1466,6 @@ export interface components {
                     measurement_environment?: string;
                     /** @enum {string} */
                     temperature_basis?: "ambient" | "stage_setpoint" | "sample_measured";
-                    /** @enum {string} */
-                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
                     /** @enum {string} */
                     accumulation_method?: "sum" | "mean";
                     confocal_aperture_um?: number;
@@ -1515,43 +1506,9 @@ export interface components {
         }) | ({
             measurement?: {
                 /** @constant */
-                method_profile: "low_frequency_raman";
-                typed_conditions: {
-                    laser_wavelength_nm: number;
-                    excitation_power_value?: number;
-                    /** @enum {string} */
-                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
-                    objective?: string;
-                    integration_time_s?: number;
-                    accumulations?: number;
-                };
-                sample_region?: {
-                    /** @enum {unknown} */
-                    geometry_type: "point" | "line" | "whole_sample" | "selected_area";
-                } | null;
-                raw_file_ids: unknown[];
-                /** Format: uuid */
-                instrument_id: string;
-                instrument_version: number;
-                instrument_configuration?: unknown;
-                scan_file_id?: null;
-                variable_conditions?: unknown;
-                file_intensity_units?: unknown;
-                file_response_corrections?: unknown;
-            };
-            properties?: unknown;
-            assertions?: unknown;
-        } & {
-            properties?: unknown;
-        }) | ({
-            measurement?: {
-                /** @constant */
                 method_profile: "PL";
                 typed_conditions: {
                     excitation_wavelength_nm: number;
-                    excitation_power_value?: number;
-                    /** @enum {string} */
-                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
                     integration_time_s?: number;
                     spectral_range_nm?: {
                         min: number;
@@ -1583,12 +1540,7 @@ export interface components {
                     /** @enum {string} */
                     temperature_basis?: "ambient" | "stage_setpoint" | "sample_measured";
                     /** @enum {string} */
-                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
-                    /** @enum {string} */
                     accumulation_method?: "sum" | "mean";
-                    /** @enum {string} */
-                    response_correction?: "applied" | "not_applied";
-                    response_correction_source?: string;
                     /** @enum {string} */
                     excitation_mode?: "continuous" | "pulsed";
                     pulse_width_fs?: number;
@@ -1625,7 +1577,7 @@ export interface components {
                     /** @enum {string} */
                     spectral_acquisition?: "array" | "scanning";
                     wavelength_step_nm?: number;
-                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "line" | "whole_sample" | "selected_area";
@@ -1693,14 +1645,11 @@ export interface components {
             };
             properties?: unknown;
             assertions?: unknown;
-        } | ({
+        } | {
             measurement?: {
                 /** @constant */
                 method_profile: "SEM";
                 typed_conditions: {
-                    image_object_type?: string;
-                    /** @enum {string} */
-                    image_size_metric?: "maximum_length" | "equivalent_diameter" | "width";
                     accelerating_voltage_kV: number;
                     /** @enum {string} */
                     mode: "secondary_electron" | "backscattered_electron" | "EDS";
@@ -1758,7 +1707,7 @@ export interface components {
             };
             properties?: unknown;
             assertions?: unknown;
-        } & (unknown & unknown & unknown & unknown & unknown & unknown)) | ({
+        } | ({
             measurement?: {
                 /** @constant */
                 method_profile: "XRD";
@@ -1773,10 +1722,6 @@ export interface components {
                     };
                     radiation_source: string;
                     source_wavelength_nm: number;
-                    scan_range_2theta_deg?: {
-                        start: number;
-                        end: number;
-                    };
                     step_size_deg?: number;
                     count_time_s?: number;
                     scan_rate_deg_min?: number;
@@ -1823,8 +1768,6 @@ export interface components {
                     /** @enum {string} */
                     data_type: "image" | "diffraction" | "spectrum";
                     accelerating_voltage_kV: number;
-                    /** @enum {string} */
-                    mode?: "bright_field" | "HRTEM" | "SAED" | "STEM" | "EDS" | "EELS";
                     sample_preparation?: string;
                     /** @enum {string} */
                     acquisition_mode?: "TEM" | "STEM";
@@ -1889,7 +1832,7 @@ export interface components {
             };
             properties?: unknown;
             assertions?: unknown;
-        } & (unknown & unknown)) | {
+        } & unknown) | {
             measurement?: {
                 /** @constant */
                 method_profile: "other";
@@ -1980,29 +1923,7 @@ export interface components {
                     elapsed_time_s?: number;
                     sample_preparation?: string;
                     acquisition_note?: string;
-                    /** @enum {string} */
-                    data_type?: "spectrum" | "polarization_scan" | "image" | "power_scan";
-                    excitation_power_value?: number;
-                    /** @enum {string} */
-                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
-                    input_polarization?: string;
-                    analyzer_polarization?: string;
-                    angle_reference?: string;
-                    /** @enum {string} */
-                    polarization_scan_axis?: "input_polarization" | "analyzer" | "sample";
-                    angle_range_deg?: {
-                        start: number;
-                        end: number;
-                    };
-                    /** @enum {string} */
-                    scan_angle_quantity?: "waveplate" | "polarization" | "analyzer" | "sample";
-                    angle_step_deg?: number;
-                    power_scan_coordinates?: string;
-                    spot_size_um?: number;
-                    spot_size_definition?: string;
-                    /** @enum {string} */
-                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
-                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "selected_area" | "whole_sample";
@@ -2129,18 +2050,12 @@ export interface components {
             measurement_environment?: string | null;
             /** Temperature Basis */
             temperature_basis?: string | null;
-            /** Intensity Processing */
-            intensity_processing?: string | null;
             /** Accumulation Method */
             accumulation_method?: string | null;
             /** Confocal Aperture Um */
             confocal_aperture_um?: number | null;
             /** Filter Cutoff */
             filter_cutoff?: string | null;
-            /** Response Correction */
-            response_correction?: string | null;
-            /** Response Correction Source */
-            response_correction_source?: string | null;
             /** Scan Rate Definition */
             scan_rate_definition?: string | null;
             /** Data Channel */
@@ -2225,23 +2140,12 @@ export interface components {
             eels_collection_semiangle_mrad?: number | null;
             /** Zero Loss Calibration */
             zero_loss_calibration?: string | null;
-            /** Scan Angle Quantity */
-            scan_angle_quantity?: string | null;
-            /** Angle Step Deg */
-            angle_step_deg?: number | null;
-            /** Power Scan Coordinates */
-            power_scan_coordinates?: string | null;
-            /** Spot Size Um */
-            spot_size_um?: number | null;
-            /** Spot Size Definition */
-            spot_size_definition?: string | null;
             /** Laser Wavelength Nm */
             laser_wavelength_nm?: number | null;
             /** Excitation Wavelength Nm */
             excitation_wavelength_nm?: number | null;
             raman_shift_range_cm1?: components["schemas"]["SignedScanRange"] | null;
             scan_range_deg?: components["schemas"]["SignedScanRange"] | null;
-            angle_range_deg?: components["schemas"]["SignedScanRange"] | null;
             /** Image Scale Um Per Px */
             image_scale_um_per_px?: number | null;
             /** Pulse Width Fs */
@@ -2290,20 +2194,8 @@ export interface components {
             wavelength_calibration?: string | null;
             /** Excitation Mode */
             excitation_mode?: string | null;
-            /** Input Polarization */
-            input_polarization?: string | null;
-            /** Analyzer Polarization */
-            analyzer_polarization?: string | null;
-            /** Angle Reference */
-            angle_reference?: string | null;
-            /** Polarization Scan Axis */
-            polarization_scan_axis?: string | null;
             /** Power Setting */
             power_setting?: string | null;
-            /** Excitation Power Value */
-            excitation_power_value?: number | null;
-            /** Excitation Power Basis */
-            excitation_power_basis?: ("sample_plane_mW" | "instrument_percent") | null;
             /** Objective */
             objective?: string | null;
             /** Integration Time S */
@@ -2336,7 +2228,6 @@ export interface components {
             radiation_source?: string | null;
             /** Source Wavelength Nm */
             source_wavelength_nm?: number | null;
-            scan_range_2theta_deg?: components["schemas"]["ScanRange"] | null;
             /** Step Size Deg */
             step_size_deg?: number | null;
             /** Count Time S */
@@ -2351,21 +2242,9 @@ export interface components {
             sample_preparation?: string | null;
             /** Height Processing */
             height_processing?: string | null;
-            /** Illumination Mode */
-            illumination_mode?: string | null;
-            /** Image Object Type */
-            image_object_type?: string | null;
-            /** Image Size Metric */
-            image_size_metric?: string | null;
             /** Method Description */
             method_description?: string | null;
-        } & (unknown & ({
-            excitation_power_value?: null;
-            excitation_power_basis?: null;
-        } | {
-            excitation_power_value: number;
-            excitation_power_basis: string;
-        }));
+        };
         /** MeasurementDetailRead */
         MeasurementDetailRead: {
             /**
@@ -2767,191 +2646,7 @@ export interface components {
             uncertainty_type?: null;
         } | {
             /** @constant */
-            property_code: "elemental_composition";
-            numeric_value?: null;
-            text_value?: null;
-            structured_value: {
-                /** @enum {unknown} */
-                basis: "atomic_fraction" | "mass_fraction";
-                components: {
-                    species: string;
-                    fraction: number;
-                }[];
-            };
-            unit?: null;
-            uncertainty_value?: null;
-            uncertainty_type?: null;
-        } | {
-            /** @constant */
-            property_code: "image_object_size_um";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "μm";
-        } | {
-            /** @constant */
-            property_code: "image_object_density_cm2";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻²";
-        } | {
-            /** @constant */
-            property_code: "coverage_percent";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "%";
-        } | {
-            /** @constant */
-            property_code: "domain_size_um";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "μm";
-        } | {
-            /** @constant */
-            property_code: "nucleation_density_cm2";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻²";
-        } | {
-            /** @constant */
-            property_code: "raman_e2g_peak_position";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "raman_a1g_peak_position";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "raman_peak_separation";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "raman_peak_fwhm";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "raman_intensity_ratio";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "ratio";
-        } | {
-            /** @constant */
-            property_code: "shear_mode_peak_position";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "low_frequency_peak_fwhm";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "pl_a_exciton_peak_energy";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "eV";
-        } | {
-            /** @constant */
-            property_code: "pl_b_exciton_peak_energy";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "eV";
-        } | {
-            /** @constant */
-            property_code: "pl_integrated_intensity";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "a.u.";
-        } | {
-            /** @constant */
-            property_code: "pl_peak_fwhm";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "meV";
-        } | {
-            /** @constant */
-            property_code: "afm_ra_roughness";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "nm";
-        } | {
-            /** @constant */
-            property_code: "afm_rms_roughness";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "nm";
-        } | {
-            /** @constant */
             property_code: "afm_step_height";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "nm";
-        } | {
-            /** @constant */
-            property_code: "xrd_peak_2theta";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "° 2θ";
-        } | {
-            /** @constant */
-            property_code: "xrd_peak_fwhm";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "° 2θ";
-        } | {
-            /** @constant */
-            property_code: "xrd_d_spacing";
             numeric_value: number;
             text_value?: null;
             structured_value?: null;
@@ -3187,13 +2882,6 @@ export interface components {
             metadata_json?: {
                 [key: string]: unknown;
             };
-        };
-        /** ScanRange */
-        ScanRange: {
-            /** Start */
-            start: number;
-            /** End */
-            end: number;
         };
         /** SetupVersionPayload */
         SetupVersionPayload: {

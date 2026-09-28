@@ -13,7 +13,6 @@ from app.models.sample import Sample
 from app.models.scientific import (
     AnalysisRun,
     DataDerivationEdge,
-    MaterialAssertion,
     PropertyValue,
     RunFeature,
     RunRevision,
@@ -170,29 +169,14 @@ def test_provenance_uses_current_valid_profile_evidence(db_session, active_user)
     optical = _measurement(run, revision, sample, active_user, "optical_microscopy", {})
     db_session.add_all([feature, optical])
     db_session.flush()
-    assertion = MaterialAssertion(
+    optical_note = PropertyValue(
         sample_id=sample.id,
         measurement_run_id=optical.id,
-        assertion_type="growth_presence",
-        value_json={"state": "absent"},
-        validity="active",
+        property_code="observation_note",
+        text_value="No visible islands",
+        quality_flag="valid",
     )
-    db_session.add(assertion)
-    db_session.flush()
-
-    refresh_revision_provenance(db_session, revision.id)
-    assert feature.boolean_value is True
-
-    assertion.validity = "disputed"
-    below_detection_limit = PropertyValue(
-        sample_id=sample.id,
-        measurement_run_id=optical.id,
-        property_code="coverage_percent",
-        numeric_value=0,
-        unit="%",
-        quality_flag="below_detection_limit",
-    )
-    db_session.add(below_detection_limit)
+    db_session.add(optical_note)
     db_session.flush()
     refresh_revision_provenance(db_session, revision.id)
     assert feature.boolean_value is True
@@ -206,17 +190,6 @@ def test_provenance_uses_current_valid_profile_evidence(db_session, active_user)
         {"laser_wavelength_nm": 532},
     )
     db_session.add(raman)
-    db_session.flush()
-    db_session.add(
-        PropertyValue(
-            sample_id=sample.id,
-            measurement_run_id=raman.id,
-            property_code="raman_e2g_peak_position",
-            numeric_value=384,
-            unit="cm^-1",
-            quality_flag="valid",
-        )
-    )
     db_session.flush()
     refresh_revision_provenance(db_session, revision.id)
     assert feature.boolean_value is False
@@ -237,12 +210,12 @@ def test_provenance_uses_current_valid_profile_evidence(db_session, active_user)
     refresh_revision_provenance(db_session, revision.id)
     assert feature.boolean_value is True
 
-    below_detection_limit.quality_flag = "suspect"
+    optical_note.quality_flag = "suspect"
     db_session.flush()
     refresh_revision_provenance(db_session, revision.id)
     assert feature.boolean_value is False
 
-    below_detection_limit.quality_flag = "below_detection_limit"
+    optical_note.quality_flag = "valid"
     optical.quality_flag = "invalid"
     db_session.flush()
     refresh_revision_provenance(db_session, revision.id)
@@ -319,12 +292,12 @@ def test_provenance_rejects_stale_growth_but_allows_active_control(
     db_session.add(stale_record)
     db_session.flush()
     db_session.add(
-        MaterialAssertion(
+        PropertyValue(
             sample_id=stale_growth.id,
             measurement_run_id=stale_record.id,
-            assertion_type="growth_presence",
-            value_json={"state": "absent"},
-            validity="active",
+            property_code="observation_note",
+            text_value="No visible islands",
+            quality_flag="valid",
         )
     )
     db_session.flush()
@@ -335,12 +308,12 @@ def test_provenance_rejects_stale_growth_but_allows_active_control(
     db_session.add(control_record)
     db_session.flush()
     db_session.add(
-        MaterialAssertion(
+        PropertyValue(
             sample_id=control.id,
             measurement_run_id=control_record.id,
-            assertion_type="growth_presence",
-            value_json={"state": "absent"},
-            validity="active",
+            property_code="observation_note",
+            text_value="No visible islands",
+            quality_flag="valid",
         )
     )
     db_session.flush()

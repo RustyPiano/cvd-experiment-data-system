@@ -104,7 +104,6 @@ export interface CharacterizationConditionField {
   multiline?: boolean
   signed?: boolean
   section?: 'results'
-  legacy_only?: boolean
   placeholder_zh?: string
   placeholder_en?: string
   key: string
@@ -155,7 +154,6 @@ export interface OpticalConfigurationSpec {
 
 export interface CharacterizationProfile {
   common_condition_keys?: string[]
-  legacy_only?: boolean
   property_conditions?: Record<string, Record<string, string[]>>
   label_zh: string
   label_en: string
@@ -172,12 +170,9 @@ export interface CharacterizationProfile {
   allowed_assertion_types: string[]
   peak_position_units?: string[]
   property_modes?: Record<string, string[]>
-  legacy_property_codes?: string[]
-  legacy_assertion_types?: string[]
 }
 
 export interface CharacterizationProperty {
-  legacy_only?: boolean
   label_zh: string
   label_en: string
   value_type: 'numeric' | 'text' | 'structured'
@@ -3937,7 +3932,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       labelEn: 'Applicable characterization method',
       input: '下拉+其他',
       unit: null,
-      options: 'OM/Raman/PL/SHG/AFM/SEM/TEM/XRD/其他/低波数Raman',
+      options: 'OM/Raman/PL/SHG/AFM/SEM/TEM/XRD/其他',
       validation: null,
       requirement: {
         raw: '必填',
@@ -4271,7 +4266,6 @@ export const optionLabelsZh: Record<string, string> = {
   vacuum: '真空',
   round: '圆形',
   optical_microscopy: 'OM',
-  low_frequency_raman: '低波数Raman',
   no_growth: '无生长',
   discontinuous_coverage: '不连续覆盖',
   thick_layer_regions: '厚层区域',
@@ -4472,7 +4466,6 @@ export const optionLabelsEn: Record<string, string> = {
   vacuum: 'Vacuum',
   round: 'Round',
   optical_microscopy: 'OM',
-  low_frequency_raman: 'Low-frequency Raman',
   no_growth: 'No growth',
   discontinuous_coverage: 'Discontinuous coverage',
   thick_layer_regions: 'Thick-layer regions',
@@ -4690,7 +4683,6 @@ export const optionCodes: Record<string, string> = {
   矩形: 'rectangular',
   OM: 'optical_microscopy',
   光镜: 'optical_microscopy',
-  低波数Raman: 'low_frequency_raman',
   无生长: 'no_growth',
   不连续覆盖: 'discontinuous_coverage',
   厚层区域: 'thick_layer_regions',
@@ -5051,247 +5043,12 @@ export const characterizationProperties: Record<
     },
     unit: '—',
   },
-  elemental_composition: {
-    legacy_only: true,
-    label_zh: '元素定量',
-    label_en: 'Elemental quantification',
-    value_type: 'structured',
-    validation: {},
-    structured_schema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['basis', 'components'],
-      properties: {
-        basis: {
-          enum: ['atomic_fraction', 'mass_fraction'],
-        },
-        components: {
-          type: 'array',
-          minItems: 1,
-          maxItems: 118,
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['species', 'fraction'],
-            properties: {
-              species: {
-                type: 'string',
-                pattern: '^[A-Z][a-z]?$',
-              },
-              fraction: {
-                type: 'number',
-                minimum: 0,
-                maximum: 1,
-              },
-            },
-          },
-        },
-      },
-    },
-    unit: '—',
-  },
-  image_object_size_um: {
-    legacy_only: true,
-    label_zh: '图像对象尺寸',
-    label_en: 'Image object size',
-    value_type: 'numeric',
-    validation: {
-      gt: 0,
-    },
-    unit: 'μm',
-  },
-  image_object_density_cm2: {
-    legacy_only: true,
-    label_zh: '图像对象数量密度',
-    label_en: 'Image object number density',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-    },
-    unit: 'cm⁻²',
-  },
-  coverage_percent: {
-    legacy_only: true,
-    label_zh: '覆盖率',
-    label_en: 'Coverage',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-      le: 100,
-    },
-    unit: '%',
-  },
-  domain_size_um: {
-    label_zh: '晶畴尺寸',
-    label_en: 'Domain size',
-    value_type: 'numeric',
-    validation: {
-      gt: 0,
-    },
-    unit: 'μm',
-  },
-  nucleation_density_cm2: {
-    label_zh: '成核密度',
-    label_en: 'Nucleation density',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-    },
-    unit: 'cm⁻²',
-  },
-  raman_e2g_peak_position: {
-    label_zh: 'Raman E₂g / E′ 代表峰位',
-    label_en: 'Representative Raman E2g / E-prime peak position',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-    },
-    unit: 'cm⁻¹',
-  },
-  raman_a1g_peak_position: {
-    label_zh: 'Raman A₁g / A₁′ 代表峰位',
-    label_en: 'Representative Raman A1g / A1-prime peak position',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-    },
-    unit: 'cm⁻¹',
-  },
-  raman_peak_separation: {
-    label_zh: 'Raman 峰间距',
-    label_en: 'Raman peak separation',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-    },
-    unit: 'cm⁻¹',
-  },
-  raman_peak_fwhm: {
-    label_zh: 'Raman 峰宽',
-    label_en: 'Raman peak FWHM',
-    value_type: 'numeric',
-    validation: {
-      gt: 0,
-    },
-    unit: 'cm⁻¹',
-  },
-  raman_intensity_ratio: {
-    label_zh: 'Raman 强度比',
-    label_en: 'Raman intensity ratio',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-    },
-    unit: 'ratio',
-  },
-  shear_mode_peak_position: {
-    label_zh: '剪切模峰位',
-    label_en: 'Shear-mode peak position',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-    },
-    unit: 'cm⁻¹',
-  },
-  low_frequency_peak_fwhm: {
-    label_zh: '低频 Raman 峰宽',
-    label_en: 'Low-frequency Raman peak FWHM',
-    value_type: 'numeric',
-    validation: {
-      gt: 0,
-    },
-    unit: 'cm⁻¹',
-  },
-  pl_a_exciton_peak_energy: {
-    label_zh: 'PL A 激子峰能量',
-    label_en: 'PL A-exciton peak energy',
-    value_type: 'numeric',
-    validation: {
-      gt: 0,
-    },
-    unit: 'eV',
-  },
-  pl_b_exciton_peak_energy: {
-    label_zh: 'PL B 激子峰能量',
-    label_en: 'PL B-exciton peak energy',
-    value_type: 'numeric',
-    validation: {
-      gt: 0,
-    },
-    unit: 'eV',
-  },
-  pl_integrated_intensity: {
-    label_zh: 'PL 积分强度',
-    label_en: 'PL integrated intensity',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-    },
-    unit: 'a.u.',
-  },
-  pl_peak_fwhm: {
-    label_zh: 'PL 峰宽',
-    label_en: 'PL peak FWHM',
-    value_type: 'numeric',
-    validation: {
-      gt: 0,
-    },
-    unit: 'meV',
-  },
-  afm_ra_roughness: {
-    legacy_only: true,
-    label_zh: 'AFM 算术平均粗糙度',
-    label_en: 'AFM arithmetic roughness',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-    },
-    unit: 'nm',
-  },
-  afm_rms_roughness: {
-    legacy_only: true,
-    label_zh: 'AFM 均方根粗糙度',
-    label_en: 'AFM RMS roughness',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-    },
-    unit: 'nm',
-  },
   afm_step_height: {
     label_zh: 'AFM 台阶高度',
     label_en: 'AFM step height',
     value_type: 'numeric',
     validation: {
       ge: 0,
-    },
-    unit: 'nm',
-  },
-  xrd_peak_2theta: {
-    label_zh: 'XRD 代表衍射峰位',
-    label_en: 'Representative XRD peak 2-theta',
-    value_type: 'numeric',
-    validation: {
-      ge: 0,
-      le: 180,
-    },
-    unit: '° 2θ',
-  },
-  xrd_peak_fwhm: {
-    label_zh: 'XRD 代表峰宽',
-    label_en: 'Representative XRD peak FWHM',
-    value_type: 'numeric',
-    validation: {
-      gt: 0,
-    },
-    unit: '° 2θ',
-  },
-  xrd_d_spacing: {
-    label_zh: 'XRD 代表晶面间距',
-    label_en: 'Representative XRD d-spacing',
-    value_type: 'numeric',
-    validation: {
-      gt: 0,
     },
     unit: 'nm',
   },
@@ -5320,8 +5077,6 @@ export const characterizationProperties: Record<
 export const characterizationProfiles: Record<string, CharacterizationProfile> =
   {
     optical_microscopy: {
-      legacy_property_codes: ['domain_size_um', 'nucleation_density_cm2'],
-      legacy_assertion_types: ['growth_presence'],
       label_zh: 'OM',
       label_en: 'OM',
       instrument_required: false,
@@ -5332,10 +5087,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       required_condition_keys: ['observation_mode'],
       optional_condition_keys: [
         'objective_magnification',
-        'image_object_type',
-        'image_size_metric',
         'objective',
-        'illumination_mode',
         'image_scale_um_per_px',
         'optical_path',
         'contrast_method',
@@ -5372,42 +5124,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
       condition_fields: [
         {
-          key: 'image_object_type',
-          legacy_only: true,
-          label_zh: '统计对象',
-          label_en: 'Counted objects',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
-          section: 'results',
-        },
-        {
-          key: 'image_size_metric',
-          legacy_only: true,
-          label_zh: '尺寸定义',
-          label_en: 'Size definition',
-          value_type: 'select',
-          options: [
-            {
-              value: 'maximum_length',
-              label_zh: '最大长度',
-              label_en: 'Maximum length',
-            },
-            {
-              value: 'equivalent_diameter',
-              label_zh: '等效圆直径',
-              label_en: 'Equivalent circular diameter',
-            },
-            {
-              value: 'width',
-              label_zh: '宽度',
-              label_en: 'Width',
-            },
-          ],
-          section: 'results',
-        },
-        {
           key: 'objective_magnification',
           label_zh: '物镜倍率',
           label_en: 'Objective magnification',
@@ -5424,16 +5140,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           },
           placeholder_zh: '物镜型号或名称',
           placeholder_en: 'Objective model or name',
-        },
-        {
-          key: 'illumination_mode',
-          legacy_only: true,
-          label_zh: '照明模式',
-          label_en: 'Illumination mode',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
         },
         {
           key: 'image_scale_um_per_px',
@@ -6012,12 +5718,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           multiline: true,
         },
       ],
-      allowed_property_codes: [
-        'coverage_percent',
-        'image_object_size_um',
-        'image_object_density_cm2',
-        'observation_note',
-      ],
+      allowed_property_codes: ['observation_note'],
       default_property_codes: ['observation_note'],
       allowed_assertion_types: [],
       common_condition_keys: [
@@ -6039,19 +5740,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
     },
     Raman: {
-      legacy_property_codes: [
-        'raman_e2g_peak_position',
-        'raman_a1g_peak_position',
-        'raman_peak_separation',
-        'raman_peak_fwhm',
-        'raman_intensity_ratio',
-      ],
-      legacy_assertion_types: [
-        'phase_identity',
-        'polytype',
-        'stacking_order',
-        'layer_count',
-      ],
       label_zh: 'Raman',
       label_en: 'Raman spectroscopy',
       instrument_required: true,
@@ -6061,8 +5749,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_region_types: ['point', 'line', 'whole_sample', 'selected_area'],
       required_condition_keys: ['laser_wavelength_nm'],
       optional_condition_keys: [
-        'excitation_power_value',
-        'excitation_power_basis',
         'objective',
         'integration_time_s',
         'accumulations',
@@ -6085,7 +5771,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'scan_coordinates',
         'measurement_environment',
         'temperature_basis',
-        'intensity_processing',
         'accumulation_method',
         'confocal_aperture_um',
         'filter_cutoff',
@@ -6109,32 +5794,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_en: 'Laser wavelength',
           value_type: 'number',
           unit: 'nm',
-        },
-        {
-          key: 'excitation_power_value',
-          label_zh: '激光功率',
-          label_en: 'Laser power',
-          value_type: 'number',
-          legacy_only: true,
-        },
-        {
-          key: 'excitation_power_basis',
-          label_zh: '功率单位',
-          label_en: 'Power unit',
-          value_type: 'select',
-          options: [
-            {
-              value: 'sample_plane_mW',
-              label_zh: '样品处功率（mW）',
-              label_en: 'At-sample power (mW)',
-            },
-            {
-              value: 'instrument_percent',
-              label_zh: '仪器设置（%）',
-              label_en: 'Instrument setting (%)',
-            },
-          ],
-          legacy_only: true,
         },
         {
           key: 'objective',
@@ -6486,31 +6145,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           },
         },
         {
-          key: 'intensity_processing',
-          label_zh: '强度处理口径',
-          label_en: 'Intensity processing',
-          value_type: 'select',
-          options: [
-            {
-              value: 'unscaled',
-              label_zh: '原始计数口径',
-              label_en: 'Unscaled acquisition counts',
-            },
-            {
-              value: 'count_rate',
-              label_zh: '计数率',
-              label_en: 'Count rate',
-            },
-            {
-              value: 'normalized',
-              label_zh: '归一化相对强度',
-              label_en: 'Normalized relative intensity',
-            },
-          ],
-          section: 'results',
-          legacy_only: true,
-        },
-        {
           key: 'accumulation_method',
           label_zh: '累积方式',
           label_en: 'Accumulation method',
@@ -6766,98 +6400,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'scan_coordinates',
       ],
     },
-    low_frequency_raman: {
-      legacy_property_codes: [
-        'shear_mode_peak_position',
-        'low_frequency_peak_fwhm',
-      ],
-      legacy_assertion_types: ['polytype', 'stacking_order', 'layer_count'],
-      label_zh: '低频 Raman',
-      label_en: 'Low-frequency Raman spectroscopy',
-      instrument_required: true,
-      raw_files_required: true,
-      show_growth_presence: false,
-      raw_file_guidance_zh: '请上传原始光谱或仪器导出文件。',
-      allowed_region_types: ['point', 'line', 'whole_sample', 'selected_area'],
-      required_condition_keys: ['laser_wavelength_nm'],
-      optional_condition_keys: [
-        'excitation_power_value',
-        'excitation_power_basis',
-        'objective',
-        'integration_time_s',
-        'accumulations',
-      ],
-      condition_fields: [
-        {
-          key: 'laser_wavelength_nm',
-          label_zh: '激光波长',
-          label_en: 'Laser wavelength',
-          value_type: 'number',
-          unit: 'nm',
-        },
-        {
-          key: 'excitation_power_value',
-          label_zh: '激光功率',
-          label_en: 'Laser power',
-          value_type: 'number',
-        },
-        {
-          key: 'excitation_power_basis',
-          label_zh: '功率单位',
-          label_en: 'Power unit',
-          value_type: 'select',
-          options: [
-            {
-              value: 'sample_plane_mW',
-              label_zh: '样品处功率（mW）',
-              label_en: 'At-sample power (mW)',
-            },
-            {
-              value: 'instrument_percent',
-              label_zh: '仪器设置（%）',
-              label_en: 'Instrument setting (%)',
-            },
-          ],
-        },
-        {
-          key: 'objective',
-          label_zh: '物镜规格',
-          label_en: 'Objective specification',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
-          placeholder_zh: '100×，NA 0.9',
-          placeholder_en: '100×, NA 0.9',
-        },
-        {
-          key: 'integration_time_s',
-          label_zh: '单次采集时间',
-          label_en: 'Time per acquisition',
-          value_type: 'number',
-          unit: 's',
-        },
-        {
-          key: 'accumulations',
-          label_zh: '光谱累积次数',
-          label_en: 'Spectral accumulations',
-          value_type: 'integer',
-        },
-      ],
-      allowed_property_codes: ['spectral_peaks', 'observation_note'],
-      default_property_codes: [],
-      allowed_assertion_types: [],
-      peak_position_units: ['cm⁻¹'],
-      legacy_only: true,
-    },
     PL: {
-      legacy_property_codes: [
-        'pl_a_exciton_peak_energy',
-        'pl_b_exciton_peak_energy',
-        'pl_integrated_intensity',
-        'pl_peak_fwhm',
-      ],
-      legacy_assertion_types: ['phase_identity', 'layer_count'],
       label_zh: 'PL',
       label_en: 'Photoluminescence',
       instrument_required: true,
@@ -6867,8 +6410,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_region_types: ['point', 'line', 'whole_sample', 'selected_area'],
       required_condition_keys: ['excitation_wavelength_nm'],
       optional_condition_keys: [
-        'excitation_power_value',
-        'excitation_power_basis',
         'integration_time_s',
         'spectral_range_nm',
         'temperature_K',
@@ -6891,10 +6432,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'scan_coordinates',
         'measurement_environment',
         'temperature_basis',
-        'intensity_processing',
         'accumulation_method',
-        'response_correction',
-        'response_correction_source',
         'excitation_mode',
         'pulse_width_fs',
         'repetition_rate_MHz',
@@ -6928,36 +6466,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_en: 'Excitation wavelength',
           value_type: 'number',
           unit: 'nm',
-        },
-        {
-          key: 'excitation_power_value',
-          label_zh: '激光功率',
-          label_en: 'Laser power',
-          value_type: 'number',
-          recommended: true,
-          help_zh: '脉冲激光填写平均功率；保留样品处实测或仪器设置口径。',
-          help_en:
-            'For pulsed light, record average power and retain its at-sample or instrument-setting basis.',
-          legacy_only: true,
-        },
-        {
-          key: 'excitation_power_basis',
-          label_zh: '功率单位',
-          label_en: 'Power unit',
-          value_type: 'select',
-          options: [
-            {
-              value: 'sample_plane_mW',
-              label_zh: '样品处功率（mW）',
-              label_en: 'At-sample power (mW)',
-            },
-            {
-              value: 'instrument_percent',
-              label_zh: '仪器设置（%）',
-              label_en: 'Instrument setting (%)',
-            },
-          ],
-          legacy_only: true,
         },
         {
           key: 'integration_time_s',
@@ -7323,31 +6831,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           },
         },
         {
-          key: 'intensity_processing',
-          label_zh: '强度处理口径',
-          label_en: 'Intensity processing',
-          value_type: 'select',
-          options: [
-            {
-              value: 'unscaled',
-              label_zh: '原始计数口径',
-              label_en: 'Unscaled acquisition counts',
-            },
-            {
-              value: 'count_rate',
-              label_zh: '计数率',
-              label_en: 'Count rate',
-            },
-            {
-              value: 'normalized',
-              label_zh: '归一化相对强度',
-              label_en: 'Normalized relative intensity',
-            },
-          ],
-          section: 'results',
-          legacy_only: true,
-        },
-        {
           key: 'accumulation_method',
           label_zh: '累积方式',
           label_en: 'Accumulation method',
@@ -7364,40 +6847,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
               label_en: 'Mean',
             },
           ],
-        },
-        {
-          key: 'response_correction',
-          label_zh: '光谱响应校正',
-          label_en: 'Spectral response correction',
-          value_type: 'select',
-          options: [
-            {
-              value: 'applied',
-              label_zh: '已应用',
-              label_en: 'Applied',
-            },
-            {
-              value: 'not_applied',
-              label_zh: '未应用',
-              label_en: 'Not applied',
-            },
-          ],
-          section: 'results',
-          legacy_only: true,
-        },
-        {
-          key: 'response_correction_source',
-          label_zh: '响应校正配置/报告',
-          label_en: 'Response correction configuration / report',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
-          when: {
-            response_correction: ['applied'],
-          },
-          section: 'results',
-          legacy_only: true,
         },
         {
           key: 'excitation_mode',
@@ -7831,8 +7280,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
     },
     AFM: {
-      legacy_property_codes: [],
-      legacy_assertion_types: ['layer_count'],
       label_zh: 'AFM',
       label_en: 'Atomic force microscopy',
       instrument_required: true,
@@ -8129,19 +7576,12 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             'Parameter source file, report page, or unrecorded parameters',
         },
       ],
-      allowed_property_codes: [
-        'afm_ra_roughness',
-        'afm_rms_roughness',
-        'afm_step_height',
-        'observation_note',
-      ],
+      allowed_property_codes: ['afm_step_height', 'observation_note'],
       default_property_codes: ['afm_step_height', 'observation_note'],
       allowed_assertion_types: [],
       common_condition_keys: ['mode'],
     },
     SEM: {
-      legacy_property_codes: ['domain_size_um', 'nucleation_density_cm2'],
-      legacy_assertion_types: ['growth_presence', 'composition'],
       label_zh: 'SEM',
       label_en: 'Scanning electron microscopy',
       instrument_required: true,
@@ -8151,8 +7591,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_region_types: ['point', 'area', 'whole_sample', 'selected_area'],
       required_condition_keys: ['accelerating_voltage_kV', 'mode'],
       optional_condition_keys: [
-        'image_object_type',
-        'image_size_metric',
         'working_distance_mm',
         'beam_current_nA',
         'detector',
@@ -8183,42 +7621,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'acquisition_note',
       ],
       condition_fields: [
-        {
-          key: 'image_object_type',
-          legacy_only: true,
-          label_zh: '统计对象',
-          label_en: 'Counted objects',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
-          section: 'results',
-        },
-        {
-          key: 'image_size_metric',
-          legacy_only: true,
-          label_zh: '尺寸定义',
-          label_en: 'Size definition',
-          value_type: 'select',
-          options: [
-            {
-              value: 'maximum_length',
-              label_zh: '最大长度',
-              label_en: 'Maximum length',
-            },
-            {
-              value: 'equivalent_diameter',
-              label_zh: '等效圆直径',
-              label_en: 'Equivalent circular diameter',
-            },
-            {
-              value: 'width',
-              label_zh: '宽度',
-              label_en: 'Width',
-            },
-          ],
-          section: 'results',
-        },
         {
           key: 'accelerating_voltage_kV',
           label_zh: '加速电压',
@@ -8576,37 +7978,11 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             'Parameter source file, report page, or unrecorded parameters',
         },
       ],
-      allowed_property_codes: [
-        'coverage_percent',
-        'image_object_size_um',
-        'image_object_density_cm2',
-        'elemental_composition',
-        'observation_note',
-      ],
+      allowed_property_codes: ['observation_note'],
       default_property_codes: ['observation_note'],
       allowed_assertion_types: [],
-      property_modes: {
-        coverage_percent: ['secondary_electron', 'backscattered_electron'],
-        image_object_size_um: ['secondary_electron', 'backscattered_electron'],
-        image_object_density_cm2: [
-          'secondary_electron',
-          'backscattered_electron',
-        ],
-        elemental_composition: ['EDS'],
-      },
     },
     XRD: {
-      legacy_property_codes: [
-        'xrd_peak_2theta',
-        'xrd_peak_fwhm',
-        'xrd_d_spacing',
-      ],
-      legacy_assertion_types: [
-        'phase_identity',
-        'polytype',
-        'stacking_order',
-        'orientation_relationship',
-      ],
       label_zh: 'XRD',
       label_en: 'X-ray diffraction',
       instrument_required: true,
@@ -8622,7 +7998,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
       optional_condition_keys: [
         'geometry',
-        'scan_range_2theta_deg',
         'step_size_deg',
         'count_time_s',
         'scan_rate_deg_min',
@@ -8741,26 +8116,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_en: 'X-ray wavelength',
           value_type: 'number',
           unit: 'nm',
-        },
-        {
-          key: 'scan_range_2theta_deg',
-          label_zh: '2θ 扫描范围',
-          label_en: '2-theta scan range',
-          value_type: 'range',
-          unit: '°',
-          components: [
-            {
-              key: 'start',
-              label_zh: '起点',
-              label_en: 'Start',
-            },
-            {
-              key: 'end',
-              label_zh: '终点',
-              label_en: 'End',
-            },
-          ],
-          legacy_only: true,
         },
         {
           key: 'step_size_deg',
@@ -8990,15 +8345,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
     },
     TEM: {
-      legacy_property_codes: [],
-      legacy_assertion_types: [
-        'phase_identity',
-        'composition',
-        'polytype',
-        'stacking_order',
-        'orientation_relationship',
-        'layer_count',
-      ],
       label_zh: 'TEM',
       label_en: 'Transmission electron microscopy',
       instrument_required: true,
@@ -9013,7 +8359,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
       required_condition_keys: ['accelerating_voltage_kV', 'data_type'],
       optional_condition_keys: [
-        'mode',
         'sample_preparation',
         'acquisition_mode',
         'image_mode',
@@ -9083,45 +8428,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_en: 'Accelerating voltage',
           value_type: 'number',
           unit: 'kV',
-        },
-        {
-          key: 'mode',
-          label_zh: '成像或分析模式',
-          label_en: 'Imaging or analysis mode',
-          value_type: 'select',
-          options: [
-            {
-              value: 'bright_field',
-              label_zh: '明场 TEM',
-              label_en: 'Bright-field TEM',
-            },
-            {
-              value: 'HRTEM',
-              label_zh: '高分辨 TEM（HRTEM）',
-              label_en: 'High-resolution TEM (HRTEM)',
-            },
-            {
-              value: 'SAED',
-              label_zh: '选区电子衍射（SAED）',
-              label_en: 'Selected-area electron diffraction (SAED)',
-            },
-            {
-              value: 'STEM',
-              label_zh: '扫描透射（STEM）',
-              label_en: 'Scanning TEM (STEM)',
-            },
-            {
-              value: 'EDS',
-              label_zh: '能谱分析（EDS/EDX）',
-              label_en: 'Energy-dispersive spectroscopy (EDS/EDX)',
-            },
-            {
-              value: 'EELS',
-              label_zh: '电子能量损失谱（EELS）',
-              label_en: 'Electron energy-loss spectroscopy (EELS)',
-            },
-          ],
-          legacy_only: true,
         },
         {
           key: 'sample_preparation',
@@ -9622,11 +8928,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             'Parameter source file, report page, or unrecorded parameters',
         },
       ],
-      allowed_property_codes: [
-        'tem_lattice_spacing',
-        'elemental_composition',
-        'observation_note',
-      ],
+      allowed_property_codes: ['tem_lattice_spacing', 'observation_note'],
       default_property_codes: ['tem_lattice_spacing', 'observation_note'],
       allowed_assertion_types: [],
       common_condition_keys: [
@@ -9638,10 +8940,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       property_conditions: {
         tem_lattice_spacing: {
           data_type: ['image', 'diffraction'],
-        },
-        elemental_composition: {
-          data_type: ['spectrum'],
-          spectrum_mode: ['EDS', 'EELS'],
         },
       },
     },
@@ -9746,20 +9044,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'elapsed_time_s',
         'sample_preparation',
         'acquisition_note',
-        'data_type',
-        'excitation_power_value',
-        'excitation_power_basis',
-        'input_polarization',
-        'analyzer_polarization',
-        'angle_reference',
-        'polarization_scan_axis',
-        'angle_range_deg',
-        'scan_angle_quantity',
-        'angle_step_deg',
-        'power_scan_coordinates',
-        'spot_size_um',
-        'spot_size_definition',
-        'intensity_processing',
       ],
       common_condition_keys: [
         'detection_kind',
@@ -10387,245 +9671,6 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
             max_length: 1000,
           },
           multiline: true,
-        },
-        {
-          key: 'data_type',
-          legacy_only: true,
-          label_zh: '数据类型',
-          label_en: 'Data type',
-          value_type: 'select',
-          options: [
-            {
-              value: 'spectrum',
-              label_zh: '光谱',
-              label_en: 'Spectrum',
-            },
-            {
-              value: 'polarization_scan',
-              label_zh: '偏振扫描',
-              label_en: 'Polarization scan',
-            },
-            {
-              value: 'image',
-              label_zh: '图像',
-              label_en: 'Image',
-            },
-            {
-              value: 'power_scan',
-              label_zh: '功率扫描',
-              label_en: 'Power scan',
-            },
-          ],
-        },
-        {
-          key: 'excitation_power_value',
-          legacy_only: true,
-          label_zh: '激光功率',
-          label_en: 'Laser power',
-          value_type: 'number',
-        },
-        {
-          key: 'excitation_power_basis',
-          legacy_only: true,
-          label_zh: '功率单位',
-          label_en: 'Power unit',
-          value_type: 'select',
-          options: [
-            {
-              value: 'sample_plane_mW',
-              label_zh: '样品处功率（mW）',
-              label_en: 'At-sample power (mW)',
-            },
-            {
-              value: 'instrument_percent',
-              label_zh: '仪器设置（%）',
-              label_en: 'Instrument setting (%)',
-            },
-          ],
-        },
-        {
-          key: 'input_polarization',
-          legacy_only: true,
-          label_zh: '入射偏振',
-          label_en: 'Input polarization',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
-        },
-        {
-          key: 'analyzer_polarization',
-          legacy_only: true,
-          label_zh: '检偏设置',
-          label_en: 'Analyzer setting',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
-        },
-        {
-          key: 'angle_reference',
-          legacy_only: true,
-          label_zh: '角度零点',
-          label_en: 'Angular zero reference',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
-          when: {
-            data_type: ['polarization_scan'],
-          },
-        },
-        {
-          key: 'polarization_scan_axis',
-          legacy_only: true,
-          label_zh: '旋转对象',
-          label_en: 'Rotated element',
-          value_type: 'select',
-          options: [
-            {
-              value: 'input_polarization',
-              label_zh: '入射偏振',
-              label_en: 'Input polarization',
-            },
-            {
-              value: 'analyzer',
-              label_zh: '检偏器',
-              label_en: 'Analyzer',
-            },
-            {
-              value: 'sample',
-              label_zh: '样品',
-              label_en: 'Sample',
-            },
-          ],
-          when: {
-            data_type: ['polarization_scan'],
-          },
-        },
-        {
-          key: 'angle_range_deg',
-          legacy_only: true,
-          label_zh: '角度范围',
-          label_en: 'Angular range',
-          value_type: 'range',
-          unit: '°',
-          components: [
-            {
-              key: 'start',
-              label_zh: '起点',
-              label_en: 'Start',
-            },
-            {
-              key: 'end',
-              label_zh: '终点',
-              label_en: 'End',
-            },
-          ],
-          when: {
-            data_type: ['polarization_scan'],
-          },
-          signed: true,
-        },
-        {
-          key: 'scan_angle_quantity',
-          legacy_only: true,
-          label_zh: '扫描文件中的角度量',
-          label_en: 'Angle quantity in scan file',
-          value_type: 'select',
-          options: [
-            {
-              value: 'waveplate',
-              label_zh: '半波片机械角',
-              label_en: 'Half-wave plate mechanical angle',
-            },
-            {
-              value: 'polarization',
-              label_zh: '入射偏振角',
-              label_en: 'Incident polarization angle',
-            },
-            {
-              value: 'analyzer',
-              label_zh: '检偏器角',
-              label_en: 'Analyzer angle',
-            },
-            {
-              value: 'sample',
-              label_zh: '样品转角',
-              label_en: 'Sample rotation',
-            },
-          ],
-          when: {
-            data_type: ['polarization_scan'],
-          },
-        },
-        {
-          key: 'angle_step_deg',
-          legacy_only: true,
-          label_zh: '角度步距',
-          label_en: 'Angular step',
-          value_type: 'number',
-          unit: '°',
-          when: {
-            data_type: ['polarization_scan'],
-          },
-        },
-        {
-          key: 'power_scan_coordinates',
-          legacy_only: true,
-          label_zh: '逐点功率/信号列及口径',
-          label_en: 'Per-point power / signal columns and basis',
-          value_type: 'text',
-          validation: {
-            max_length: 1000,
-          },
-          multiline: true,
-          when: {
-            data_type: ['power_scan'],
-          },
-        },
-        {
-          key: 'spot_size_um',
-          legacy_only: true,
-          label_zh: '实测光斑尺寸',
-          label_en: 'Measured spot size',
-          value_type: 'number',
-          unit: 'μm',
-        },
-        {
-          key: 'spot_size_definition',
-          legacy_only: true,
-          label_zh: '光斑尺寸定义/测量依据',
-          label_en: 'Spot size definition / measurement source',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
-        },
-        {
-          key: 'intensity_processing',
-          legacy_only: true,
-          label_zh: '强度处理口径',
-          label_en: 'Intensity processing',
-          value_type: 'select',
-          options: [
-            {
-              value: 'unscaled',
-              label_zh: '原始计数口径',
-              label_en: 'Unscaled acquisition counts',
-            },
-            {
-              value: 'count_rate',
-              label_zh: '计数率',
-              label_en: 'Count rate',
-            },
-            {
-              value: 'normalized',
-              label_zh: '归一化相对强度',
-              label_en: 'Normalized relative intensity',
-            },
-          ],
-          section: 'results',
         },
       ],
       allowed_property_codes: ['spectral_peaks', 'observation_note'],

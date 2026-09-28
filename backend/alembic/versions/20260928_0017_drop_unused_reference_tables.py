@@ -1,4 +1,4 @@
-"""Drop container, component, lifecycle and parser tables that have no entry point."""
+"""Drop legacy result, container, component, lifecycle and parser tables."""
 
 from collections.abc import Sequence
 
@@ -38,6 +38,7 @@ def upgrade() -> None:
         batch.drop_column("container_snapshot_json")
         batch.drop_column("container_instance_id")
     for table in (
+        "measured_products",
         "parser_results",
         "instrument_lifecycle_events",
         "equipment_lifecycle_events",
@@ -49,6 +50,29 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.create_table(
+        "measured_products",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("sample_id", sa.Uuid(), nullable=False),
+        sa.Column("characterization_record_id", sa.Uuid(), nullable=True),
+        sa.Column("observed_phenomena", payload, nullable=True),
+        sa.Column("detected_phase_stacking", sa.Text(), nullable=True),
+        sa.Column("layer_count", sa.Integer(), nullable=True),
+        sa.Column("coverage_percent", sa.Float(), nullable=True),
+        sa.Column("domain_size_um", sa.Float(), nullable=True),
+        sa.Column("nucleation_density_cm2", sa.Float(), nullable=True),
+        sa.Column("measured_layers_coverage", sa.Text(), nullable=True),
+        sa.Column("domain_nucleation_continuity", sa.Text(), nullable=True),
+        sa.Column("key_spectral_metrics", payload, nullable=True),
+        sa.Column("attrs", payload, nullable=False, server_default=sa.text("'{}'")),
+        *_timestamps(),
+        sa.ForeignKeyConstraint(["characterization_record_id"], ["characterization_records.id"]),
+        sa.ForeignKeyConstraint(["sample_id"], ["samples.id"]),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    for column in ("characterization_record_id", "sample_id"):
+        op.create_index(f"ix_measured_products_{column}", "measured_products", [column])
+
     op.create_table(
         "container_instances",
         _id(),

@@ -435,7 +435,7 @@ class V2EntityService:
         if kind == "setup":
             return
         capabilities = data.get("capabilities") or []
-        allowed = field_option_values("method_instrument", self.doc)
+        allowed = field_option_values("name_type", self.doc)
         seen: set[str] = set()
         for capability in capabilities:
             configuration = {}
@@ -475,7 +475,7 @@ class V2EntityService:
                     raise HTTPException(status_code=422, detail=str(exc)) from exc
             if "raman" in configuration:
                 try:
-                    if code not in {"Raman", "low_frequency_raman"}:
+                    if code != "Raman":
                         raise ValueError("Raman catalog requires the Raman method")
                     configuration["raman"] = validate_om_catalog(configuration["raman"], "Raman")
                 except ValueError as exc:
@@ -526,13 +526,9 @@ class V2EntityService:
                                 "image_color_mode": "color",
                                 **conditions,
                             }
-                        elif code in {"Raman", "low_frequency_raman", "PL", "SHG"}:
+                        elif code in {"Raman", "PL", "SHG"}:
                             if set(conditions) - set(
-                                self.doc[
-                                    "raman_configuration"
-                                    if code == "low_frequency_raman"
-                                    else f"{code.lower()}_configuration"
-                                ]["preset_fields"]
+                                self.doc[f"{code.lower()}_configuration"]["preset_fields"]
                             ):
                                 raise ValueError(
                                     "Raman presets may contain only acquisition settings"
@@ -545,7 +541,7 @@ class V2EntityService:
                         else:
                             context = conditions
                         validate_profile_conditions(
-                            "Raman" if code == "low_frequency_raman" else code,
+                            code,
                             context,
                             require_complete=False,
                         )

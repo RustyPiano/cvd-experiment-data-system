@@ -243,13 +243,7 @@ class ScientificMeasurementService:
                 (
                     item
                     for item in attrs.get("capabilities", [])
-                    if isinstance(item, dict)
-                    and item.get("code")
-                    in (
-                        {"Raman", "low_frequency_raman"}
-                        if measurement.method_profile == "Raman"
-                        else {measurement.method_profile}
-                    )
+                    if isinstance(item, dict) and item.get("code") == measurement.method_profile
                 ),
                 {},
             )
@@ -1071,22 +1065,13 @@ class ScientificMeasurementService:
                 )
             )
         )
-        legacy_capability = str(version.name_type)
-        matching_methods = {method_profile}
-        if method_profile == "Raman":
-            matching_methods.add("low_frequency_raman")
-        if capabilities and not capabilities.intersection(matching_methods):
+        if method_profile not in capabilities:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Instrument does not support the selected method profile",
             )
-        if not capabilities and legacy_capability not in matching_methods | {"other"}:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Instrument type does not match the selected method profile",
-            )
         snapshot = instrument_version_snapshot(version)
-        snapshot["capabilities"] = sorted(capabilities or {legacy_capability})
+        snapshot["capabilities"] = sorted(capabilities)
         return snapshot
 
     def _active_files(

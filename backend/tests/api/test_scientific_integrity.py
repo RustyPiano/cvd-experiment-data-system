@@ -51,7 +51,6 @@ client = TestClient(app)
         "radiation_source",
         "geometry",
         "sample_preparation",
-        "illumination_mode",
         "method_description",
     ],
 )
@@ -329,9 +328,9 @@ def test_measurement_contract_rejects_cross_method_properties_and_bad_compositio
         },
         "properties": [
             {
-                "property_code": "raman_a1g_peak_position",
-                "numeric_value": 405,
-                "unit": "cm⁻¹",
+                "property_code": "tem_lattice_spacing",
+                "numeric_value": 0.27,
+                "unit": "nm",
             }
         ],
     }
@@ -382,66 +381,19 @@ def test_measurement_profiles_only_require_their_minimum_conditions() -> None:
     assert other.sample_region.geometry_type == "selected_area"
 
 
-def test_method_modes_gate_composition_and_power_is_structured() -> None:
-    with pytest.raises(ValueError, match="value and basis"):
-        MeasurementConditions(excitation_power_value=1)
-    assert (
-        MeasurementConditions(
-            excitation_power_value=1,
-            excitation_power_basis="sample_plane_mW",
-        ).excitation_power_basis
-        == "sample_plane_mW"
-    )
-
-    payload = {
-        "measurement": {
-            "sample_id": str(uuid4()),
-            "method_profile": "SEM",
-            "instrument_id": str(uuid4()),
-            "instrument_version": 1,
-            "measured_at": "2026-09-02T10:00:00+08:00",
-            "sample_region": {
-                "geometry_type": "point",
-                "label": "center",
-                "coordinate_system": "sample_local",
-            },
-            "typed_conditions": {
-                "accelerating_voltage_kV": 5,
-                "mode": "secondary_electron",
-            },
-            "raw_file_ids": [str(uuid4())],
-        },
-        "properties": [
-            {
-                "property_code": "elemental_composition",
-                "structured_value": {
-                    "basis": "atomic_fraction",
-                    "components": [{"species": "Mo", "fraction": 1}],
-                },
-            }
-        ],
-    }
-    with pytest.raises(ValueError, match="does not apply to mode"):
-        MeasurementBundleCreate.model_validate(payload)
-    payload["measurement"]["typed_conditions"]["mode"] = "EDS"
-    assert (
-        MeasurementBundleCreate.model_validate(payload).measurement.typed_conditions.mode == "EDS"
-    )
-
-
 def test_non_valid_properties_require_a_reason_and_aggregate_statistics_require_n() -> None:
     with pytest.raises(ValueError, match="quality note"):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=10,
-            unit="%",
+            unit="nm",
             quality_flag="suspect",
         )
     with pytest.raises(ValueError, match="sample_count"):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=10,
-            unit="%",
+            unit="nm",
             statistic="mean",
         )
 
@@ -460,7 +412,7 @@ def test_measurement_analysis_outputs_are_unique_and_acyclic() -> None:
             },
             "typed_conditions": {"observation_mode": "visual"},
         },
-        "properties": [{"property_code": "coverage_percent", "numeric_value": 10, "unit": "%"}],
+        "properties": [{"property_code": "observation_note", "text_value": "Recorded observation"}],
     }
     analysis = {
         "software_name": "ImageJ",
@@ -504,77 +456,34 @@ def test_analysis_cannot_start_before_its_measurement() -> None:
         MeasurementBundleCreate.model_validate(payload)
 
 
-def test_optical_measurement_does_not_require_growth_assertion() -> None:
-    bundle = MeasurementBundleCreate.model_validate(
-        {
-            "measurement": {
-                "sample_id": str(uuid4()),
-                "method_profile": "optical_microscopy",
-                "measured_at": "2026-07-29T10:00:00+08:00",
-                "sample_region": {
-                    "geometry_type": "whole_sample",
-                    "label": "whole sample",
-                    "coordinate_system": "sample_local",
-                },
-                "typed_conditions": {
-                    "observation_mode": "visual",
-                    "objective": "10x",
-                    "illumination_mode": "bright_field",
-                },
-            },
-            "properties": [
-                {
-                    "property_code": "coverage_percent",
-                    "numeric_value": 10,
-                    "unit": "%",
-                }
-            ],
-        }
-    )
-    assert bundle.assertions == []
-
-
 @pytest.mark.parametrize(
     ("property_code", "value"),
     [
-        ("coverage_percent", -0.1),
-        ("coverage_percent", 100.1),
-        ("domain_size_um", 0),
-        ("afm_rms_roughness", -0.1),
-        ("xrd_peak_2theta", 180.1),
+        ("afm_step_height", -0.1),
+        ("tem_lattice_spacing", 0),
     ],
 )
 def test_property_contract_enforces_code_specific_numeric_bounds(
     property_code: str,
     value: float,
 ) -> None:
-    unit = {
-        "coverage_percent": "%",
-        "domain_size_um": "μm",
-        "afm_rms_roughness": "nm",
-        "xrd_peak_2theta": "° 2θ",
-    }[property_code]
     with pytest.raises(ValueError):
-        PropertyValueWrite(
-            property_code=property_code,
-            numeric_value=value,
-            unit=unit,
-        )
+        PropertyValueWrite(property_code=property_code, numeric_value=value, unit="nm")
 
 
 def test_property_and_region_contract_reject_empty_or_wrongly_typed_evidence() -> None:
     with pytest.raises(ValueError, match="numeric value representation"):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             text_value="50",
         )
     with pytest.raises(ValueError, match="cannot be blank"):
         PropertyValueWrite(property_code="observation_note", text_value="   ")
     with pytest.raises(ValueError, match="cannot use a boolean"):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=True,
-            unit="%",
+            unit="nm",
         )
     with pytest.raises(ValueError, match="numeric detection threshold"):
         PropertyValueWrite(
@@ -584,9 +493,9 @@ def test_property_and_region_contract_reject_empty_or_wrongly_typed_evidence() -
         )
     assert (
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=5,
-            unit="%",
+            unit="nm",
             quality_flag="below_detection_limit",
             quality_note="instrument detection threshold",
         ).numeric_value
@@ -693,9 +602,9 @@ def test_analysis_and_uncertainty_text_reject_blank_provenance() -> None:
         )
     with pytest.raises(ValueError):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=10,
-            unit="%",
+            unit="nm",
             uncertainty_value=1,
             uncertainty_type="   ",
         )
@@ -730,9 +639,9 @@ def test_measurement_integer_fields_fit_database_integer_columns() -> None:
         )
     with pytest.raises(ValueError):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=10,
-            unit="%",
+            unit="nm",
             sample_count=10**100,
         )
 
@@ -840,9 +749,9 @@ def test_material_assertion_values_are_canonical_and_exact() -> None:
         (
             PropertyValueWrite,
             {
-                "property_code": "coverage_percent",
+                "property_code": "afm_step_height",
                 "numeric_value": 1,
-                "unit": "%",
+                "unit": "nm",
                 "uncertainty_value": True,
                 "uncertainty_type": "standard_deviation",
             },
@@ -850,18 +759,18 @@ def test_material_assertion_values_are_canonical_and_exact() -> None:
         (
             PropertyValueWrite,
             {
-                "property_code": "coverage_percent",
+                "property_code": "afm_step_height",
                 "numeric_value": 1,
-                "unit": "%",
+                "unit": "nm",
                 "sample_count": True,
             },
         ),
         (
             PropertyValueWrite,
             {
-                "property_code": "coverage_percent",
+                "property_code": "afm_step_height",
                 "numeric_value": 1,
-                "unit": "%",
+                "unit": "nm",
                 "analysis_index": False,
             },
         ),
@@ -892,11 +801,11 @@ def test_dataset_property_filters_only_accept_numeric_ssot_properties() -> None:
     assert (
         DatasetFilter(
             field="property",
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             operator="gte",
             value=10,
         ).property_code
-        == "coverage_percent"
+        == "afm_step_height"
     )
     for invalid_code in ("layer_count", "observation_note"):
         with pytest.raises(ValueError, match="numeric property_code"):
@@ -994,7 +903,7 @@ def test_dataset_contains_treats_sql_wildcards_as_literal_text(
     [
         {
             "field": "property",
-            "property_code": "coverage_percent",
+            "property_code": "afm_step_height",
             "operator": "ne",
             "value": 10,
         },
@@ -1095,9 +1004,8 @@ def _optical_measurement(
         },
         "properties": [
             {
-                "property_code": "coverage_percent",
-                "numeric_value": 10,
-                "unit": "%",
+                "property_code": "observation_note",
+                "text_value": "Recorded observation",
                 "quality_flag": property_quality,
             }
         ],
@@ -1328,7 +1236,7 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     assert detail.json()["revision_number"] == 1
     assert detail.json()["can_invalidate"] is True
     assert detail.json()["performed_by_name"] == active_user.name
-    assert any(prop["property_code"] == "coverage_percent" for prop in detail.json()["properties"])
+    assert any(prop["property_code"] == "observation_note" for prop in detail.json()["properties"])
     assert detail.json()["assertions"] == []
 
     observer = User(
@@ -2069,7 +1977,7 @@ def test_dataset_property_filter_excludes_non_numeric_quality_states(
         "filters": [
             {
                 "field": "property",
-                "property_code": "coverage_percent",
+                "property_code": "afm_step_height",
                 "operator": "eq",
                 "value": 10,
             }
@@ -2078,17 +1986,6 @@ def test_dataset_property_filter_excludes_non_numeric_quality_states(
     excluded = client.post("/api/v1/datasets/query", json=query, headers=headers)
     assert excluded.status_code == 200, excluded.text
     assert excluded.json()["items"] == []
-
-    below_limit = client.post(
-        "/api/v1/measurements",
-        json=_optical_measurement(sample.id, property_quality="below_detection_limit"),
-        headers=headers,
-    )
-    assert below_limit.status_code == 201, below_limit.text
-    assert below_limit.json()["evidence_present"] is True
-    detection_limit_excluded = client.post("/api/v1/datasets/query", json=query, headers=headers)
-    assert detection_limit_excluded.status_code == 200, detection_limit_excluded.text
-    assert detection_limit_excluded.json()["items"] == []
 
     sample.lifecycle_state = "consumed"
     db_session.commit()
@@ -2252,15 +2149,6 @@ def test_transformation_acl_provenance_and_cross_run_lineage(
                 "polarization_reference": "实验室水平",
                 "measured_power_mW": 1.5,
                 "power_measurement_position": "before_objective",
-            },
-        ),
-        (
-            "Raman",
-            "low_frequency_raman",
-            {
-                "laser_wavelength_nm": 532,
-                "raman_shift_range_cm1": {"start": -50, "end": 500},
-                "filter_configuration": "ULF",
             },
         ),
     ],

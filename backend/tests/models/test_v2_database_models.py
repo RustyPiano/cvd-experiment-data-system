@@ -10,9 +10,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.experiment import ExperimentRun
 from app.models.file_asset import FileAsset
-from app.models.sample import Sample, SampleRole
 from app.models.v2_entities import MaterialLot, MaterialLotVersion, Setup, SetupVersion
-from app.models.v2_results import CharacterizationRecord, MeasuredProduct
+from app.models.v2_results import CharacterizationRecord
 from app.services.v2_entity_snapshot_service import apply_setup_reference
 
 FIELD_SOURCE = Path(__file__).resolve().parents[3] / "docs" / "standard" / "field-source.yaml"
@@ -139,35 +138,6 @@ def test_entity_versions_are_unique_per_entity_and_keep_optional_fields_in_attrs
     )
     with pytest.raises(IntegrityError):
         db_session.commit()
-
-
-def test_measured_products_reference_samples(db_session, active_user) -> None:
-    run = ExperimentRun(
-        run_code="RUN-V2-RESULT",
-        owner_id=active_user.id,
-        schema_version="cvd_v2",
-        experiment_date=date(2026, 7, 8),
-    )
-    db_session.add(run)
-    db_session.flush()
-    sample = Sample(
-        sample_code="S-V2-RESULT",
-        experiment_run_id=run.id,
-        role=SampleRole.GROWTH,
-    )
-    db_session.add(sample)
-    db_session.flush()
-
-    product = MeasuredProduct(
-        sample_id=sample.id,
-        observed_phenomena=["不连续覆盖"],
-        attrs={"operator_note": "光镜确认"},
-    )
-    db_session.add(product)
-    db_session.commit()
-
-    assert product.sample_id == sample.id
-    assert product.sample.sample_code == "S-V2-RESULT"
 
 
 def test_characterization_records_and_file_assets_have_optional_relationships() -> None:

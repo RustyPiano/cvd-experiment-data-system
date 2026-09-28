@@ -31,11 +31,10 @@ def build_xlsx(rows: list[list[object]]) -> bytes:
 
 
 def test_characterization_methods_come_from_field_source() -> None:
-    assert field_option_values("method_instrument") == {
+    assert field_option_values("name_type") == {
         "optical_microscopy",
         "SEM",
         "Raman",
-        "low_frequency_raman",
         "PL",
         "SHG",
         "AFM",

@@ -41,7 +41,7 @@ from app.models.scientific import (
     TransformationRun,
 )
 from app.models.user import User
-from app.models.v2_results import CharacterizationRecord, MeasuredProduct
+from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
 from app.schemas.scientific import (
     normalize_process_event_for_read,
@@ -57,8 +57,6 @@ from app.services.v2_field_source import (
     load_field_source,
     payload_fields_by_module,
 )
-
-LEGACY_BACKFILL_REASON = "Backfilled from production revision 20260728_0002"
 
 
 def _iso(value: date | datetime | None) -> str:
@@ -140,19 +138,9 @@ def _relational_rows(
 
 def _result_rows(
     base: dict[str, Any],
-    observed_phenomena: list[str] | None,
     details: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    rows = [
-        {
-            **base,
-            "observed_phenomenon": phenomenon,
-            "detail_scope": "",
-            "detail_path": "",
-            "detail_value": "",
-        }
-        for phenomenon in observed_phenomena or []
-    ]
+    rows = []
     for scope, value in details.items():
         if value is None or value == {} or value == []:
             continue
@@ -160,7 +148,6 @@ def _result_rows(
         rows.extend(
             {
                 **base,
-                "observed_phenomenon": "",
                 "detail_scope": scope,
                 "detail_path": path,
                 "detail_value": leaf,
@@ -170,7 +157,6 @@ def _result_rows(
     return rows or [
         {
             **base,
-            "observed_phenomenon": "",
             "detail_scope": "",
             "detail_path": "",
             "detail_value": "",
@@ -499,8 +485,7 @@ class V2ReportingService:
         modules = self._export_modules(revision)
         records = self._records(run.id, revision.id)
         samples = self._samples_for_revision(run.id, revision.id, records)
-        products = self._products(samples, records, revision)
-        files = self._files_for_revision(run.id, revision, records, products)
+        files = self._files_for_revision(run.id, revision, records)
 
         bundle = {
             "export_kind": "immutable_run_revision",
@@ -552,7 +537,6 @@ class V2ReportingService:
         records: list[CharacterizationRecord],
         files: list[FileAsset],
     ) -> dict[str, Any]:
-        legacy_products = self._products(samples, records, revision)
         revisions = [revision]
         revision_ids = [item.id for item in revisions]
         record_ids = [item.id for item in records if item.run_revision_id is not None]
@@ -1017,31 +1001,6 @@ class V2ReportingService:
                 for record in records
                 if record.run_revision_id is not None
             ],
-            "legacy_measured_products": [
-                {
-                    "id": str(product.id),
-                    "sample_id": str(product.sample_id),
-                    "sample_code": sample_codes.get(product.sample_id),
-                    "characterization_record_id": (
-                        str(product.characterization_record_id)
-                        if product.characterization_record_id
-                        else None
-                    ),
-                    "observed_phenomena": product.observed_phenomena,
-                    "detected_phase_stacking": product.detected_phase_stacking,
-                    "layer_count": product.layer_count,
-                    "coverage_percent": product.coverage_percent,
-                    "domain_size_um": product.domain_size_um,
-                    "nucleation_density_cm2": product.nucleation_density_cm2,
-                    "measured_layers_coverage": product.measured_layers_coverage,
-                    "domain_nucleation_continuity": product.domain_nucleation_continuity,
-                    "key_spectral_metrics": product.key_spectral_metrics,
-                    "attrs": product.attrs,
-                    "created_at": _iso(product.created_at),
-                    "updated_at": _iso(product.updated_at),
-                }
-                for product in legacy_products
-            ],
             "transformations": [
                 {
                     "id": str(item.id),
@@ -1131,8 +1090,7 @@ class V2ReportingService:
             operator = (modules.get("basic_info") or {}).get("operator") or run.owner_name
             records = self._records(run.id, revision.id)
             samples = self._samples_for_revision(run.id, revision.id, records)
-            products = self._products(samples, records, revision)
-            files = self._files_for_revision(run.id, revision, records, products)
+            files = self._files_for_revision(run.id, revision, records)
             scientific = self._scientific_json(
                 run,
                 revision,
@@ -1323,57 +1281,7 @@ class V2ReportingService:
 
             result_codes_by_record: dict[UUID, list[str]] = {}
             per_sample_index: dict[UUID, int] = {}
-            for product in products:
-                sample = sample_by_id[product.sample_id]
-                per_sample_index[sample.id] = per_sample_index.get(sample.id, 0) + 1
-                result_code = f"{sample.sample_code}-R{per_sample_index[sample.id]:02d}"
-                record = (
-                    record_by_id.get(product.characterization_record_id)
-                    if product.characterization_record_id
-                    else None
-                )
-                result_row = {
-                    "run_code": run.run_code,
-                    "sample_code": sample.sample_code,
-                    "result_code": result_code,
-                    "kind": "characterization" if record else "direct_observation",
-                    "method": (canonical_option_value(record.method_instrument) if record else ""),
-                    "test_conditions": record.test_conditions if record else "",
-                    "detected_phase_stacking": product.detected_phase_stacking,
-                    "layer_count": product.layer_count,
-                    "coverage_percent": product.coverage_percent,
-                    "domain_size_um": product.domain_size_um,
-                    "nucleation_density_cm2": product.nucleation_density_cm2,
-                    "measured_layers_coverage": product.measured_layers_coverage,
-                    "domain_nucleation_continuity": product.domain_nucleation_continuity,
-                    "created_at": product.created_at,
-                }
-                result_rows.extend(
-                    _result_rows(
-                        result_row,
-                        (
-                            [canonical_option_value(value) for value in product.observed_phenomena]
-                            if product.observed_phenomena
-                            else product.observed_phenomena
-                        ),
-                        {
-                            "instrument_snapshot": (
-                                record.instrument_snapshot_json if record else None
-                            ),
-                            "raw_data": record.raw_data if record else None,
-                            "record_attrs": record.attrs if record else None,
-                            "key_spectral_metrics": product.key_spectral_metrics,
-                            "measurement_attrs": product.attrs,
-                        },
-                    )
-                )
-                if record:
-                    result_codes_by_record.setdefault(record.id, []).append(result_code)
-
-            linked_record_ids = set(result_codes_by_record)
             for record in records:
-                if record.id in linked_record_ids:
-                    continue
                 sample = sample_by_id[record.sample_id]
                 per_sample_index[sample.id] = per_sample_index.get(sample.id, 0) + 1
                 result_code = f"{sample.sample_code}-R{per_sample_index[sample.id]:02d}"
@@ -1387,16 +1295,8 @@ class V2ReportingService:
                             "kind": "characterization",
                             "method": canonical_option_value(record.method_instrument),
                             "test_conditions": record.test_conditions,
-                            "detected_phase_stacking": "",
-                            "layer_count": "",
-                            "coverage_percent": "",
-                            "domain_size_um": "",
-                            "nucleation_density_cm2": "",
-                            "measured_layers_coverage": "",
-                            "domain_nucleation_continuity": "",
                             "created_at": record.created_at,
                         },
-                        None,
                         {
                             "instrument_snapshot": record.instrument_snapshot_json,
                             "raw_data": record.raw_data,
@@ -1581,14 +1481,6 @@ class V2ReportingService:
                     "kind",
                     "method",
                     "test_conditions",
-                    "observed_phenomenon",
-                    "detected_phase_stacking",
-                    "layer_count",
-                    "coverage_percent",
-                    "domain_size_um",
-                    "nucleation_density_cm2",
-                    "measured_layers_coverage",
-                    "domain_nucleation_continuity",
                     "detail_scope",
                     "detail_path",
                     "detail_value",
@@ -1810,34 +1702,6 @@ class V2ReportingService:
             )
         )
 
-    def _products(
-        self,
-        samples: list[Sample],
-        records: list[CharacterizationRecord],
-        revision: RunRevision,
-    ) -> list[MeasuredProduct]:
-        sample_ids = [sample.id for sample in samples]
-        if not sample_ids:
-            return []
-        record_ids = [record.id for record in records]
-        revision_scope = []
-        if record_ids:
-            revision_scope.append(MeasuredProduct.characterization_record_id.in_(record_ids))
-        if revision.correction_reason == LEGACY_BACKFILL_REASON:
-            revision_scope.append(MeasuredProduct.characterization_record_id.is_(None))
-        if not revision_scope:
-            return []
-        return list(
-            self.db.scalars(
-                select(MeasuredProduct)
-                .where(
-                    MeasuredProduct.sample_id.in_(sample_ids),
-                    or_(*revision_scope),
-                )
-                .order_by(MeasuredProduct.created_at.asc(), MeasuredProduct.id.asc())
-            )
-        )
-
     def _files_for_records(
         self,
         records: list[CharacterizationRecord],
@@ -1877,7 +1741,6 @@ class V2ReportingService:
         run_id: UUID,
         revision: RunRevision,
         records: list[CharacterizationRecord],
-        products: list[MeasuredProduct],
     ) -> list[FileAsset]:
         files = {file.id: file for file in self._files_for_records(records)}
         referenced_ids = {
@@ -1891,12 +1754,6 @@ class V2ReportingService:
             if file_id is not None
         }
         referenced_ids.update(self._payload_file_ids(revision.content_json.get("modules", {})))
-        for product in products:
-            for value in (product.attrs or {}).get("evidence_file_ids", []):
-                try:
-                    referenced_ids.add(UUID(str(value)))
-                except (TypeError, ValueError, AttributeError):
-                    continue
         if referenced_ids:
             files.update(
                 {

@@ -1669,12 +1669,9 @@ class MeasurementConditions(BaseModel):
     scan_coordinates: str | None = Field(default=None, max_length=1000, pattern=r"\S")
     measurement_environment: str | None = Field(default=None, max_length=128, pattern=r"\S")
     temperature_basis: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    intensity_processing: str | None = Field(default=None, max_length=128, pattern=r"\S")
     accumulation_method: str | None = Field(default=None, max_length=128, pattern=r"\S")
     confocal_aperture_um: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
     filter_cutoff: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    response_correction: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    response_correction_source: str | None = Field(default=None, max_length=128, pattern=r"\S")
     scan_rate_definition: str | None = Field(default=None, max_length=128, pattern=r"\S")
     data_channel: str | None = Field(default=None, max_length=128, pattern=r"\S")
     scan_direction: str | None = Field(default=None, max_length=128, pattern=r"\S")
@@ -1737,11 +1734,6 @@ class MeasurementConditions(BaseModel):
         default=None, gt=0, strict=True, allow_inf_nan=False
     )
     zero_loss_calibration: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    scan_angle_quantity: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    angle_step_deg: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
-    power_scan_coordinates: str | None = Field(default=None, max_length=1000, pattern=r"\S")
-    spot_size_um: float | None = Field(default=None, gt=0, strict=True, allow_inf_nan=False)
-    spot_size_definition: str | None = Field(default=None, max_length=128, pattern=r"\S")
 
     laser_wavelength_nm: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
     excitation_wavelength_nm: float | None = Field(
@@ -1749,7 +1741,6 @@ class MeasurementConditions(BaseModel):
     )
     raman_shift_range_cm1: SignedScanRange | None = None
     scan_range_deg: SignedScanRange | None = None
-    angle_range_deg: SignedScanRange | None = None
     image_scale_um_per_px: float | None = Field(
         default=None, gt=0, allow_inf_nan=False, strict=True
     )
@@ -1778,15 +1769,7 @@ class MeasurementConditions(BaseModel):
     helicity_reference: str | None = Field(default=None, max_length=1000, pattern=r"\S")
     wavelength_calibration: str | None = Field(default=None, max_length=1000, pattern=r"\S")
     excitation_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    input_polarization: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    analyzer_polarization: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    angle_reference: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    polarization_scan_axis: str | None = Field(default=None, max_length=128, pattern=r"\S")
     power_setting: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    excitation_power_value: float | None = Field(
-        default=None, gt=0, allow_inf_nan=False, strict=True
-    )
-    excitation_power_basis: Literal["sample_plane_mW", "instrument_percent"] | None = None
     objective: str | None = Field(default=None, max_length=128, pattern=r"\S")
     integration_time_s: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
     accumulations: int | None = Field(default=None, ge=1, strict=True)
@@ -1809,7 +1792,6 @@ class MeasurementConditions(BaseModel):
     field_of_view_um: WidthHeight | None = None
     radiation_source: str | None = Field(default=None, max_length=128, pattern=r"\S")
     source_wavelength_nm: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
-    scan_range_2theta_deg: ScanRange | None = None
     step_size_deg: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
     count_time_s: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
     scan_rate_deg_min: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
@@ -1819,9 +1801,6 @@ class MeasurementConditions(BaseModel):
     geometry: str | None = Field(default=None, max_length=128, pattern=r"\S")
     sample_preparation: str | None = Field(default=None, max_length=1000, pattern=r"\S")
     height_processing: str | None = Field(default=None, max_length=1000, pattern=r"\S")
-    illumination_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    image_object_type: str | None = Field(default=None, max_length=128, pattern=r"\S")
-    image_size_metric: str | None = Field(default=None, max_length=128, pattern=r"\S")
     method_description: str | None = Field(
         default=None, min_length=1, max_length=1000, pattern=r"\S"
     )
@@ -1835,9 +1814,6 @@ class MeasurementConditions(BaseModel):
         "geometry",
         "sample_preparation",
         "height_processing",
-        "illumination_mode",
-        "image_object_type",
-        "image_size_metric",
         "method_description",
         mode="before",
     )
@@ -1862,13 +1838,6 @@ class MeasurementConditions(BaseModel):
 
     @model_validator(mode="after")
     def validate_power_pair(self) -> Self:
-        if (self.excitation_power_value is None) != (self.excitation_power_basis is None):
-            raise ValueError("excitation power value and basis must be provided together")
-        if (
-            self.excitation_power_basis == "instrument_percent"
-            and self.excitation_power_value > 100
-        ):
-            raise ValueError("instrument power percentage cannot exceed 100")
         if self.eds_live_time_s is not None and self.eds_real_time_s is not None:
             if self.eds_live_time_s > self.eds_real_time_s:
                 raise ValueError("EDS live time cannot exceed real time")
@@ -1992,22 +1961,6 @@ class MeasurementRunCreate(BaseModel):
             if self.instrument_id is None or not self.raw_file_ids:
                 raise ValueError("digital OM requires an instrument and an original image")
         conditions = self.typed_conditions.model_dump(exclude_none=True)
-        # Legacy 2θ and TEM mode inputs have explicit, unambiguous axes/data types.
-        if self.method_profile == "XRD" and "scan_range_2theta_deg" in conditions:
-            conditions.setdefault("scan_axis", "two_theta")
-            conditions.setdefault("scan_range_deg", conditions["scan_range_2theta_deg"])
-        if self.method_profile == "TEM" and "mode" in conditions:
-            legacy_mode = conditions["mode"]
-            conditions.setdefault(
-                "data_type",
-                "spectrum"
-                if legacy_mode in {"EDS", "EELS"}
-                else "diffraction"
-                if legacy_mode == "SAED"
-                else "image",
-            )
-            if legacy_mode in {"EDS", "EELS"}:
-                conditions.setdefault("spectrum_mode", legacy_mode)
         self.typed_conditions = MeasurementConditions.model_validate(conditions)
         validate_profile_conditions(
             self.method_profile, conditions, variable_conditions=self.variable_conditions
@@ -2593,12 +2546,6 @@ class MeasurementBundleCreate(BaseModel):
                     or conditions.get("scan_axis") != "two_theta"
                 ) and any("d_spacing_nm" in peak for peak in series["peaks"]):
                     raise ValueError("d-spacing is only applicable to XRD 2theta peaks")
-            if item.property_code in {"image_object_size_um", "image_object_density_cm2"}:
-                if not self.measurement.typed_conditions.image_object_type:
-                    raise ValueError("image statistics require the counted object type")
-            if item.property_code == "image_object_size_um":
-                if not self.measurement.typed_conditions.image_size_metric:
-                    raise ValueError("image object size requires a size definition")
         if any(item.assertion_type == "composition" for item in self.assertions):
             if self.measurement.method_profile == "SEM" and mode != "EDS":
                 raise ValueError("SEM composition requires EDS/EDX analysis mode")

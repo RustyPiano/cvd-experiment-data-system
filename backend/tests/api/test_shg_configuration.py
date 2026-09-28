@@ -321,8 +321,3 @@ def test_shg_condition_and_schema_boundaries():
     }
     with pytest.raises(ValueError, match="does not apply"):
         MeasurementBundleCreate.model_validate(point)
-
-    legacy = deepcopy(base)
-    legacy["measurement"]["typed_conditions"]["data_type"] = "spectrum"
-    MeasurementBundleCreate.model_validate(legacy)
-    assert schema.is_valid(legacy)

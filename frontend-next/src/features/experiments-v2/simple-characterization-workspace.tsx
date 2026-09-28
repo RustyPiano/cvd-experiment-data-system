@@ -196,26 +196,11 @@ export function instrumentSupportsMethod(
   data: Record<string, unknown>,
   method: string,
 ) {
-  const capabilities = data.capabilities
-  if (Array.isArray(capabilities) && capabilities.length > 0) {
-    return capabilities.some((capability) => {
-      if (typeof capability === 'string')
-        return (
-          capability === method ||
-          (method === 'Raman' && capability === 'low_frequency_raman')
-        )
-      if (!capability || typeof capability !== 'object') return false
-      const code = (capability as Record<string, unknown>).code
-      return (
-        code === method ||
-        (method === 'Raman' && code === 'low_frequency_raman')
-      )
-    })
-  }
-  return (
-    data.name_type === method ||
-    data.name_type === 'other' ||
-    (method === 'Raman' && data.name_type === 'low_frequency_raman')
+  const capabilities = Array.isArray(data.capabilities) ? data.capabilities : []
+  return capabilities.some((capability) =>
+    typeof capability === 'string'
+      ? capability === method
+      : (capability as Record<string, unknown> | null)?.code === method,
   )
 }
 
@@ -236,7 +221,6 @@ export const SIMPLE_RESULTS: Record<string, ResultDefinition[]> =
       profile.default_property_codes
         .filter(
           (code) =>
-            !characterizationProperties[code].legacy_only &&
             characterizationProperties[code].value_type !== 'structured',
         )
         .map((code) => ({
@@ -771,7 +755,6 @@ export function SimpleCharacterizationWorkspace({
   )
     .filter(
       (propertyCode) =>
-        !characterizationProperties[propertyCode]?.legacy_only &&
         propertyApplies(propertyCode) &&
         !resultDefinitions.some(
           (field) => field.propertyCode === propertyCode,
@@ -805,13 +788,7 @@ export function SimpleCharacterizationWorkspace({
     Array.isArray(instrumentSnapshot?.capabilities)
       ? instrumentSnapshot.capabilities
       : []
-  ).find(
-    (item) =>
-      item &&
-      typeof item === 'object' &&
-      (item.code === method ||
-        (method === 'Raman' && item.code === 'low_frequency_raman')),
-  )
+  ).find((item) => item && typeof item === 'object' && item.code === method)
   const presets = selectedInstrumentSupportsMethod
     ? instrumentPresets(capability?.configuration)
     : []
@@ -838,12 +815,7 @@ export function SimpleCharacterizationWorkspace({
         (Array.isArray(snapshot?.capabilities)
           ? snapshot.capabilities
           : []
-        ).find((item) =>
-          (method === 'Raman'
-            ? ['Raman', 'low_frequency_raman']
-            : [method]
-          ).includes(item?.code),
-        )?.configuration,
+        ).find((item) => item?.code === method)?.configuration,
         method,
       )
       const retained = Object.fromEntries(
@@ -925,7 +897,6 @@ export function SimpleCharacterizationWorkspace({
   const visibleConditions = (profile?.condition_fields ?? [])
     .filter(
       (field) =>
-        !field.legacy_only &&
         !variableConditions.includes(field.key) &&
         !(
           method === 'SHG' &&
@@ -1375,7 +1346,6 @@ export function SimpleCharacterizationWorkspace({
               ['optical_microscopy', ...SCAN_METHODS].includes(method)
                 ? profile.condition_fields.filter(
                     (field) =>
-                      !field.legacy_only &&
                       !variableConditions.includes(field.key) &&
                       conditionMatches(field.when, conditions),
                   )

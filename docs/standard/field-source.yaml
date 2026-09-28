@@ -248,7 +248,7 @@ scientific_contract:
     file_contexts: measurement.supplementary_files[{file_id,role,source_file_ids,description,software_name,software_version}]；role=processed 或 supporting；单层来源仅引用本次原始文件。
     operator: measurement.operator_name 与 operator_institution 为实际测试者；performed_by_id 保留系统录入账号，不猜测代测身份。
     result_evidence: property.source_file_id/source_locator/processing_note；峰使用 structured_value.source_file_id/source_locator/extraction_method/baseline_method。
-    policy: 只保留定义明确的采集参数与有文件依据的结果；legacy_only 仅从新录入表单移除，历史 API、详情与导出保留。
+    policy: 只保留定义明确的采集参数与有文件依据的结果。
     deferred: 图像统计、粗糙度、元素定量、通用分析面板、统计与不确定度编辑器
     result_source: 峰参数、台阶高度与晶格间距填写对应数据文件中已有的结果，不自动推断统计方式。
     peak_entry: 不显示状态下拉；空白不生成峰结果，添加峰后自动记为 recorded，仅显式勾选未检出记为 not_detected；历史 not_analyzed 保留。
@@ -264,29 +264,7 @@ scientific_contract:
   - uncertain
   property_units:
     spectral_peaks: —
-    elemental_composition: —
-    image_object_size_um: μm
-    image_object_density_cm2: cm⁻²
-    afm_ra_roughness: nm
-    raman_e2g_peak_position: cm⁻¹
-    raman_a1g_peak_position: cm⁻¹
-    raman_peak_separation: cm⁻¹
-    raman_peak_fwhm: cm⁻¹
-    raman_intensity_ratio: ratio
-    shear_mode_peak_position: cm⁻¹
-    low_frequency_peak_fwhm: cm⁻¹
-    pl_a_exciton_peak_energy: eV
-    pl_b_exciton_peak_energy: eV
-    pl_integrated_intensity: a.u.
-    pl_peak_fwhm: meV
     afm_step_height: nm
-    afm_rms_roughness: nm
-    coverage_percent: '%'
-    domain_size_um: μm
-    nucleation_density_cm2: cm⁻²
-    xrd_peak_2theta: ° 2θ
-    xrd_peak_fwhm: ° 2θ
-    xrd_d_spacing: nm
     tem_lattice_spacing: nm
     observation_note: —
 gas_species:
@@ -460,180 +438,12 @@ characterization_properties:
                   position:
                     minimum: 0
                     maximum: 180
-  elemental_composition:
-    legacy_only: true
-    label_zh: 元素定量
-    label_en: Elemental quantification
-    value_type: structured
-    validation: {}
-    structured_schema:
-      type: object
-      additionalProperties: false
-      required:
-      - basis
-      - components
-      properties:
-        basis:
-          enum:
-          - atomic_fraction
-          - mass_fraction
-        components:
-          type: array
-          minItems: 1
-          maxItems: 118
-          items:
-            type: object
-            additionalProperties: false
-            required:
-            - species
-            - fraction
-            properties:
-              species:
-                type: string
-                pattern: ^[A-Z][a-z]?$
-              fraction:
-                type: number
-                minimum: 0
-                maximum: 1
-  image_object_size_um:
-    legacy_only: true
-    label_zh: 图像对象尺寸
-    label_en: Image object size
-    value_type: numeric
-    validation:
-      gt: 0
-  image_object_density_cm2:
-    legacy_only: true
-    label_zh: 图像对象数量密度
-    label_en: Image object number density
-    value_type: numeric
-    validation:
-      ge: 0
-  coverage_percent:
-    legacy_only: true
-    label_zh: 覆盖率
-    label_en: Coverage
-    value_type: numeric
-    validation:
-      ge: 0
-      le: 100
-  domain_size_um:
-    label_zh: 晶畴尺寸
-    label_en: Domain size
-    value_type: numeric
-    validation:
-      gt: 0
-  nucleation_density_cm2:
-    label_zh: 成核密度
-    label_en: Nucleation density
-    value_type: numeric
-    validation:
-      ge: 0
-  raman_e2g_peak_position:
-    label_zh: Raman E₂g / E′ 代表峰位
-    label_en: Representative Raman E2g / E-prime peak position
-    value_type: numeric
-    validation:
-      ge: 0
-  raman_a1g_peak_position:
-    label_zh: Raman A₁g / A₁′ 代表峰位
-    label_en: Representative Raman A1g / A1-prime peak position
-    value_type: numeric
-    validation:
-      ge: 0
-  raman_peak_separation:
-    label_zh: Raman 峰间距
-    label_en: Raman peak separation
-    value_type: numeric
-    validation:
-      ge: 0
-  raman_peak_fwhm:
-    label_zh: Raman 峰宽
-    label_en: Raman peak FWHM
-    value_type: numeric
-    validation:
-      gt: 0
-  raman_intensity_ratio:
-    label_zh: Raman 强度比
-    label_en: Raman intensity ratio
-    value_type: numeric
-    validation:
-      ge: 0
-  shear_mode_peak_position:
-    label_zh: 剪切模峰位
-    label_en: Shear-mode peak position
-    value_type: numeric
-    validation:
-      ge: 0
-  low_frequency_peak_fwhm:
-    label_zh: 低频 Raman 峰宽
-    label_en: Low-frequency Raman peak FWHM
-    value_type: numeric
-    validation:
-      gt: 0
-  pl_a_exciton_peak_energy:
-    label_zh: PL A 激子峰能量
-    label_en: PL A-exciton peak energy
-    value_type: numeric
-    validation:
-      gt: 0
-  pl_b_exciton_peak_energy:
-    label_zh: PL B 激子峰能量
-    label_en: PL B-exciton peak energy
-    value_type: numeric
-    validation:
-      gt: 0
-  pl_integrated_intensity:
-    label_zh: PL 积分强度
-    label_en: PL integrated intensity
-    value_type: numeric
-    validation:
-      ge: 0
-  pl_peak_fwhm:
-    label_zh: PL 峰宽
-    label_en: PL peak FWHM
-    value_type: numeric
-    validation:
-      gt: 0
-  afm_ra_roughness:
-    legacy_only: true
-    label_zh: AFM 算术平均粗糙度
-    label_en: AFM arithmetic roughness
-    value_type: numeric
-    validation:
-      ge: 0
-  afm_rms_roughness:
-    legacy_only: true
-    label_zh: AFM 均方根粗糙度
-    label_en: AFM RMS roughness
-    value_type: numeric
-    validation:
-      ge: 0
   afm_step_height:
     label_zh: AFM 台阶高度
     label_en: AFM step height
     value_type: numeric
     validation:
       ge: 0
-  xrd_peak_2theta:
-    label_zh: XRD 代表衍射峰位
-    label_en: Representative XRD peak 2-theta
-    value_type: numeric
-    validation:
-      ge: 0
-      le: 180
-  xrd_peak_fwhm:
-    label_zh: XRD 代表峰宽
-    label_en: Representative XRD peak FWHM
-    value_type: numeric
-    validation:
-      gt: 0
-  xrd_d_spacing:
-    label_zh: XRD 代表晶面间距
-    label_en: Representative XRD d-spacing
-    value_type: numeric
-    validation:
-      gt: 0
   tem_lattice_spacing:
     label_zh: TEM 晶格间距
     label_en: TEM lattice spacing
@@ -1093,11 +903,6 @@ shg_configuration:
   notes: 'SHG目录存于capabilities[].configuration.shg；复用光学目录、预设和版本快照。检测方式决定时间字段：光谱仪与单通道单点/序列用积分时间，单通道扫描用像素驻留时间，相机用曝光时间；图像尺寸与像素尺寸适用于相机或空间扫描。偏振序列的角度保存在扫描文件，半波片机械角与入射偏振角不能同时记录。脉宽fs、频率MHz为保存单位。'
 characterization_profiles:
   optical_microscopy:
-    legacy_property_codes:
-    - domain_size_um
-    - nucleation_density_cm2
-    legacy_assertion_types:
-    - growth_presence
     label_zh: OM
     label_en: OM
     instrument_required: false
@@ -1112,10 +917,7 @@ characterization_profiles:
     required_condition_keys: [observation_mode]
     optional_condition_keys:
     - objective_magnification
-    - image_object_type
-    - image_size_metric
     - objective
-    - illumination_mode
     - image_scale_um_per_px
     - optical_path
     - contrast_method
@@ -1150,30 +952,6 @@ characterization_profiles:
     - sample_preparation
     - acquisition_note
     condition_fields:
-    - key: image_object_type
-      legacy_only: true
-      label_zh: 统计对象
-      label_en: Counted objects
-      value_type: text
-      validation:
-        max_length: 128
-      section: results
-    - key: image_size_metric
-      legacy_only: true
-      label_zh: 尺寸定义
-      label_en: Size definition
-      value_type: select
-      options:
-      - value: maximum_length
-        label_zh: 最大长度
-        label_en: Maximum length
-      - value: equivalent_diameter
-        label_zh: 等效圆直径
-        label_en: Equivalent circular diameter
-      - value: width
-        label_zh: 宽度
-        label_en: Width
-      section: results
     - key: objective_magnification
       label_zh: 物镜倍率
       label_en: Objective magnification
@@ -1187,13 +965,6 @@ characterization_profiles:
         max_length: 128
       placeholder_zh: 物镜型号或名称
       placeholder_en: Objective model or name
-    - key: illumination_mode
-      legacy_only: true
-      label_zh: 照明模式
-      label_en: Illumination mode
-      value_type: text
-      validation:
-        max_length: 128
     - key: image_scale_um_per_px
       label_zh: X 像素尺度
       label_en: X pixel scale
@@ -1578,9 +1349,6 @@ characterization_profiles:
         max_length: 1000
       multiline: true
     allowed_property_codes:
-    - coverage_percent
-    - image_object_size_um
-    - image_object_density_cm2
     - observation_note
     default_property_codes:
     - observation_note
@@ -1602,17 +1370,6 @@ characterization_profiles:
     - illumination_source
     - illumination_setting
   Raman:
-    legacy_property_codes:
-    - raman_e2g_peak_position
-    - raman_a1g_peak_position
-    - raman_peak_separation
-    - raman_peak_fwhm
-    - raman_intensity_ratio
-    legacy_assertion_types:
-    - phase_identity
-    - polytype
-    - stacking_order
-    - layer_count
     label_zh: Raman
     label_en: Raman spectroscopy
     instrument_required: true
@@ -1627,8 +1384,6 @@ characterization_profiles:
     required_condition_keys:
     - laser_wavelength_nm
     optional_condition_keys:
-    - excitation_power_value
-    - excitation_power_basis
     - objective
     - integration_time_s
     - accumulations
@@ -1651,7 +1406,6 @@ characterization_profiles:
     - scan_coordinates
     - measurement_environment
     - temperature_basis
-    - intensity_processing
     - accumulation_method
     - confocal_aperture_um
     - filter_cutoff
@@ -1673,23 +1427,6 @@ characterization_profiles:
       label_en: Laser wavelength
       value_type: number
       unit: nm
-    - key: excitation_power_value
-      label_zh: 激光功率
-      label_en: Laser power
-      value_type: number
-      legacy_only: true
-    - key: excitation_power_basis
-      label_zh: 功率单位
-      label_en: Power unit
-      value_type: select
-      options:
-      - value: sample_plane_mW
-        label_zh: 样品处功率（mW）
-        label_en: At-sample power (mW)
-      - value: instrument_percent
-        label_zh: 仪器设置（%）
-        label_en: Instrument setting (%)
-      legacy_only: true
     - key: objective
       label_zh: 物镜/探头
       label_en: Objective / probe
@@ -1943,22 +1680,6 @@ characterization_profiles:
       required_when:
         temperature_control:
         - recorded
-    - key: intensity_processing
-      label_zh: 强度处理口径
-      label_en: Intensity processing
-      value_type: select
-      options:
-      - value: unscaled
-        label_zh: 原始计数口径
-        label_en: Unscaled acquisition counts
-      - value: count_rate
-        label_zh: 计数率
-        label_en: Count rate
-      - value: normalized
-        label_zh: 归一化相对强度
-        label_en: Normalized relative intensity
-      section: results
-      legacy_only: true
     - key: accumulation_method
       label_zh: 累积方式
       label_en: Accumulation method
@@ -2137,88 +1858,7 @@ characterization_profiles:
     - temperature_basis
     - measurement_environment
     - scan_coordinates
-  low_frequency_raman:
-    legacy_property_codes:
-    - shear_mode_peak_position
-    - low_frequency_peak_fwhm
-    legacy_assertion_types:
-    - polytype
-    - stacking_order
-    - layer_count
-    label_zh: 低频 Raman
-    label_en: Low-frequency Raman spectroscopy
-    instrument_required: true
-    raw_files_required: true
-    show_growth_presence: false
-    raw_file_guidance_zh: 请上传原始光谱或仪器导出文件。
-    allowed_region_types:
-    - point
-    - line
-    - whole_sample
-    - selected_area
-    required_condition_keys:
-    - laser_wavelength_nm
-    optional_condition_keys:
-    - excitation_power_value
-    - excitation_power_basis
-    - objective
-    - integration_time_s
-    - accumulations
-    condition_fields:
-    - key: laser_wavelength_nm
-      label_zh: 激光波长
-      label_en: Laser wavelength
-      value_type: number
-      unit: nm
-    - key: excitation_power_value
-      label_zh: 激光功率
-      label_en: Laser power
-      value_type: number
-    - key: excitation_power_basis
-      label_zh: 功率单位
-      label_en: Power unit
-      value_type: select
-      options:
-      - value: sample_plane_mW
-        label_zh: 样品处功率（mW）
-        label_en: At-sample power (mW)
-      - value: instrument_percent
-        label_zh: 仪器设置（%）
-        label_en: Instrument setting (%)
-    - key: objective
-      label_zh: 物镜规格
-      label_en: Objective specification
-      value_type: text
-      validation:
-        max_length: 128
-      placeholder_zh: 100×，NA 0.9
-      placeholder_en: 100×, NA 0.9
-    - key: integration_time_s
-      label_zh: 单次采集时间
-      label_en: Time per acquisition
-      value_type: number
-      unit: s
-    - key: accumulations
-      label_zh: 光谱累积次数
-      label_en: Spectral accumulations
-      value_type: integer
-    allowed_property_codes:
-    - spectral_peaks
-    - observation_note
-    default_property_codes: []
-    allowed_assertion_types: []
-    peak_position_units:
-    - cm⁻¹
-    legacy_only: true
   PL:
-    legacy_property_codes:
-    - pl_a_exciton_peak_energy
-    - pl_b_exciton_peak_energy
-    - pl_integrated_intensity
-    - pl_peak_fwhm
-    legacy_assertion_types:
-    - phase_identity
-    - layer_count
     label_zh: PL
     label_en: Photoluminescence
     instrument_required: true
@@ -2233,8 +1873,6 @@ characterization_profiles:
     required_condition_keys:
     - excitation_wavelength_nm
     optional_condition_keys:
-    - excitation_power_value
-    - excitation_power_basis
     - integration_time_s
     - spectral_range_nm
     - temperature_K
@@ -2257,10 +1895,7 @@ characterization_profiles:
     - scan_coordinates
     - measurement_environment
     - temperature_basis
-    - intensity_processing
     - accumulation_method
-    - response_correction
-    - response_correction_source
     - excitation_mode
     - pulse_width_fs
     - repetition_rate_MHz
@@ -2292,26 +1927,6 @@ characterization_profiles:
       label_en: Excitation wavelength
       value_type: number
       unit: nm
-    - key: excitation_power_value
-      label_zh: 激光功率
-      label_en: Laser power
-      value_type: number
-      recommended: true
-      help_zh: 脉冲激光填写平均功率；保留样品处实测或仪器设置口径。
-      help_en: For pulsed light, record average power and retain its at-sample or instrument-setting basis.
-      legacy_only: true
-    - key: excitation_power_basis
-      label_zh: 功率单位
-      label_en: Power unit
-      value_type: select
-      options:
-      - value: sample_plane_mW
-        label_zh: 样品处功率（mW）
-        label_en: At-sample power (mW)
-      - value: instrument_percent
-        label_zh: 仪器设置（%）
-        label_en: Instrument setting (%)
-      legacy_only: true
     - key: integration_time_s
       label_zh: 积分时间
       label_en: Integration time
@@ -2578,22 +2193,6 @@ characterization_profiles:
       required_when:
         temperature_control:
         - recorded
-    - key: intensity_processing
-      label_zh: 强度处理口径
-      label_en: Intensity processing
-      value_type: select
-      options:
-      - value: unscaled
-        label_zh: 原始计数口径
-        label_en: Unscaled acquisition counts
-      - value: count_rate
-        label_zh: 计数率
-        label_en: Count rate
-      - value: normalized
-        label_zh: 归一化相对强度
-        label_en: Normalized relative intensity
-      section: results
-      legacy_only: true
     - key: accumulation_method
       label_zh: 累积方式
       label_en: Accumulation method
@@ -2605,30 +2204,6 @@ characterization_profiles:
       - value: mean
         label_zh: 平均
         label_en: Mean
-    - key: response_correction
-      label_zh: 光谱响应校正
-      label_en: Spectral response correction
-      value_type: select
-      options:
-      - value: applied
-        label_zh: 已应用
-        label_en: Applied
-      - value: not_applied
-        label_zh: 未应用
-        label_en: Not applied
-      section: results
-      legacy_only: true
-    - key: response_correction_source
-      label_zh: 响应校正配置/报告
-      label_en: Response correction configuration / report
-      value_type: text
-      validation:
-        max_length: 128
-      when:
-        response_correction:
-        - applied
-      section: results
-      legacy_only: true
     - key: excitation_mode
       label_zh: 激发方式
       label_en: Excitation mode
@@ -2941,9 +2516,6 @@ characterization_profiles:
     - temperature_control
     - environment_kind
   AFM:
-    legacy_property_codes: []
-    legacy_assertion_types:
-    - layer_count
     label_zh: AFM
     label_en: Atomic force microscopy
     instrument_required: true
@@ -3160,8 +2732,6 @@ characterization_profiles:
       placeholder_zh: 参数所在文件、报告页码或未记录的参数
       placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
-    - afm_ra_roughness
-    - afm_rms_roughness
     - afm_step_height
     - observation_note
     default_property_codes:
@@ -3171,12 +2741,6 @@ characterization_profiles:
     common_condition_keys:
     - mode
   SEM:
-    legacy_property_codes:
-    - domain_size_um
-    - nucleation_density_cm2
-    legacy_assertion_types:
-    - growth_presence
-    - composition
     label_zh: SEM
     label_en: Scanning electron microscopy
     instrument_required: true
@@ -3192,8 +2756,6 @@ characterization_profiles:
     - accelerating_voltage_kV
     - mode
     optional_condition_keys:
-    - image_object_type
-    - image_size_metric
     - working_distance_mm
     - beam_current_nA
     - detector
@@ -3223,30 +2785,6 @@ characterization_profiles:
     - beam_current_setting
     - acquisition_note
     condition_fields:
-    - key: image_object_type
-      legacy_only: true
-      label_zh: 统计对象
-      label_en: Counted objects
-      value_type: text
-      validation:
-        max_length: 128
-      section: results
-    - key: image_size_metric
-      legacy_only: true
-      label_zh: 尺寸定义
-      label_en: Size definition
-      value_type: select
-      options:
-      - value: maximum_length
-        label_zh: 最大长度
-        label_en: Maximum length
-      - value: equivalent_diameter
-        label_zh: 等效圆直径
-        label_en: Equivalent circular diameter
-      - value: width
-        label_zh: 宽度
-        label_en: Width
-      section: results
     - key: accelerating_voltage_kV
       label_zh: 加速电压
       label_en: Accelerating voltage
@@ -3484,36 +3022,11 @@ characterization_profiles:
       placeholder_zh: 参数所在文件、报告页码或未记录的参数
       placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
-    - coverage_percent
-    - image_object_size_um
-    - image_object_density_cm2
-    - elemental_composition
     - observation_note
     default_property_codes:
     - observation_note
     allowed_assertion_types: []
-    property_modes:
-      coverage_percent:
-      - secondary_electron
-      - backscattered_electron
-      image_object_size_um:
-      - secondary_electron
-      - backscattered_electron
-      image_object_density_cm2:
-      - secondary_electron
-      - backscattered_electron
-      elemental_composition:
-      - EDS
   XRD:
-    legacy_property_codes:
-    - xrd_peak_2theta
-    - xrd_peak_fwhm
-    - xrd_d_spacing
-    legacy_assertion_types:
-    - phase_identity
-    - polytype
-    - stacking_order
-    - orientation_relationship
     label_zh: XRD
     label_en: X-ray diffraction
     instrument_required: true
@@ -3531,7 +3044,6 @@ characterization_profiles:
     - scan_range_deg
     optional_condition_keys:
     - geometry
-    - scan_range_2theta_deg
     - step_size_deg
     - count_time_s
     - scan_rate_deg_min
@@ -3614,19 +3126,6 @@ characterization_profiles:
       label_en: X-ray wavelength
       value_type: number
       unit: nm
-    - key: scan_range_2theta_deg
-      label_zh: 2θ 扫描范围
-      label_en: 2-theta scan range
-      value_type: range
-      unit: °
-      components:
-      - key: start
-        label_zh: 起点
-        label_en: Start
-      - key: end
-        label_zh: 终点
-        label_en: End
-      legacy_only: true
     - key: step_size_deg
       label_zh: 步长
       label_en: Step size
@@ -3801,14 +3300,6 @@ characterization_profiles:
     - scan_rate_deg_min
     - incident_angle_deg
   TEM:
-    legacy_property_codes: []
-    legacy_assertion_types:
-    - phase_identity
-    - composition
-    - polytype
-    - stacking_order
-    - orientation_relationship
-    - layer_count
     label_zh: TEM
     label_en: Transmission electron microscopy
     instrument_required: true
@@ -3824,7 +3315,6 @@ characterization_profiles:
     - accelerating_voltage_kV
     - data_type
     optional_condition_keys:
-    - mode
     - sample_preparation
     - acquisition_mode
     - image_mode
@@ -3883,30 +3373,6 @@ characterization_profiles:
       label_en: Accelerating voltage
       value_type: number
       unit: kV
-    - key: mode
-      label_zh: 成像或分析模式
-      label_en: Imaging or analysis mode
-      value_type: select
-      options:
-      - value: bright_field
-        label_zh: 明场 TEM
-        label_en: Bright-field TEM
-      - value: HRTEM
-        label_zh: 高分辨 TEM（HRTEM）
-        label_en: High-resolution TEM (HRTEM)
-      - value: SAED
-        label_zh: 选区电子衍射（SAED）
-        label_en: Selected-area electron diffraction (SAED)
-      - value: STEM
-        label_zh: 扫描透射（STEM）
-        label_en: Scanning TEM (STEM)
-      - value: EDS
-        label_zh: 能谱分析（EDS/EDX）
-        label_en: Energy-dispersive spectroscopy (EDS/EDX)
-      - value: EELS
-        label_zh: 电子能量损失谱（EELS）
-        label_en: Electron energy-loss spectroscopy (EELS)
-      legacy_only: true
     - key: sample_preparation
       label_zh: 表征前制样
       label_en: Preparation for characterization
@@ -4255,7 +3721,6 @@ characterization_profiles:
       placeholder_en: Parameter source file, report page, or unrecorded parameters
     allowed_property_codes:
     - tem_lattice_spacing
-    - elemental_composition
     - observation_note
     default_property_codes:
     - tem_lattice_spacing
@@ -4271,12 +3736,6 @@ characterization_profiles:
         data_type:
         - image
         - diffraction
-      elemental_composition:
-        data_type:
-        - spectrum
-        spectrum_mode:
-        - EDS
-        - EELS
   other:
     label_zh: 其他
     label_en: Other
@@ -4380,20 +3839,6 @@ characterization_profiles:
     - elapsed_time_s
     - sample_preparation
     - acquisition_note
-    - data_type
-    - excitation_power_value
-    - excitation_power_basis
-    - input_polarization
-    - analyzer_polarization
-    - angle_reference
-    - polarization_scan_axis
-    - angle_range_deg
-    - scan_angle_quantity
-    - angle_step_deg
-    - power_scan_coordinates
-    - spot_size_um
-    - spot_size_definition
-    - intensity_processing
     common_condition_keys:
     - detection_kind
     - acquisition_kind
@@ -4854,170 +4299,6 @@ characterization_profiles:
       validation:
         max_length: 1000
       multiline: true
-    - key: data_type
-      legacy_only: true
-      label_zh: 数据类型
-      label_en: Data type
-      value_type: select
-      options:
-      - value: spectrum
-        label_zh: 光谱
-        label_en: Spectrum
-      - value: polarization_scan
-        label_zh: 偏振扫描
-        label_en: Polarization scan
-      - value: image
-        label_zh: 图像
-        label_en: Image
-      - value: power_scan
-        label_zh: 功率扫描
-        label_en: Power scan
-    - key: excitation_power_value
-      legacy_only: true
-      label_zh: 激光功率
-      label_en: Laser power
-      value_type: number
-    - key: excitation_power_basis
-      legacy_only: true
-      label_zh: 功率单位
-      label_en: Power unit
-      value_type: select
-      options:
-      - value: sample_plane_mW
-        label_zh: 样品处功率（mW）
-        label_en: At-sample power (mW)
-      - value: instrument_percent
-        label_zh: 仪器设置（%）
-        label_en: Instrument setting (%)
-    - key: input_polarization
-      legacy_only: true
-      label_zh: 入射偏振
-      label_en: Input polarization
-      value_type: text
-      validation:
-        max_length: 128
-    - key: analyzer_polarization
-      legacy_only: true
-      label_zh: 检偏设置
-      label_en: Analyzer setting
-      value_type: text
-      validation:
-        max_length: 128
-    - key: angle_reference
-      legacy_only: true
-      label_zh: 角度零点
-      label_en: Angular zero reference
-      value_type: text
-      validation:
-        max_length: 128
-      when:
-        data_type:
-        - polarization_scan
-    - key: polarization_scan_axis
-      legacy_only: true
-      label_zh: 旋转对象
-      label_en: Rotated element
-      value_type: select
-      options:
-      - value: input_polarization
-        label_zh: 入射偏振
-        label_en: Input polarization
-      - value: analyzer
-        label_zh: 检偏器
-        label_en: Analyzer
-      - value: sample
-        label_zh: 样品
-        label_en: Sample
-      when:
-        data_type:
-        - polarization_scan
-    - key: angle_range_deg
-      legacy_only: true
-      label_zh: 角度范围
-      label_en: Angular range
-      value_type: range
-      unit: °
-      components:
-      - key: start
-        label_zh: 起点
-        label_en: Start
-      - key: end
-        label_zh: 终点
-        label_en: End
-      when:
-        data_type:
-        - polarization_scan
-      signed: true
-    - key: scan_angle_quantity
-      legacy_only: true
-      label_zh: 扫描文件中的角度量
-      label_en: Angle quantity in scan file
-      value_type: select
-      options:
-      - value: waveplate
-        label_zh: 半波片机械角
-        label_en: Half-wave plate mechanical angle
-      - value: polarization
-        label_zh: 入射偏振角
-        label_en: Incident polarization angle
-      - value: analyzer
-        label_zh: 检偏器角
-        label_en: Analyzer angle
-      - value: sample
-        label_zh: 样品转角
-        label_en: Sample rotation
-      when:
-        data_type:
-        - polarization_scan
-    - key: angle_step_deg
-      legacy_only: true
-      label_zh: 角度步距
-      label_en: Angular step
-      value_type: number
-      unit: °
-      when:
-        data_type:
-        - polarization_scan
-    - key: power_scan_coordinates
-      legacy_only: true
-      label_zh: 逐点功率/信号列及口径
-      label_en: Per-point power / signal columns and basis
-      value_type: text
-      validation:
-        max_length: 1000
-      multiline: true
-      when:
-        data_type:
-        - power_scan
-    - key: spot_size_um
-      legacy_only: true
-      label_zh: 实测光斑尺寸
-      label_en: Measured spot size
-      value_type: number
-      unit: μm
-    - key: spot_size_definition
-      legacy_only: true
-      label_zh: 光斑尺寸定义/测量依据
-      label_en: Spot size definition / measurement source
-      value_type: text
-      validation:
-        max_length: 128
-    - key: intensity_processing
-      legacy_only: true
-      label_zh: 强度处理口径
-      label_en: Intensity processing
-      value_type: select
-      options:
-      - value: unscaled
-        label_zh: 原始计数口径
-        label_en: Unscaled acquisition counts
-      - value: count_rate
-        label_zh: 计数率
-        label_en: Count rate
-      - value: normalized
-        label_zh: 归一化相对强度
-        label_en: Normalized relative intensity
-      section: results
     allowed_property_codes:
     - spectral_peaks
     - observation_note
@@ -5049,8 +4330,6 @@ modules:
   步·压力: process_steps
   步·外场: process_steps
   过程事件: process_events
-  表征: characterization
-  实测产物: measured_products
   PVD: pvd
 entity_keys:
   MaterialLot: material_lot
@@ -5224,7 +4503,6 @@ option_labels_en:
   矩形: Rectangular
   OM: OM
   光镜: Optical microscopy
-  低波数Raman: Low-frequency Raman
   无生长: No growth
   不连续覆盖: Discontinuous coverage
   厚层区域: Thick-layer regions
@@ -5439,7 +4717,6 @@ option_codes:
   矩形: rectangular
   OM: optical_microscopy
   光镜: optical_microscopy
-  低波数Raman: low_frequency_raman
   无生长: no_growth
   不连续覆盖: discontinuous_coverage
   厚层区域: thick_layer_regions
@@ -7432,164 +6709,6 @@ experiment_record:
       example: '[550e8400-e29b-41d4-a716-446655440001]'
       source: 2026-07-24导师走查
       note: 文件必须属于同一炉次且asset_role=process_event_attachment
-  - title: §7 旧扁平结果字段（未发布；由 MeasurementRun → AnalysisRun → PropertyValue / MaterialAssertion 替代）
-    fields:
-    - module: 表征
-      label: 表征方法
-      label_en: Characterization method
-      key: method_instrument
-      meaning: 本次使用的表征手段；仪器通过独立仪器引用选择
-      input: 下拉+其他
-      options: OM/Raman/PL/SHG/AFM/SEM/TEM/XRD/其他/低波数Raman
-      unit: —
-      requirement:
-        raw: 未发布
-        level: none
-      example: Raman
-      source: 会议
-      note: ★v3：长一批表征一批，拆成独立表编号关联；不要在此字段重复写仪器
-    - module: 表征
-      label: 测试条件
-      label_en: Test conditions
-      key: test_conditions
-      meaning: 该表征的测试参数
-      input: 文本/自由
-      options: —
-      unit: —
-      requirement:
-        raw: 未发布
-        level: none
-      example: 激光532 nm；功率1 mW；物镜100×
-      source: 会议
-      note: 随仪器导出
-    - module: 表征
-      label: 原始数据
-      label_en: Raw data files
-      key: raw_data
-      meaning: 上传原始文件（留校验和）
-      input: 附件
-      options: —
-      unit: —
-      requirement:
-        raw: 未发布
-        level: none
-      example: raman.txt
-      source: 会议/复审
-      note: ''
-    - module: 实测产物
-      label: 观察到的现象
-      label_en: Observed phenomena
-      key: observed_phenomena
-      meaning: 光镜可判的客观现象（非成败判断）
-      input: 下拉+多选
-      options: 无生长/不连续覆盖/厚层区域/可见颗粒沾污/衬底破损/变色/其他
-      unit: —
-      requirement:
-        raw: 未发布
-        level: none
-      example: 不连续覆盖
-      source: 复审
-      note: ★失败炉次最小痕迹；终态无任何结果→『结果缺失』待办(标准§7/§10)
-    - module: 实测产物
-      label: 检出相、多型与堆垛
-      label_en: Detected phase, polytype, and stacking
-      key: detected_phase_stacking
-      meaning: 测到的物相/多型/堆垛类型
-      input: 文本
-      options: —
-      unit: —
-      requirement:
-        raw: 未发布
-        level: none
-      example: 2H-MoS₂；AB堆垛
-      source: 复审/导师
-      note: ★v3.4导师评审(B76红字)：增记堆垛类型（可判粒度待与俊杰确认，或改下拉）；最小结构化结果
-    - module: 实测产物
-      label: 实测层数
-      label_en: Measured layer count
-      key: layer_count
-      meaning: 由表征方法判定的层数
-      input: 数值
-      options: —
-      unit: 层
-      validation:
-        type: integer
-        ge: 0
-      requirement:
-        raw: 未发布
-        level: none
-      example: '1'
-      source: 复审/科学契约审查
-      note: 历史字段，保留原记录；新表征不录入层数判定，也不将未检出写成层数 0
-    - module: 实测产物
-      label: 覆盖率
-      label_en: Coverage
-      key: coverage_percent
-      meaning: 明确视场或统计区域内材料面积占比
-      input: 数值
-      options: —
-      unit: '%'
-      validation:
-        ge: 0
-        le: 100
-      requirement:
-        raw: 未发布
-        level: none
-      example: '70'
-      source: 复审/科学契约审查
-      note: 量化口径仍须随表征条件记录
-    - module: 实测产物
-      label: 畴尺寸
-      label_en: Domain size
-      key: domain_size_um
-      meaning: 由指定统计方法得到的代表性畴尺寸
-      input: 数值
-      options: —
-      unit: μm
-      validation:
-        gt: 0
-      requirement:
-        raw: 未发布
-        level: none
-      example: '50'
-      source: 复审/科学契约审查
-      note: ''
-    - module: 实测产物
-      label: 成核密度
-      label_en: Nucleation density
-      key: nucleation_density_cm2
-      meaning: 指定统计区域内单位面积成核点数量
-      input: 数值
-      options: —
-      unit: cm⁻²
-      validation:
-        ge: 0
-      requirement:
-        raw: 未发布
-        level: none
-      example: '10000'
-      source: 复审/科学契约审查
-      note: ''
-    - module: 实测产物
-      label: 关键谱学指标
-      label_en: Key spectroscopic metrics
-      key: key_spectral_metrics
-      meaning: Raman峰位/峰宽/峰面积；PL峰位/峰宽；AFM厚度/粗糙度；SEM覆盖率(视场内材料面积占比,%)/尺寸
-      input: 结构化指标数组
-      options: 每条:{metric_code,value,unit}
-      unit: 按指标
-      validation:
-        item_required:
-        - metric_code
-        - value
-        - unit
-        finite_value: true
-      requirement:
-        raw: 未发布
-        level: none
-      example: '[{"metric_code":"raman_e2g_peak","value":384.2,"unit":"cm-1"}]'
-      source: 复审/导师
-      note: ★v3.4导师评审(C79红字/K79)：PL补峰宽；『SEM占比』改名『SEM覆盖率』并给定义；随技术选填
   - title: §8 PVD 专用（若合成方法选 PVD 类才启用；延后实现，先占位）
     fields:
     - module: PVD
@@ -8741,7 +7860,7 @@ entities:
       key: name_type
       meaning: 该仪器适用的表征方法，用于结果录入时筛选仪器
       input: 下拉+其他
-      options: OM/Raman/PL/SHG/AFM/SEM/TEM/XRD/其他/低波数Raman
+      options: OM/Raman/PL/SHG/AFM/SEM/TEM/XRD/其他
       unit: —
       requirement:
         raw: 必填

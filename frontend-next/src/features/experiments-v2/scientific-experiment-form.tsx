@@ -318,7 +318,6 @@ function normalizedCoolingMethod(
 }
 
 function stepForModule(module: string): number {
-  if (['characterization', 'measured_products'].includes(module)) return 5
   const index = STEP_MODULES.findIndex((modules) =>
     (modules as readonly string[]).includes(module),
   )

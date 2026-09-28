@@ -1,5 +1,3 @@
-import json
-import re
 from datetime import date, datetime
 from types import SimpleNamespace
 
@@ -64,16 +62,6 @@ def test_scientific_field_examples_and_meanings_are_machine_unambiguous() -> Non
     assert "绝对压力" in pressure["label"]
     assert "绝对压力" in pressure["meaning"]
     assert "表压" in pressure["help"]
-
-    assert fields["domain_size_um"]["validation"] == {"gt": 0}
-
-    metrics = json.loads(fields["key_spectral_metrics"]["example"])
-    assert isinstance(metrics, list) and metrics
-    for metric in metrics:
-        assert set(metric) == {"metric_code", "value", "unit"}
-        assert re.fullmatch(r"[a-z][a-z0-9_]*", metric["metric_code"])
-        assert isinstance(metric["value"], int | float) and not isinstance(metric["value"], bool)
-        assert isinstance(metric["unit"], str) and metric["unit"].strip()
 
 
 def test_material_lot_evidence_and_setup_structures_are_unambiguous() -> None:

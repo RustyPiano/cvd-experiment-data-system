@@ -567,7 +567,7 @@ describe('SimpleCharacterizationWorkspace', () => {
   }, 30_000)
 
   describe('measurement settings constraints', () => {
-    it('accepts zero and negative bounded values and caps percentage power', () => {
+    it('accepts zero and negative bounded values', () => {
       const tilt = characterizationProfiles.SEM.condition_fields.find(
         (field) => field.key === 'stage_tilt_deg',
       )!
@@ -578,21 +578,6 @@ describe('SimpleCharacterizationWorkspace', () => {
       expect(
         characterizationConditionIssue(tilt, { stage_tilt_deg: '91' }),
       ).toBe('请输入 -90 ° 至 90 ° 范围内的数值。')
-      const power = characterizationProfiles.Raman.condition_fields.find(
-        (field) => field.key === 'excitation_power_value',
-      )!
-      expect(
-        characterizationConditionIssue(power, {
-          excitation_power_value: '101',
-          excitation_power_basis: 'instrument_percent',
-        }),
-      ).toBe('不能大于 100%')
-      expect(
-        characterizationConditionIssue(power, {
-          excitation_power_value: '101',
-          excitation_power_basis: 'sample_plane_mW',
-        }),
-      ).toBeNull()
     })
 
     it('accepts signed Raman and omega ranges but constrains 2theta', () => {
@@ -628,21 +613,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           'raman_shift_range_cm1.end': '-50',
         }),
       ).toBe('终点应大于起点。')
-    })
-
-    it('accepts a historical low-frequency Raman instrument for Raman', () => {
-      expect(
-        instrumentSupportsMethod(
-          { capabilities: [{ code: 'low_frequency_raman' }] },
-          'Raman',
-        ),
-      ).toBe(true)
-      expect(
-        instrumentSupportsMethod(
-          { capabilities: [{ code: 'low_frequency_raman' }] },
-          'SHG',
-        ),
-      ).toBe(false)
     })
 
     it('derives SHG fields from the detection path and clears hidden values', async () => {
@@ -704,11 +674,7 @@ describe('SimpleCharacterizationWorkspace', () => {
 
   it('keeps the method selector in parity with generated profiles', () => {
     expect(new Set(METHOD_ORDER)).toEqual(
-      new Set(
-        Object.entries(characterizationProfiles)
-          .filter(([, profile]) => !profile.legacy_only)
-          .map(([code]) => code),
-      ),
+      new Set(Object.keys(characterizationProfiles)),
     )
   })
 
@@ -1046,7 +1012,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     ).toBe('不能超过 3 个字符。')
   })
 
-  it('uses capability rows before the legacy instrument type', () => {
+  it('matches instruments by their capability rows', () => {
     expect(
       instrumentSupportsMethod(
         {
@@ -1065,7 +1031,7 @@ describe('SimpleCharacterizationWorkspace', () => {
         'Raman',
       ),
     ).toBe(false)
-    expect(instrumentSupportsMethod({ name_type: 'other' }, 'AFM')).toBe(true)
+    expect(instrumentSupportsMethod({ name_type: 'other' }, 'AFM')).toBe(false)
   })
 
   it.each(['raw', 'property'] as const)(
@@ -1308,25 +1274,14 @@ describe('SimpleCharacterizationWorkspace', () => {
     expect(
       characterizationResultIssue(
         {
-          key: 'coverage',
-          label: '覆盖率',
+          key: 'lattice',
+          label: '晶格间距',
           kind: 'number',
-          propertyCode: 'coverage_percent',
-        },
-        '101',
-      ),
-    ).toBe('覆盖率不能大于 100')
-    expect(
-      characterizationResultIssue(
-        {
-          key: 'domain',
-          label: '晶畴尺寸',
-          kind: 'number',
-          propertyCode: 'domain_size_um',
+          propertyCode: 'tem_lattice_spacing',
         },
         '0',
       ),
-    ).toBe('晶畴尺寸必须大于 0')
+    ).toBe('TEM 晶格间距必须大于 0')
   })
 
   it('keeps dirty data on a cancelled sample change and clears it when confirmed', async () => {

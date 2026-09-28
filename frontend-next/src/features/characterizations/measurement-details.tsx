@@ -340,7 +340,6 @@ export function MeasurementDetails({
   const missingRecommended = (profile?.condition_fields ?? []).filter(
     (field) =>
       field.recommended &&
-      !field.legacy_only &&
       Object.entries(field.when ?? {}).every(([key, values]) =>
         values.includes(String(measurement.typed_conditions[key])),
       ) &&

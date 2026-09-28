@@ -161,35 +161,6 @@ def _apply_characterization_contract(
 ) -> None:
     """Add the cross-field rules that Pydantic model validators cannot emit."""
     model_schemas = definitions or schema["$defs"]
-    condition_schema = model_schemas["MeasurementConditions"]
-    condition_schema.setdefault("allOf", []).extend(
-        [
-            {
-                "if": {
-                    "required": ["excitation_power_basis"],
-                    "properties": {"excitation_power_basis": {"const": "instrument_percent"}},
-                },
-                "then": {"properties": {"excitation_power_value": {"maximum": 100}}},
-            },
-            {
-                "oneOf": [
-                    {
-                        "properties": {
-                            "excitation_power_value": {"type": "null"},
-                            "excitation_power_basis": {"type": "null"},
-                        }
-                    },
-                    {
-                        "required": ["excitation_power_value", "excitation_power_basis"],
-                        "properties": {
-                            "excitation_power_value": {"type": "number"},
-                            "excitation_power_basis": {"type": "string"},
-                        },
-                    },
-                ]
-            },
-        ]
-    )
     property_schema = model_schemas["PropertyValueWrite"]
     property_schema.setdefault("allOf", []).extend(
         [
@@ -966,35 +937,6 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
                 },
             }
         )
-    for property_code, required_keys in {
-        "image_object_size_um": ["image_object_type", "image_size_metric"],
-        "image_object_density_cm2": ["image_object_type"],
-    }.items():
-        if property_code in allowed_properties:
-            constraints.append(
-                {
-                    "if": {
-                        "required": ["properties"],
-                        "properties": {
-                            "properties": {
-                                "contains": {
-                                    "required": ["property_code"],
-                                    "properties": {"property_code": {"const": property_code}},
-                                }
-                            },
-                        },
-                    },
-                    "then": {
-                        "properties": {
-                            "measurement": {
-                                "properties": {
-                                    "typed_conditions": {"required": required_keys},
-                                }
-                            }
-                        }
-                    },
-                }
-            )
     if "spectral_peaks" in allowed_properties:
         peak_properties = {"position_unit": {"enum": profile["peak_position_units"]}}
         if code != "XRD":

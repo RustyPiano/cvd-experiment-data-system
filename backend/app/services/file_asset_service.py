@@ -723,7 +723,7 @@ class FileAssetService:
         normalized = canonical_option_value((method or "").strip())
         if not normalized:
             return None
-        if normalized not in field_option_values("method_instrument"):
+        if normalized not in field_option_values("name_type"):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid file method",
