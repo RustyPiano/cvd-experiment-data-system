@@ -17,8 +17,6 @@ export type TubeUsageHistoryPayload = Schemas['TubeUsageHistoryPayload']
 // §7 表征 + 实测产物（走各自端点，非模块 payload；均以样品为关联主键）。
 export type SampleRead = Schemas['SampleRead']
 export type SampleListResponse = Schemas['SampleListResponse']
-export type V2ResultRead = Schemas['V2ResultRead']
-export type V2ResultListResponse = Schemas['V2ResultListResponse']
 
 export type RunFilters = {
   query?: string
@@ -291,45 +289,6 @@ export function invalidateMeasurement(
   )
 }
 
-export function createTransformation(
-  payload: Record<string, unknown>,
-  token: string,
-) {
-  return apiRequest<{
-    id: string
-    output_experiment_run_id: string
-    transformation_type: string
-    input_sample_ids: string[]
-    output_sample_ids: string[]
-  }>('/api/v1/transformations', {
-    method: 'POST',
-    body: payload,
-    token,
-  })
-}
-
-export function queryDataset(
-  filters: DatasetFilter[],
-  token: string,
-  cursor?: string,
-) {
-  return apiRequest<DatasetQueryResponse>('/api/v1/datasets/query', {
-    method: 'POST',
-    body: { filters, limit: 100, ...(cursor ? { cursor } : {}) },
-    token,
-  })
-}
-
-export function listContainerInstances(token: string, materialLotId?: string) {
-  const query = materialLotId
-    ? `?material_lot_id=${encodeURIComponent(materialLotId)}`
-    : ''
-  return apiRequest<ContainerInstance[]>(
-    `/api/v1/container-instances${query}`,
-    { token },
-  )
-}
-
 export function setNotCharacterized(
   runId: string,
   confirmed: boolean,
@@ -404,11 +363,4 @@ export function listSamples(runId: string, token: string) {
     `/api/v1/samples?experiment_id=${encodeURIComponent(runId)}`,
     { token },
   )
-}
-
-// 历史结果只读；v4 写入统一走 MeasurementRun。
-export function listResults(sampleId: string, token: string) {
-  return apiRequest<V2ResultListResponse>(`${V2}/samples/${sampleId}/results`, {
-    token,
-  })
 }

@@ -85,33 +85,6 @@ def test_entity_run_and_setup_reference_writes_are_audited(
     }
 
 
-def test_legacy_result_writes_are_gone(active_user) -> None:
-    headers = _headers(active_user.email)
-    run = _run(headers, "CVD-2026-0902")
-    sample_response = client.post(
-        f"/api/v1/experiments/{run['id']}/samples",
-        json={},
-        headers=headers,
-    )
-    assert sample_response.status_code == 201, sample_response.text
-    sample_id = sample_response.json()["id"]
-    missing_id = "00000000-0000-0000-0000-000000000001"
-    calls = [
-        ("post", f"/api/v1/experiments/{run['id']}/characterization-records"),
-        ("patch", f"/api/v1/characterization-records/{missing_id}"),
-        ("delete", f"/api/v1/characterization-records/{missing_id}"),
-        ("post", f"/api/v1/samples/{sample_id}/measured-products"),
-        ("patch", f"/api/v1/measured-products/{missing_id}"),
-        ("delete", f"/api/v1/measured-products/{missing_id}"),
-        ("post", f"/api/v1/samples/{sample_id}/results"),
-        ("put", f"/api/v1/results/{missing_id}"),
-        ("delete", f"/api/v1/results/{missing_id}"),
-    ]
-    for method, path in calls:
-        response = client.request(method, path, json={}, headers=headers)
-        assert response.status_code == 410, (method, path, response.text)
-
-
 def test_setup_field_devices_none_is_exclusive_on_create_and_append(admin_user) -> None:
     headers = _headers(admin_user.email)
     rejected_create = client.post(

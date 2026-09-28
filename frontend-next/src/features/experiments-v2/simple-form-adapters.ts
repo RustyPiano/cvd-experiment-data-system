@@ -60,23 +60,6 @@ export function buildSimpleCreatePayload(
   }
 }
 
-export function compositionValueForDisplay(
-  value: number | undefined,
-  basis: string,
-) {
-  return value === undefined
-    ? ''
-    : basis === 'mol_fraction'
-      ? String(value * 100)
-      : String(value)
-}
-
-export function compositionValueForPayload(value: string, basis: string) {
-  if (value.trim() === '') return undefined
-  const parsed = Number(value)
-  return basis === 'mol_fraction' ? parsed / 100 : parsed
-}
-
 const ACTION_MARKER = '\n\n采取的处理：'
 
 export function splitEventDescription(value: string | undefined) {

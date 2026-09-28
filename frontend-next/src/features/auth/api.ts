@@ -3,7 +3,6 @@ import type {
   LoginRequest,
   RegisterRequest,
   TokenResponse,
-  UserRead,
 } from '@/shared/types/api'
 
 export function login(payload: LoginRequest) {
@@ -20,16 +19,6 @@ export function register(payload: RegisterRequest) {
   })
 }
 
-export function getCurrentUser(token: string) {
-  return apiRequest<UserRead>('/api/v1/auth/me', {
-    token,
-  })
-}
-
-/**
- * Exchanges a still-valid token for a fresh one (sliding session). Must be
- * called before the current token expires; an expired token returns 401.
- */
 export function refreshSession(token: string) {
   return apiRequest<TokenResponse>('/api/v1/auth/refresh', {
     method: 'POST',

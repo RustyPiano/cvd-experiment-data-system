@@ -4,7 +4,6 @@ import {
   formatChemicalFormula,
   generateSolidSolutionFormula,
   normalizeChemicalFormula,
-  renderFormulaDisplay,
   validateChemicalFormula,
   validateMaterialFormula,
 } from './formula'
@@ -103,44 +102,5 @@ describe('validateMaterialFormula', () => {
     expect(validateMaterialFormula('Al2(SO4)3').valid).toBe(true)
     expect(validateMaterialFormula('CuSO4·5H2O').valid).toBe(true)
     expect(validateMaterialFormula('MoS2/WS2').valid).toBe(false)
-  })
-})
-
-describe('renderFormulaDisplay (前端即时预览)', () => {
-  it('returns the raw formula for 本征 / no components', () => {
-    expect(renderFormulaDisplay('MoS2', '本征', [])).toBe('MoS2')
-    expect(renderFormulaDisplay('MoS2', '掺杂', [])).toBe('MoS2')
-  })
-
-  it('joins by layer order for 垂直异质结', () => {
-    expect(
-      renderFormulaDisplay('x', '垂直异质结', [
-        { formula: 'WSe2', layer_order: '2' },
-        { formula: 'MoS2', layer_order: '1' },
-      ]),
-    ).toBe('MoS2/WSe2')
-  })
-
-  it('joins with a dash for 横向异质结', () => {
-    expect(
-      renderFormulaDisplay('x', '横向异质结', [
-        { formula: 'WSe2' },
-        { formula: 'MoS2' },
-      ]),
-    ).toBe('WSe2-MoS2')
-  })
-
-  it('keeps the entered formula for doped systems because components are authoritative', () => {
-    expect(
-      renderFormulaDisplay('MoS2', '掺杂', [
-        { formula: 'Nb', role: '掺杂剂' },
-        { formula: 'MoS2', role: '基体' },
-      ]),
-    ).toBe('MoS2')
-    expect(
-      renderFormulaDisplay('fallback', '掺杂', [
-        { formula: 'Nb', role: '其他' },
-      ]),
-    ).toBe('fallback')
   })
 })

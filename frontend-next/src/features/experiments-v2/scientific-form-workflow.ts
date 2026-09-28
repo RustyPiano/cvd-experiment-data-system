@@ -180,24 +180,6 @@ export function timelineValidationIssue(
   return null
 }
 
-export function withProcessChannelSubject(
-  channel: WorkflowChannel,
-  patch: Partial<
-    Pick<
-      WorkflowChannel,
-      | 'subject_type'
-      | 'subject_ref'
-      | 'subject_instance_ref'
-      | 'gas_species_code'
-      | 'zone_index'
-      | 'pressure_location'
-      | 'pressure_type'
-    >
-  >,
-): WorkflowChannel {
-  return { ...channel, ...patch }
-}
-
 export function peakTemperatureC(channels: WorkflowChannel[]): number | null {
   const values = channels.flatMap((channel) => {
     if (

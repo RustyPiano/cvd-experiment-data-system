@@ -44,17 +44,6 @@ class FileAssetRepository:
         )
         return self.db.scalar(statement)
 
-    def has_active_for_characterization_record(self, record_id: UUID) -> bool:
-        statement = (
-            select(FileAsset.id)
-            .where(
-                FileAsset.characterization_record_id == record_id,
-                FileAsset.deleted_at.is_(None),
-            )
-            .limit(1)
-        )
-        return self.db.scalar(statement) is not None
-
     def list_visible(
         self,
         *,

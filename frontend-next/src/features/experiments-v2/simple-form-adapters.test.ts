@@ -4,8 +4,6 @@ import {
   buildEventDescription,
   buildSimpleCreatePayload,
   buildSimpleSourceLoadsPayload,
-  compositionValueForDisplay,
-  compositionValueForPayload,
   simpleGrowthIssue,
   simplePreparationIssue,
   simpleCreateIssue,
@@ -61,10 +59,7 @@ describe('simple product form adapters', () => {
     )
   })
 
-  it('maps displayed mol% and the two anomaly text fields without losing data', () => {
-    expect(compositionValueForPayload('1', 'mol_fraction')).toBe(0.01)
-    expect(compositionValueForDisplay(0.01, 'mol_fraction')).toBe('1')
-
+  it('maps the two anomaly text fields without losing data', () => {
     const stored = buildEventDescription('气流中断', '更换气瓶')
     expect(splitEventDescription(stored)).toEqual({
       description: '气流中断',

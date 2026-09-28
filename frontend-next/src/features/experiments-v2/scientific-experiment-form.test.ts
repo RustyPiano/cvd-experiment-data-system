@@ -12,7 +12,6 @@ import {
   timelineValidationIssue,
   tubeUsageParts,
   tubeUsagePartsValidity,
-  withProcessChannelSubject,
 } from './scientific-form-workflow'
 
 describe('scientific experiment workflow helpers', () => {
@@ -116,30 +115,6 @@ describe('scientific experiment workflow helpers', () => {
         channels,
       ),
     ).toBeNull()
-  })
-
-  it('keeps file identity stable when a gas species is corrected', () => {
-    const channel = {
-      channel_key: 'channel_stable',
-      channel_type: 'flow',
-      source_type: 'measured',
-      subject_type: 'gas_species',
-      subject_ref: 'Ar',
-      subject_instance_ref: 'MFC-1',
-      gas_species_code: 'Ar',
-      data_kind: 'timeseries_file' as const,
-      file_asset_id: 'file-1',
-    }
-    expect(
-      withProcessChannelSubject(channel, {
-        subject_ref: 'N2',
-        gas_species_code: 'N2',
-      }),
-    ).toMatchObject({
-      channel_key: 'channel_stable',
-      file_asset_id: 'file-1',
-      gas_species_code: 'N2',
-    })
   })
 
   it('normalizes setpoint units and excludes measured temperatures from the summary', () => {
