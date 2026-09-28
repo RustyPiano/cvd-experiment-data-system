@@ -6,7 +6,7 @@ from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.sample import Sample, SampleRole
 from app.models.scientific import PropertyValue, RunRevision
-from app.models.v2_results import CharacterizationRecord, MeasuredProduct
+from app.models.v2_results import CharacterizationRecord
 from app.services.v2_result_evidence import collect_measurement_evidence
 from app.services.v2_result_status_service import refresh_result_missing_todo
 
@@ -78,98 +78,6 @@ def test_empty_characterization_row_does_not_clear_missing_flag(db_session, acti
     assert run.result_missing_todo is True
 
 
-def test_any_measured_result_row_clears_missing_flag(db_session, active_user) -> None:
-    run = _run(db_session, active_user, status=ExperimentStatus.LOCKED)
-    sample = _sample(db_session, run)
-    record = CharacterizationRecord(
-        experiment_run_id=run.id,
-        run_revision_id=run.current_revision_id,
-        sample_id=sample.id,
-        method_instrument="optical_microscopy",
-        performed_by_id=active_user.id,
-        measured_at=datetime(2026, 8, 30, 12, tzinfo=UTC),
-        sample_region={"geometry_type": "whole_sample", "label": "whole"},
-        quality_flag="valid",
-    )
-    db_session.add(record)
-    db_session.flush()
-    db_session.add(
-        MeasuredProduct(
-            sample_id=sample.id,
-            characterization_record_id=record.id,
-            measured_layers_coverage="1层；70%",
-        )
-    )
-    db_session.commit()
-
-    assert refresh_result_missing_todo(db_session, run) is False
-    assert run.result_missing_todo is False
-
-
-def test_empty_legacy_measured_result_does_not_clear_missing_flag(
-    db_session,
-    active_user,
-) -> None:
-    run = _run(db_session, active_user, status=ExperimentStatus.LOCKED)
-    sample = _sample(db_session, run)
-    db_session.add(MeasuredProduct(sample_id=sample.id))
-    db_session.commit()
-
-    assert refresh_result_missing_todo(db_session, run) is True
-    assert run.result_missing_todo is True
-
-
-def test_empty_json_values_do_not_clear_missing_flag(db_session, active_user) -> None:
-    run = _run(db_session, active_user, status=ExperimentStatus.LOCKED)
-    sample = _sample(db_session, run)
-    db_session.add(
-        MeasuredProduct(
-            sample_id=sample.id,
-            observed_phenomena=[],
-            key_spectral_metrics=[],
-            attrs={"note": None},
-        )
-    )
-    db_session.commit()
-
-    assert refresh_result_missing_todo(db_session, run) is True
-    assert run.result_missing_todo is True
-
-
-def test_other_phenomenon_needs_detail_to_clear_missing_flag(
-    db_session,
-    active_user,
-) -> None:
-    run = _run(db_session, active_user, status=ExperimentStatus.LOCKED)
-    sample = _sample(db_session, run)
-    product = MeasuredProduct(
-        sample_id=sample.id,
-        observed_phenomena=["other"],
-        attrs={},
-    )
-    record = CharacterizationRecord(
-        experiment_run_id=run.id,
-        run_revision_id=run.current_revision_id,
-        sample_id=sample.id,
-        method_instrument="optical_microscopy",
-        performed_by_id=active_user.id,
-        measured_at=datetime(2026, 8, 30, 12, tzinfo=UTC),
-        sample_region={"geometry_type": "whole_sample", "label": "whole"},
-        quality_flag="valid",
-    )
-    db_session.add(record)
-    db_session.flush()
-    product.characterization_record_id = record.id
-    db_session.add(product)
-    db_session.commit()
-
-    assert refresh_result_missing_todo(db_session, run) is True
-
-    product.attrs = {"observed_phenomena_other": "triangular domains"}
-    db_session.commit()
-    assert refresh_result_missing_todo(db_session, run) is False
-
-
 def test_only_current_valid_bound_active_evidence_clears_missing(
     db_session,
     active_user,
@@ -208,9 +116,8 @@ def test_only_current_valid_bound_active_evidence_clears_missing(
     value = PropertyValue(
         sample_id=sample.id,
         measurement_run_id=record.id,
-        property_code="coverage_percent",
-        numeric_value=10,
-        unit="%",
+        property_code="observation_note",
+        text_value="Visible islands",
         quality_flag="valid",
     )
     db_session.add(value)
@@ -233,7 +140,7 @@ def test_only_current_valid_bound_active_evidence_clears_missing(
     assert refresh_result_missing_todo(db_session, run) is False
 
     unbound.deleted_at = datetime.now(UTC)
-    value.quality_flag = "below_detection_limit"
+    value.quality_flag = "valid"
     db_session.commit()
     evidence_ids, raw_ids = collect_measurement_evidence(db_session, [record.id])
     assert record.id in evidence_ids
@@ -298,9 +205,8 @@ def test_historical_measurement_does_not_clear_current_revision_missing(
         PropertyValue(
             sample_id=sample.id,
             measurement_run_id=record.id,
-            property_code="coverage_percent",
-            numeric_value=10,
-            unit="%",
+            property_code="observation_note",
+            text_value="Visible islands",
             quality_flag="valid",
         )
     )

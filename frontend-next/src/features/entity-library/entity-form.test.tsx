@@ -811,9 +811,6 @@ describe('EntityForm — generated numeric validation', () => {
       substrate_crystal_plane: 'amorphous',
       substrate_polish: 'double_side_polished',
     })
-    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty(
-      'substrate_orientation_polish',
-    )
   })
 
   it('asks for a mica type in place and derives its formula', async () => {
@@ -1096,7 +1093,7 @@ describe('additional capability names', () => {
       defaultData: {
         ...oneZoneSetupData,
         field_devices: ['other'],
-        field_device_other_name: '磁场',
+        field_device_other_names: ['磁场'],
       },
     })
     expect(screen.getByLabelText(/能力名称 1/)).toHaveValue('磁场')
@@ -1107,9 +1104,6 @@ describe('additional capability names', () => {
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
       field_device_other_names: ['磁场', '机械振动'],
     })
-    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty(
-      'field_device_other_name',
-    )
     await user.click(screen.getByRole('checkbox', { name: /^无$/ }))
     await user.click(screen.getByRole('button', { name: '保存' }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2))

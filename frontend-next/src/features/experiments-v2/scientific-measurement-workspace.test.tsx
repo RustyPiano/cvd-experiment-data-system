@@ -279,8 +279,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           role: 'growth',
           lifecycle_state: 'active',
           sample_code: 'S01',
-          actual_state: 'unknown',
-          actual_material_summary: null,
         },
         {
           id: 'sample-2',
@@ -289,8 +287,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           role: 'control',
           lifecycle_state: 'active',
           sample_code: 'S02',
-          actual_state: 'unknown',
-          actual_material_summary: null,
         },
       ],
     })
@@ -567,7 +563,7 @@ describe('SimpleCharacterizationWorkspace', () => {
   }, 30_000)
 
   describe('measurement settings constraints', () => {
-    it('accepts zero and negative bounded values and caps percentage power', () => {
+    it('accepts zero and negative bounded values', () => {
       const tilt = characterizationProfiles.SEM.condition_fields.find(
         (field) => field.key === 'stage_tilt_deg',
       )!
@@ -578,21 +574,6 @@ describe('SimpleCharacterizationWorkspace', () => {
       expect(
         characterizationConditionIssue(tilt, { stage_tilt_deg: '91' }),
       ).toBe('请输入 -90 ° 至 90 ° 范围内的数值。')
-      const power = characterizationProfiles.Raman.condition_fields.find(
-        (field) => field.key === 'excitation_power_value',
-      )!
-      expect(
-        characterizationConditionIssue(power, {
-          excitation_power_value: '101',
-          excitation_power_basis: 'instrument_percent',
-        }),
-      ).toBe('不能大于 100%')
-      expect(
-        characterizationConditionIssue(power, {
-          excitation_power_value: '101',
-          excitation_power_basis: 'sample_plane_mW',
-        }),
-      ).toBeNull()
     })
 
     it('accepts signed Raman and omega ranges but constrains 2theta', () => {
@@ -628,21 +609,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           'raman_shift_range_cm1.end': '-50',
         }),
       ).toBe('终点应大于起点。')
-    })
-
-    it('accepts a historical low-frequency Raman instrument for Raman', () => {
-      expect(
-        instrumentSupportsMethod(
-          { capabilities: [{ code: 'low_frequency_raman' }] },
-          'Raman',
-        ),
-      ).toBe(true)
-      expect(
-        instrumentSupportsMethod(
-          { capabilities: [{ code: 'low_frequency_raman' }] },
-          'SHG',
-        ),
-      ).toBe(false)
     })
 
     it('derives SHG fields from the detection path and clears hidden values', async () => {
@@ -704,11 +670,7 @@ describe('SimpleCharacterizationWorkspace', () => {
 
   it('keeps the method selector in parity with generated profiles', () => {
     expect(new Set(METHOD_ORDER)).toEqual(
-      new Set(
-        Object.entries(characterizationProfiles)
-          .filter(([, profile]) => !profile.legacy_only)
-          .map(([code]) => code),
-      ),
+      new Set(Object.keys(characterizationProfiles)),
     )
   })
 
@@ -737,7 +699,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
     const payload = api.createMeasurement.mock.calls[0][0]
     expect(payload.measurement).not.toHaveProperty('sample_region')
-    expect(payload.assertions).toEqual([])
+    expect(payload).not.toHaveProperty('assertions')
     expect(payload.properties).toContainEqual(
       expect.objectContaining({
         property_code: 'spectral_peaks',
@@ -796,7 +758,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
     const payload = api.createMeasurement.mock.calls[0][0]
     expect(payload.measurement).not.toHaveProperty('sample_region')
-    expect(payload.assertions).toEqual([])
+    expect(payload).not.toHaveProperty('assertions')
     expect(payload.properties).toContainEqual(
       expect.objectContaining({
         property_code: 'observation_note',
@@ -1046,7 +1008,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     ).toBe('不能超过 3 个字符。')
   })
 
-  it('uses capability rows before the legacy instrument type', () => {
+  it('matches instruments by their capability rows', () => {
     expect(
       instrumentSupportsMethod(
         {
@@ -1065,11 +1027,11 @@ describe('SimpleCharacterizationWorkspace', () => {
         'Raman',
       ),
     ).toBe(false)
-    expect(instrumentSupportsMethod({ name_type: 'other' }, 'AFM')).toBe(true)
+    expect(instrumentSupportsMethod({ name_type: 'other' }, 'AFM')).toBe(false)
   })
 
   it.each(['raw', 'property'] as const)(
-    'allows an optical %s-only record without a growth assertion',
+    'allows an optical %s-only record',
     async (evidenceType) => {
       const user = userEvent.setup()
       const { container } = renderWorkspace()
@@ -1088,7 +1050,9 @@ describe('SimpleCharacterizationWorkspace', () => {
 
       await user.click(screen.getByRole('button', { name: '保存表征记录' }))
       await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
-      expect(api.createMeasurement.mock.calls[0][0].assertions).toEqual([])
+      expect(api.createMeasurement.mock.calls[0][0]).not.toHaveProperty(
+        'assertions',
+      )
     },
   )
 
@@ -1118,7 +1082,6 @@ describe('SimpleCharacterizationWorkspace', () => {
       measurement: { raw_file_ids: ['file-1'] },
       analyses: [],
       properties: [],
-      assertions: [],
     })
     expect(filesApi.uploadExperimentFile.mock.calls[0][2].fileCategory).toBe(
       'raw',
@@ -1308,25 +1271,14 @@ describe('SimpleCharacterizationWorkspace', () => {
     expect(
       characterizationResultIssue(
         {
-          key: 'coverage',
-          label: '覆盖率',
+          key: 'lattice',
+          label: '晶格间距',
           kind: 'number',
-          propertyCode: 'coverage_percent',
-        },
-        '101',
-      ),
-    ).toBe('覆盖率不能大于 100')
-    expect(
-      characterizationResultIssue(
-        {
-          key: 'domain',
-          label: '晶畴尺寸',
-          kind: 'number',
-          propertyCode: 'domain_size_um',
+          propertyCode: 'tem_lattice_spacing',
         },
         '0',
       ),
-    ).toBe('晶畴尺寸必须大于 0')
+    ).toBe('TEM 晶格间距必须大于 0')
   })
 
   it('keeps dirty data on a cancelled sample change and clears it when confirmed', async () => {
@@ -1446,8 +1398,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           role: 'growth',
           lifecycle_state: 'active',
           sample_code: 'CURRENT',
-          actual_state: 'unknown',
-          actual_material_summary: null,
         },
         {
           id: 'stale-growth',
@@ -1456,8 +1406,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           role: 'growth',
           lifecycle_state: 'active',
           sample_code: 'STALE',
-          actual_state: 'unknown',
-          actual_material_summary: null,
         },
         {
           id: 'consumed-control',
@@ -1466,8 +1414,6 @@ describe('SimpleCharacterizationWorkspace', () => {
           role: 'control',
           lifecycle_state: 'consumed',
           sample_code: 'CONSUMED',
-          actual_state: 'unknown',
-          actual_material_summary: null,
         },
       ],
     })
@@ -1510,13 +1456,12 @@ describe('SimpleCharacterizationWorkspace', () => {
         new File(['raw'], 'spectrum.txt'),
       )
       expect(screen.queryByLabelText('峰提取状态')).toBeNull()
-      expect(screen.queryByText('尚未分析')).toBeNull()
       if (status === '未检出可分辨峰')
         await user.click(screen.getByRole('checkbox', { name: status }))
       await user.click(screen.getByRole('button', { name: '保存表征记录' }))
       await waitFor(() => expect(api.createMeasurement).toHaveBeenCalled())
       const payload = api.createMeasurement.mock.calls[0][0]
-      expect(payload.assertions).toEqual([])
+      expect(payload).not.toHaveProperty('assertions')
       if (status === '未检出可分辨峰') {
         expect(payload.properties[0].structured_value).toMatchObject({
           status: 'not_detected',

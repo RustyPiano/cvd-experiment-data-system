@@ -35,10 +35,8 @@ describe('material lot projection', () => {
       attrs: {
         substrate_material: 'sio2_si',
         substrate_oxide_thickness_nm: 285,
-        substrate_orientation_polish: {
-          value: '(100)',
-          option: 'single_side_polished',
-        },
+        substrate_crystal_plane: '(100)',
+        substrate_polish: 'single_side_polished',
         substrate_miscut_angle_deg: 0.2,
       },
     }
@@ -46,7 +44,8 @@ describe('material lot projection', () => {
     expect(materialLotProjection(snapshot)).toEqual({
       material: 'sio2_si',
       chemical_formula: 'SiO2/Si',
-      crystal_orientation: '(100)；single_side_polished',
+      crystal_orientation: '(100)',
+      polish: 'single_side_polished',
       oxide_thickness_nm: '285',
     })
     expect(
@@ -57,7 +56,8 @@ describe('material lot projection', () => {
       }),
     ).toMatchObject({
       chemical_formula: 'SiO2/Si',
-      crystal_orientation: '(100)；single_side_polished',
+      crystal_orientation: '(100)',
+      polish: 'single_side_polished',
     })
   })
 })

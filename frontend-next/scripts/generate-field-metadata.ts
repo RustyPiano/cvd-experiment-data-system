@@ -68,7 +68,6 @@ interface RawField {
   options?: string
   requirement: RawRequirement
   r0?: boolean
-  group?: string
   placeholder?: string
   placeholder_en?: string
   help?: string
@@ -80,11 +79,6 @@ interface RawField {
 interface RawSection {
   title: string
   fields: RawField[]
-}
-interface RawStageType {
-  name: string
-  shows?: string[]
-  required_extra?: string[]
 }
 interface RawDoc {
   meta: { version: string; status: string }
@@ -146,7 +140,6 @@ interface RawDoc {
       }>
       allowed_property_codes: string[]
       default_property_codes: string[]
-      allowed_assertion_types: string[]
     }
   >
   modules: Record<string, string>
@@ -161,10 +154,6 @@ interface RawDoc {
     input_placeholder_en: string
     select_placeholder: string
     select_placeholder_en: string
-  }
-  stage_types: {
-    groups: Record<string, string>
-    types: RawStageType[]
   }
   experiment_record: { sections: RawSection[] }
   entities: { sections: RawSection[] }
@@ -189,7 +178,6 @@ interface FieldMetadata {
     condition: RawCondition | null
   }
   r0: boolean
-  group: string | null
   placeholderZh: string
   placeholderEn: string
   helpZh: string | null
@@ -230,7 +218,6 @@ function toFieldMetadata(
       condition,
     },
     r0: Boolean(field.r0),
-    group: field.group ?? null,
     placeholderZh:
       field.placeholder ??
       (field.input.includes('下拉')
@@ -270,14 +257,6 @@ function groupByModule(
   return out
 }
 
-interface StageType {
-  name: string
-  labelZh: string
-  labelEn: string
-  shows: string[]
-  requiredExtra?: string[]
-}
-
 const raw = await Bun.file(SRC).text()
 const doc = Bun.YAML.parse(raw) as RawDoc
 
@@ -298,23 +277,6 @@ const entities = groupByModule(
   doc.field_ui_defaults,
   doc.option_codes,
 )
-const stageGroups = doc.stage_types.groups
-const stageTypes: StageType[] = doc.stage_types.types.map((type) => {
-  const machineName = doc.option_codes[type.name] ?? type.name
-  if (typeof machineName !== 'string') {
-    throw new Error(`阶段类型 ${type.name} 的机器码必须是字符串`)
-  }
-  const out: StageType = {
-    name: machineName,
-    labelZh: type.name,
-    labelEn: doc.option_labels_en[type.name] ?? type.name,
-    shows: type.shows ?? [],
-  }
-  if (type.required_extra && type.required_extra.length > 0) {
-    out.requiredExtra = type.required_extra
-  }
-  return out
-})
 
 function preferredOptionLabels(language: 'zh' | 'en'): Record<string, string> {
   const labels: Record<string, string> = {}
@@ -392,8 +354,6 @@ export interface FieldMetadata {
   requirement: FieldRequirement
   /** 是否属 R0 最小可复现集 */
   r0: boolean
-  /** §5 过程步字段的参数组（stageGroups 的键）；其余字段为 null */
-  group: string | null
   /** 表单占位符中文/英文展示；不作为提交值 */
   placeholderZh: string
   placeholderEn: string
@@ -406,18 +366,6 @@ export interface FieldMetadata {
   visibilityGated?: true
 }
 
-export interface StageType {
-  name: string
-  /** 中文显示名；name 是稳定机器码。 */
-  labelZh: string
-  /** 英文显示名；提交值使用 name 的稳定机器码。 */
-  labelEn: string
-  /** 该阶段显示哪些参数组（stageGroups 的键；common 恒显） */
-  shows: string[]
-  /** 该阶段额外强制必填的字段键 */
-  requiredExtra?: string[]
-}
-
 export interface CharacterizationConditionField {
   display_units?: string[]
   requires?: string[]
@@ -428,7 +376,6 @@ export interface CharacterizationConditionField {
   multiline?: boolean
   signed?: boolean
   section?: "results"
-  legacy_only?: boolean
   placeholder_zh?: string
   placeholder_en?: string
   key: string
@@ -463,7 +410,6 @@ export interface OpticalConfigurationSpec {
 
 export interface CharacterizationProfile {
   common_condition_keys?: string[]
-  legacy_only?: boolean
   property_conditions?: Record<string, Record<string, string[]>>
   label_zh: string
   label_en: string
@@ -477,15 +423,11 @@ export interface CharacterizationProfile {
   condition_fields: CharacterizationConditionField[]
   allowed_property_codes: string[]
   default_property_codes: string[]
-  allowed_assertion_types: string[]
   peak_position_units?: string[]
   property_modes?: Record<string, string[]>
-  legacy_property_codes?: string[]
-  legacy_assertion_types?: string[]
 }
 
 export interface CharacterizationProperty {
-  legacy_only?: boolean
   label_zh: string
   label_en: string
   value_type: 'numeric' | 'text' | 'structured'
@@ -519,15 +461,13 @@ const content =
     `export const shgConfiguration: OpticalConfigurationSpec = ${JSON.stringify(doc.shg_configuration, null, 2)}`,
     `/** 已发布实验记录字段，按模块键分组。 */\nexport const experimentModules: Record<string, FieldMetadata[]> = ${JSON.stringify(experimentModules, null, 2)}`,
     `/** 三个一等实体的登记字段（material_lot / setup / instrument） */\nexport const entities: Record<string, FieldMetadata[]> = ${JSON.stringify(entities, null, 2)}`,
-    `/** 稳定机器码 → 首选中文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsZh: Record<string, string> = ${JSON.stringify(preferredOptionLabels('zh'), null, 2)}`,
-    `/** 稳定机器码 → 首选英文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsEn: Record<string, string> = ${JSON.stringify(preferredOptionLabels('en'), null, 2)}`,
-    `/** 旧中文规范值 → 稳定字符串机器码；布尔复选映射不进入此表。 */\nexport const optionCodes: Record<string, string> = ${JSON.stringify(Object.fromEntries(Object.entries(doc.option_codes).filter((entry): entry is [string, string] => typeof entry[1] === 'string')), null, 2)}`,
-    `/** 字段专用兼容标签 → 机器码；优先于全局别名。 */\nexport const fieldOptionCodes: Record<string, Record<string, string>> = ${JSON.stringify(doc.field_option_codes ?? {}, null, 2)}`,
+    `/** 稳定机器码 → 首选中文显示名。 */\nexport const optionLabelsZh: Record<string, string> = ${JSON.stringify(preferredOptionLabels('zh'), null, 2)}`,
+    `/** 稳定机器码 → 首选英文显示名。 */\nexport const optionLabelsEn: Record<string, string> = ${JSON.stringify(preferredOptionLabels('en'), null, 2)}`,
+    `/** 中文选项标签 → 稳定字符串机器码；布尔复选映射不进入此表。 */\nexport const optionCodes: Record<string, string> = ${JSON.stringify(Object.fromEntries(Object.entries(doc.option_codes).filter((entry): entry is [string, string] => typeof entry[1] === 'string')), null, 2)}`,
+    `/** 字段专用选项标签 → 机器码；优先于全局映射。 */\nexport const fieldOptionCodes: Record<string, Record<string, string>> = ${JSON.stringify(doc.field_option_codes ?? {}, null, 2)}`,
     `/** 规范单位 → 英文显示名 */\nexport const unitLabelsEn: Record<string, string> = ${JSON.stringify(doc.unit_labels_en, null, 2)}`,
-    `/** §5 参数组：组名 → 说明（common 恒显） */\nexport const stageGroups: Record<string, string> = ${JSON.stringify(stageGroups, null, 2)}`,
-    `/** §5 阶段类型 → 参数组显隐映射（驱动动态表单，D11） */\nexport const stageTypes: StageType[] = ${JSON.stringify(stageTypes, null, 2)}`,
     `/** 表征属性代码、显示名与规范单位。 */\nexport const characterizationProperties: Record<string, CharacterizationProperty> = ${JSON.stringify(Object.fromEntries(Object.entries(doc.characterization_properties).map(([code, property]) => [code, { ...property, unit: doc.scientific_contract.property_units[code] }])), null, 2)}`,
-    `/** 表征方法、条件、区域、属性与材料结论的单一合同。 */\nexport const characterizationProfiles: Record<string, CharacterizationProfile> = ${JSON.stringify(doc.characterization_profiles, null, 2)}`,
+    `/** 表征方法、条件、区域与属性的单一合同。 */\nexport const characterizationProfiles: Record<string, CharacterizationProfile> = ${JSON.stringify(doc.characterization_profiles, null, 2)}`,
     `/** 过程气体稳定机器码与显示/兼容别名。 */\nexport const gasSpecies: Record<string, GasSpecies> = ${JSON.stringify(doc.gas_species, null, 2)}`,
   ].join('\n\n') + '\n'
 
@@ -573,5 +513,5 @@ const entityCount = Object.values(entities).reduce(
 // eslint-disable-next-line no-console
 console.log(
   `generated ${OUT}\n  实验字段 ${fieldCount} / ${Object.keys(experimentModules).length} 模块 · ` +
-    `实体字段 ${entityCount} / ${Object.keys(entities).length} 实体 · 阶段类型 ${stageTypes.length}`,
+    `实体字段 ${entityCount} / ${Object.keys(entities).length} 实体`,
 )

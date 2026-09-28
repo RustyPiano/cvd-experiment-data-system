@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  legacySubstrateOrientation,
   normalizeCrystalPlane,
   substrateOrientationPayload,
   substratePlaneOptions,
@@ -62,21 +61,5 @@ describe('supplier crystal planes', () => {
     expect(() =>
       substrateOrientationPayload({ substrate_crystal_plane: 'supplier_cut' }),
     ).toThrow('substrate_cut_spec')
-  })
-
-  it('retains unparseable old specifications when editing a new version', () => {
-    const source = {
-      substrate_material: 'sapphire_al2o3',
-      substrate_orientation_polish: {
-        value: '[0001] 原文',
-        option: 'single_side_polished',
-      },
-    }
-    expect(legacySubstrateOrientation(source)).toMatchObject({
-      substrate_crystal_plane: 'supplier_cut',
-      substrate_cut_spec: '[0001] 原文',
-      substrate_polish: 'single_side_polished',
-    })
-    expect(source).not.toHaveProperty('substrate_crystal_plane')
   })
 })

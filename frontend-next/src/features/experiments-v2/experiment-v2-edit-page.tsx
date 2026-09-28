@@ -89,8 +89,6 @@ const MODULE_TITLE_KEYS = {
   substrates: 'substrates',
   process_steps: 'processSteps',
   process_events: 'processEvents',
-  characterization: 'results',
-  measured_products: 'results',
 } as const
 
 export function ExperimentV2EditPage({ runId }: { runId: string }) {

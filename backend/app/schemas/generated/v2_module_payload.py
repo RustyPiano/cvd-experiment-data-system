@@ -21,12 +21,6 @@ from app.services.v2_field_source import (
 )
 
 V2_MODULE_PAYLOAD_SCHEMA_VERSION = "cvd_v2"
-_OPTION_ALIASES = {'石英单晶': 'single_crystal_quartz', '熔融石英／石英玻璃': 'fused_silica', '未知／供应商未提供': 'not_provided', '非晶，不适用': 'amorphous', '多晶，无单一取向': 'polycrystalline', '供应商切型': 'supplier_cut', '未抛光': 'unpolished', '盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '横向拼接': 'lateral_junction', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '设定值': 'setpoint', '实测值': 'measured', '光': 'light', '电': 'electric_field', '光照': 'light', '电场': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '正常': 'normal', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主要前驱体': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '舟': 'boat', '坩埚': 'crucible', '衬底表面': 'substrate_surface', '涂覆在衬底表面': 'substrate_surface', '其他容器': 'other_container', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', '白云母': 'muscovite', '金云母': 'phlogopite', '氟金云母': 'fluorophlogopite', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '两片生长面相对': 'face_to_face', '倾角': 'tilted', '竖放': 'upright', '朝下游': 'downstream', '朝上游': 'upstream', '朝炉管左侧': 'tube_left', '朝炉管右侧': 'tube_right', '清洗': 'clean', '溶剂清洗': 'solvent_cleaning', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '紫外臭氧联合处理': 'uv_ozone_treatment', '紫外/臭氧处理': 'uv_ozone_treatment', '紫外/臭氧表面处理': 'uv_ozone_treatment', '有批号': 'batch_number_reported', '未提供批号': 'batch_number_not_provided', '超声': 'ultrasonic', '浸泡': 'soak', '冲洗': 'rinse', '擦拭': 'wipe', '丙酮': 'acetone', '异丙醇': 'isopropanol', '乙醇': 'ethanol', '甲醇': 'methanol', '去离子水': 'deionized_water', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气氛置换': 'gas_exchange', '气路置换': 'gas_exchange', '连续通气': 'continuous_flow', '抽空—回填': 'evacuation_backfill', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉冷却': 'rapid_furnace_move_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '程序降温': 'controlled_cooling', '受控降温': 'controlled_cooling', '分段降温': 'staged_cooling', '减压（含真空）': 'low_pressure', '加压': 'high_pressure', '预混气': 'premixed', '浮子流量计（转子流量计）': 'rotameter', '浮子流量计': 'rotameter', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', 'OM': 'optical_microscopy', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '液体': 'liquid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '有规格数值': 'reported', '供应商未提供': 'not_provided', '不适用': 'not_applicable', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '材料层': 'material_layer', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4', 'CO₂': 'CO2', '热电偶': 'thermocouple', '热电阻（RTD）': 'rtd', '红外测温仪': 'infrared_thermometer', '光纤温度传感器': 'fiber_optic_temperature_sensor', '热敏电阻': 'thermistor', '商业设备': 'commercial', '实验室自制': 'lab_built', '改造设备': 'modified', '促进反应或成核': 'reaction_or_nucleation_promoter', '助熔或盐辅助': 'flux_or_salt_assistant', '输运': 'transport_agent', '溶剂或分散介质': 'solvent_or_dispersion_medium', '还原': 'reducing_agent', '氧化': 'oxidizing_agent', '刻蚀': 'etchant', 'mol/L': 'mol_per_L', 'mmol/L (mM)': 'mmol_per_L', 'g/L': 'g_per_L', 'mg/mL': 'mg_per_mL', 'wt%': 'wt_percent', 'vol%': 'vol_percent'}
-_FIELD_OPTION_ALIASES = {'film_form': {'分立片状': 'discrete', '连续膜': 'continuous'}, 'dimensional_form': {'片/膜状': 'planar', '颗粒状': 'particle', '块状': 'bulk_crystal', '连续膜': 'continuous_film', '分立片状晶体/晶畴': 'discrete_planar_crystal', '带状': 'ribbon', '线状': 'wire', '管状': 'tube', '棒状': 'rod', '颗粒': 'particle', '块状晶体': 'bulk_crystal', '其他': 'other'}, 'in_plane_outline': {'其他多边形': 'other_regular_polygon', '枝晶状': 'dendritic_fractal', '三角形': 'triangle', '截角三角形': 'truncated_triangle', '六边形': 'hexagon', '四边形（矩形/平行四边形/菱形）': 'quadrilateral', '其他规则多边形': 'other_regular_polygon', '圆形/椭圆形': 'circular_elliptical', '星形/多裂片状': 'lobed_star', '枝晶状/分形': 'dendritic_fractal', '不规则': 'irregular', '其他': 'other'}, 'loading_method': {'衬底': 'substrate_surface', '气路供给': 'gas_line', '鼓泡器': 'bubbler', '其他容器': 'other'}, 'field_devices': {'等离子': 'plasma', '等离子体': 'plasma'}, 'field_type': {'等离子': 'plasma', '等离子体': 'plasma'}, 'type': {'等离子': 'plasma_treatment', '等离子体': 'plasma_treatment'}}
-_CONTROLLED_KEYS = frozenset(('affected_objects', 'architecture_type', 'batch_number_availability', 'concentration_unit', 'cooling_method', 'data_validity_impact', 'dimensional_form', 'exposure_environment', 'field_devices', 'film_form', 'form_appearance', 'gas_purity_grade', 'in_plane_outline', 'intervention_actions', 'loading_method', 'lot_category', 'material', 'mica_type', 'name_type', 'observed_deviations', 'orientation', 'outcome', 'performed_by_user_ids', 'pressure_regime', 'quartz_type', 'role', 'setup_origin', 'storage_method', 'substrate_crystal_plane', 'substrate_material', 'substrate_miscut_availability', 'substrate_orientation_polish', 'substrate_orientation_polish_availability', 'substrate_polish', 'supplier', 'suspected_causes', 'wall_type'))
-_STRUCTURED_CONTROLLED_KEYS = frozenset(('field_type', 'material', 'measurement_source', 'method', 'operation_type', 'placement', 'shape', 'species', 'type'))
-_COMPOSITE_KEYS = frozenset(('substrate_orientation_polish',))
-_MULTI_KEYS = frozenset(('affected_objects', 'field_devices', 'intervention_actions', 'observed_deviations', 'performed_by_user_ids', 'suspected_causes'))
 
 
 def _json_default(value: Any) -> str:
@@ -37,84 +31,21 @@ def _json_default(value: Any) -> str:
     raise TypeError(f'{type(value).__name__} is not JSON serializable')
 
 
-def _canonical(value: Any, key: str | None = None) -> Any:
-    if isinstance(value, list):
-        return [_canonical(item, key) for item in value]
-    if isinstance(value, str):
-        if value in _FIELD_OPTION_ALIASES.get(key or '', {}):
-            return _FIELD_OPTION_ALIASES[key or ''][value]
-        return _OPTION_ALIASES.get(value, value)
-    return value
-
-
-def _normalize_payload(value: Any) -> Any:
-    if isinstance(value, list):
-        return [_normalize_payload(item) for item in value]
-    if not isinstance(value, dict):
-        return value
-    normalized = dict(value)
-    for key, item in normalized.items():
-        if key in _COMPOSITE_KEYS:
-            canonical = _canonical(item, key)
-            if isinstance(item, dict):
-                normalized[key] = dict(item)
-                normalized[key]["option"] = _canonical(item.get("option"), key)
-            elif isinstance(item, (int, float)):
-                normalized[key] = {"value": item, "option": None}
-            elif canonical != item:
-                normalized[key] = {"value": None, "option": canonical}
-        elif key in _MULTI_KEYS:
-            canonical = _canonical(item, key)
-            normalized[key] = canonical if isinstance(canonical, list) else [canonical]
-        elif key in _CONTROLLED_KEYS or key in _STRUCTURED_CONTROLLED_KEYS:
-            normalized[key] = _canonical(item, key)
-        elif isinstance(item, (dict, list)):
-            normalized[key] = _normalize_payload(item)
-    return normalized
-
-
 class V2PayloadBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="before")
     @classmethod
-    def _canonicalize(cls, value: Any) -> Any:
+    def _require_finite_json(cls, value: Any) -> Any:
         if isinstance(value, dict):
             try:
                 json.dumps(value, allow_nan=False, default=_json_default)
             except (TypeError, ValueError) as exc:
                 raise ValueError('payload must contain only finite JSON data') from exc
-        return _normalize_payload(value)
+        return value
 
 
 NonBlankStr = Annotated[str, Field(min_length=1, pattern=r'\S')]
-
-
-class AmbientMeasurementPayload(V2PayloadBase):
-    value: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None
-    measured_at: datetime | None = None
-    source_type: Literal['room_sensor', 'setup_sensor', 'manual_entry', 'manual_estimate', 'not_measured']
-    sensor_ref: NonBlankStr | None = None
-
-
-class PrecheckRecordPayload(V2PayloadBase):
-    checklist_version: NonBlankStr
-    confirmed: bool
-    confirmed_at: datetime
-    exception_note: NonBlankStr | None = None
-
-
-class ComponentPayload(V2PayloadBase):
-    formula: str
-    role: Literal['matrix', 'dopant', 'alloy_component', 'material_layer', 'top_layer', 'bottom_layer', 'lateral_domain'] | None = None
-    concentration_at_percent: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, le=100)] | None = None
-    layer_order: Annotated[int, Field(strict=True, ge=1)] | None = None
-    bulk_space_group: Annotated[int, Field(strict=True, ge=1, le=230)] | None = None
-
-    @field_validator("formula")
-    @classmethod
-    def _formula(cls, value: str) -> str:
-        return _validate_formula(value)
 
 
 class MaterialLotReferencePayload(V2PayloadBase):
@@ -158,20 +89,6 @@ class SpinCoatStagePayload(V2PayloadBase):
 
 class SpinCoatParametersPayload(V2PayloadBase):
     stages: Annotated[list[SpinCoatStagePayload], Field(min_length=1)]
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_legacy_scalar_stage(cls, value: Any) -> Any:
-        if not isinstance(value, dict) or 'stages' in value:
-            return value
-        if 'speed_rpm' not in value and 'duration_s' not in value:
-            return value
-        normalized = dict(value)
-        normalized['stages'] = [{
-            'speed_rpm': normalized.pop('speed_rpm', None),
-            'duration_s': normalized.pop('duration_s', None),
-        }]
-        return normalized
 
 
 class AnnealParametersPayload(V2PayloadBase):
@@ -262,7 +179,7 @@ PrecursorTreatmentPayload = Annotated[
 class SolventCleaningParametersPayload(V2PayloadBase):
     solvent: Literal['acetone', 'deionized_water', 'ethanol', 'isopropanol', 'methanol', 'other']
     solvent_other: NonBlankStr | None = None
-    cleaning_method: Literal['not_recorded', 'other', 'rinse', 'soak', 'ultrasonic', 'wipe']
+    cleaning_method: Literal['other', 'rinse', 'soak', 'ultrasonic', 'wipe']
     cleaning_method_other: NonBlankStr | None = None
     temperature_C: Annotated[float, Field(allow_inf_nan=False, gt=-273.15)] | None = None
     wiping_material: NonBlankStr | None = None
@@ -396,7 +313,7 @@ class GasCompositionComponentPayload(V2PayloadBase):
 
 
 class SurfaceRoughnessPayload(V2PayloadBase):
-    availability: Literal['reported', 'not_provided'] = 'reported'
+    availability: Literal['reported', 'not_provided']
     metric: Literal['Ra', 'RMS'] | None = None
     value_nm: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)] | None = None
 
@@ -445,24 +362,6 @@ class TubeUsageHistoryPayload(V2PayloadBase):
     use_number_since_reset: Annotated[int, Field(strict=True, ge=1)]
 
 
-class SourceContainerPayload(V2PayloadBase):
-    material: Literal['quartz', 'alumina', 'other']
-    material_other: str | None = None
-    length_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
-    width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
-    height_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
-    diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
-    description: NonBlankStr | None = None
-    reset_count: Annotated[int, Field(strict=True, ge=0)]
-    use_number_since_reset: Annotated[int, Field(strict=True, ge=1)]
-
-    @model_validator(mode="after")
-    def _material_name(self) -> Self:
-        if (self.material == 'other') != bool((self.material_other or '').strip()):
-            raise ValueError("material_other is required only for other material")
-        return self
-
-
 class SubstrateSizePlacementPayload(V2PayloadBase):
     length_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
     width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
@@ -495,19 +394,6 @@ class SubstratePlacementRelationPayload(V2PayloadBase):
     piece_a_label: NonBlankStr
     piece_b_label: NonBlankStr
     gap_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)] | None = None
-
-
-class SourcePositionPayload(V2PayloadBase):
-    zone_index: Annotated[int, Field(strict=True, ge=1)]
-    distance_mm: Annotated[float, Field(strict=True, allow_inf_nan=False)]
-    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None
-    temperature_basis: Literal['measured', 'estimate'] | None = None
-
-    @model_validator(mode="after")
-    def _temperature_basis(self) -> Self:
-        if (self.temperature_C is None) != (self.temperature_basis is None):
-            raise ValueError("temperature_C and temperature_basis must be provided together")
-        return self
 
 
 class ZoneThermocoupleDistancePayload(V2PayloadBase):
@@ -557,107 +443,6 @@ PreparationOperationPayload = Annotated[
     PumpDownOperationPayload | GasExchangeOperationPayload | OtherPreparationOperationPayload,
     Field(discriminator='operation_type'),
 ]
-
-
-class TemperaturePointPayload(V2PayloadBase):
-    elapsed_min: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]
-    setpoint_C: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=-273.15)]
-
-
-class TemperatureZoneProgramPayload(V2PayloadBase):
-    zone_index: Annotated[int, Field(strict=True, ge=1)]
-    points: Annotated[list[TemperaturePointPayload], Field(min_length=1)]
-
-    @model_validator(mode="after")
-    def _strict_time_order(self) -> Self:
-        elapsed = [point.elapsed_min for point in self.points]
-        if any(current <= previous for previous, current in zip(elapsed, elapsed[1:], strict=False)):
-            raise ValueError("temperature program elapsed_min values must strictly increase")
-        return self
-
-
-class TemperatureProgramPayload(V2PayloadBase):
-    zones: Annotated[list[TemperatureZoneProgramPayload], Field(min_length=1)]
-
-    @model_validator(mode="after")
-    def _unique_zones(self) -> Self:
-        indices = [zone.zone_index for zone in self.zones]
-        if len(indices) != len(set(indices)):
-            raise ValueError("temperature program zone_index values must be unique")
-        return self
-
-
-class MeasuredTemperatureChannelPayload(V2PayloadBase):
-    zone_index: Annotated[int, Field(strict=True, ge=1)]
-    column_name: NonBlankStr
-
-
-class MeasuredTemperatureReferencePayload(V2PayloadBase):
-    file_asset_id: UUID
-    time_column: NonBlankStr
-    channels: Annotated[list[MeasuredTemperatureChannelPayload], Field(min_length=1)]
-
-    @model_validator(mode="after")
-    def _unique_channels(self) -> Self:
-        zones = [channel.zone_index for channel in self.channels]
-        columns = [channel.column_name for channel in self.channels]
-        if len(zones) != len(set(zones)) or len(columns) != len(set(columns)):
-            raise ValueError("measured temperature channels must use unique zones and columns")
-        return self
-
-
-class GasSupplyIntervalPayload(V2PayloadBase):
-    start_min: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]
-    end_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
-    flow_sccm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
-
-    @model_validator(mode="after")
-    def _positive_interval(self) -> Self:
-        if self.end_min <= self.start_min:
-            raise ValueError("gas supply interval end_min must exceed start_min")
-        return self
-
-
-class GasFeedPayload(V2PayloadBase):
-    species: Literal['Ar', 'N2', 'H2', 'O2', 'He', 'CH4', 'H2S', 'NH3', 'CO2', 'other']
-    other_name: str | None = None
-    lot_ref: MaterialLotReferencePayload
-    measurement_source: Literal['mfc', 'rotameter', 'other'] | None = None
-    measurement_source_other: str | None = None
-    intervals: Annotated[list[GasSupplyIntervalPayload], Field(min_length=1)]
-
-    @model_validator(mode="after")
-    def _details_and_intervals(self) -> Self:
-        if (self.species == 'other') != bool((self.other_name or '').strip()):
-            raise ValueError("other_name is required only for other gas")
-        if (self.measurement_source == 'other') != bool((self.measurement_source_other or '').strip()):
-            raise ValueError("measurement_source_other is required only for other source")
-        ordered = sorted(self.intervals, key=lambda item: item.start_min)
-        if any(current.start_min < previous.end_min for previous, current in zip(ordered, ordered[1:], strict=False)):
-            raise ValueError("gas supply intervals cannot overlap")
-        return self
-
-
-class DurationCyclesPayload(V2PayloadBase):
-    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
-    cycle_count: Annotated[int, Field(strict=True, ge=1)] | None = None
-
-
-class CoolingParametersPayload(V2PayloadBase):
-    method: Literal['furnace_cooling', 'open_lid_cooling', 'rapid_furnace_move_cooling', 'controlled_cooling', 'other']
-    lid_open_temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None
-    cooling_rate_C_per_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
-    method_other: str | None = None
-
-    @model_validator(mode="after")
-    def _lid_open_temperature(self) -> Self:
-        if (self.method == 'open_lid_cooling') != (self.lid_open_temperature_C is not None):
-            raise ValueError("lid_open_temperature_C is required only for open-lid cooling")
-        if (self.method == 'other') != bool((self.method_other or '').strip()):
-            raise ValueError("method_other is required only for other cooling")
-        if (self.method == 'controlled_cooling') != (self.cooling_rate_C_per_min is not None):
-            raise ValueError("cooling_rate_C_per_min is required only for controlled cooling")
-        return self
 
 
 class ActualFieldPayload(V2PayloadBase):
@@ -749,22 +534,6 @@ class ActualFieldPayload(V2PayloadBase):
         return self
 
 
-class SubstrateOrientationPolishValue(V2PayloadBase):
-    value: str | None = None
-    option: Literal['double_side_polished', 'single_side_polished'] | None = None
-
-    @model_validator(mode="after")
-    def _requires_value(self) -> Self:
-        if self.value is None or (isinstance(self.value, str) and not self.value.strip()):
-            raise ValueError("composite field requires a value")
-        return self
-
-    @model_validator(mode="after")
-    def _requires_option(self) -> Self:
-        if self.option is None:
-            raise ValueError("composite field requires an option")
-        return self
-
 
 class EquipmentPayload(V2PayloadBase):
     setup_ref: NonBlankStr
@@ -782,7 +551,6 @@ class EquipmentPayload(V2PayloadBase):
     coordinate_system: str | None = None
     temperature_sensors: Annotated[list[TemperatureSensorPayload], Field(min_length=1)]
     field_devices: list[Literal['electric_field', 'light', 'none', 'other', 'plasma']] | None = None
-    field_device_other_name: str | None = None
     field_device_other_names: list[NonBlankStr] | None = None
     setup_diagram: FileAssetReferencePayload | None = None
     tube_usage_history: TubeUsageHistoryPayload
@@ -796,8 +564,7 @@ class EquipmentPayload(V2PayloadBase):
                 raise ValueError("additional capability names must be nonblank, unique and at most 128 characters")
             self.field_device_other_names = names
         configured = 'other' in (self.field_devices or [])
-        recorded = names if names is not None else (self.field_device_other_name or '').strip()
-        if configured != bool(recorded):
+        if configured != bool(names):
             raise ValueError("named additional capabilities are required only for other")
         return self
 
@@ -868,11 +635,6 @@ class EquipmentPayload(V2PayloadBase):
             and not _missing(self.modification_details)
         ):
             raise ValueError("modification_details is not applicable")
-        if (
-            not _matches({'op': 'eq', 'value': 'other'}, self.field_devices)
-            and not _missing(self.field_device_other_name)
-        ):
-            raise ValueError("field_device_other_name is not applicable")
         return self
 
 
@@ -962,7 +724,6 @@ class MaterialLotVersionPayload(V2PayloadBase):
     substrate_crystal_plane: str | None = None
     substrate_cut_spec: str | None = None
     substrate_polish: Literal['double_side_polished', 'not_provided', 'single_side_polished', 'unpolished'] | None = None
-    substrate_orientation_polish: SubstrateOrientationPolishValue | None = None
     substrate_miscut_availability: Literal['not_applicable', 'not_provided', 'reported'] | None = None
     substrate_miscut_angle_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, lt=90)] | None = None
     substrate_miscut_direction: str | None = None
@@ -1170,11 +931,6 @@ class MaterialLotVersionPayload(V2PayloadBase):
             raise ValueError("substrate_polish is not applicable")
         if (
             not _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
-            and not _missing(self.substrate_orientation_polish)
-        ):
-            raise ValueError("substrate_orientation_polish is not applicable")
-        if (
-            not _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
             and not _missing(self.substrate_miscut_availability)
         ):
             raise ValueError("substrate_miscut_availability is not applicable")
@@ -1238,10 +994,8 @@ class SetupVersionPayload(V2PayloadBase):
     tube_outer_diameter_wall_mm: TubeDimensionsPayload
     wall_type: Literal['cold_wall', 'hot_wall'] | None = None
     field_devices: list[Literal['electric_field', 'light', 'none', 'other', 'plasma']]
-    field_device_other_name: str | None = None
     field_device_other_names: list[NonBlankStr] | None = None
     setup_diagram: FileAssetReferencePayload | None = None
-    component_bindings: list[dict[str, Any]] | None = None
 
     @model_validator(mode="after")
     def _additional_capabilities(self) -> Self:
@@ -1252,8 +1006,7 @@ class SetupVersionPayload(V2PayloadBase):
                 raise ValueError("additional capability names must be nonblank, unique and at most 128 characters")
             self.field_device_other_names = names
         configured = 'other' in (self.field_devices or [])
-        recorded = names if names is not None else (self.field_device_other_name or '').strip()
-        if configured != bool(recorded):
+        if configured != bool(names):
             raise ValueError("named additional capabilities are required only for other")
         return self
 
@@ -1324,11 +1077,6 @@ class SetupVersionPayload(V2PayloadBase):
             and not _missing(self.modification_details)
         ):
             raise ValueError("modification_details is not applicable")
-        if (
-            not _matches({'op': 'eq', 'value': 'other'}, self.field_devices)
-            and not _missing(self.field_device_other_name)
-        ):
-            raise ValueError("field_device_other_name is not applicable")
         return self
 
 
@@ -1364,7 +1112,7 @@ def validate_v2_module_payload(
     model = V2_MODULE_PAYLOAD_MODELS.get(module_key)
     if model is None:
         raise ValueError(f"Unsupported cvd_v2 module: {module_key}")
-    return model.model_validate(_normalize_payload(payload_json)).model_dump(
+    return model.model_validate(payload_json).model_dump(
         mode="json", exclude_none=False
     )
 

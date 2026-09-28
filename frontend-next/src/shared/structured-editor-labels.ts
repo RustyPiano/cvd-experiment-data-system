@@ -1,16 +1,10 @@
 import type { TFunction } from 'i18next'
 
 import type { TemperatureSensorsEditorLabels } from '@/features/entity-library/temperature-sensors-editor'
-import type { GasFeedsEditorLabels } from '@/features/experiments-v2/components/gas-feeds-editor'
 import type {
-  CoolingParamsEditorLabels,
-  DurationCyclesEditorLabels,
   FieldParamsEditorLabels,
-  MeasuredTemperatureEditorLabels,
   NamedParameterEditorLabels,
-  PreparationOperationsEditorLabels,
 } from '@/features/experiments-v2/components/process-detail-editors'
-import type { TemperatureProgramEditorLabels } from '@/features/experiments-v2/components/temperature-program-editor'
 import type { TreatmentStepsEditorLabels } from '@/features/experiments-v2/components/treatment-steps-editor'
 
 function buildNamedParameterEditorLabels(
@@ -127,7 +121,6 @@ export function buildTreatmentStepsEditorLabels(
       rinse: t('structuredEditors.treatmentSteps.options.rinse'),
       wipe: t('structuredEditors.treatmentSteps.options.wipe'),
       other: t('structuredEditors.treatmentSteps.options.other'),
-      not_recorded: t('structuredEditors.treatmentSteps.options.not_recorded'),
     },
     types: {
       direct_load: t('structuredEditors.treatmentSteps.types.direct_load'),
@@ -208,173 +201,6 @@ export function buildTreatmentStepsEditorLabels(
   }
 }
 
-export function buildTemperatureProgramEditorLabels(
-  t: TFunction,
-): TemperatureProgramEditorLabels {
-  return {
-    zone: (position) =>
-      t('structuredEditors.temperatureProgram.zone', { position }),
-    addPoint: t('structuredEditors.temperatureProgram.addPoint'),
-    point: (position) =>
-      t('structuredEditors.temperatureProgram.point', { position }),
-    elapsedMinutes: t('structuredEditors.temperatureProgram.elapsedMinutes'),
-    setpointCelsius: t('structuredEditors.temperatureProgram.setpointCelsius'),
-    removePoint: t('structuredEditors.temperatureProgram.removePoint'),
-    moveUp: t('structuredEditors.temperatureProgram.moveUp'),
-    moveDown: t('structuredEditors.temperatureProgram.moveDown'),
-    selectSetupFirst: t(
-      'structuredEditors.temperatureProgram.selectSetupFirst',
-    ),
-  }
-}
-
-export function buildGasFeedsEditorLabels(t: TFunction): GasFeedsEditorLabels {
-  return {
-    addFeed: t('structuredEditors.gasFeeds.addFeed'),
-    feed: (position) => t('structuredEditors.gasFeeds.feed', { position }),
-    species: t('structuredEditors.gasFeeds.species'),
-    selectSpecies: t('structuredEditors.gasFeeds.selectSpecies'),
-    speciesOptions: {
-      Ar: t('structuredEditors.gasFeeds.speciesOptions.Ar'),
-      N2: t('structuredEditors.gasFeeds.speciesOptions.N2'),
-      H2: t('structuredEditors.gasFeeds.speciesOptions.H2'),
-      O2: t('structuredEditors.gasFeeds.speciesOptions.O2'),
-      He: t('structuredEditors.gasFeeds.speciesOptions.He'),
-      CH4: t('structuredEditors.gasFeeds.speciesOptions.CH4'),
-      H2S: t('structuredEditors.gasFeeds.speciesOptions.H2S'),
-      NH3: t('structuredEditors.gasFeeds.speciesOptions.NH3'),
-      CO2: t('structuredEditors.gasFeeds.speciesOptions.CO2'),
-      other: t('structuredEditors.gasFeeds.speciesOptions.other'),
-    },
-    otherGasName: t('structuredEditors.gasFeeds.otherGasName'),
-    lotReference: t('structuredEditors.gasFeeds.lotReference'),
-    purity: t('structuredEditors.gasFeeds.purity'),
-    measurementSource: t('structuredEditors.gasFeeds.measurementSource'),
-    selectMeasurementSource: t(
-      'structuredEditors.gasFeeds.selectMeasurementSource',
-    ),
-    measurementSourceOptions: {
-      mfc: t('structuredEditors.gasFeeds.measurementSourceOptions.mfc'),
-      rotameter: t(
-        'structuredEditors.gasFeeds.measurementSourceOptions.rotameter',
-      ),
-      other: t('structuredEditors.gasFeeds.measurementSourceOptions.other'),
-    },
-    otherMeasurementSource: t(
-      'structuredEditors.gasFeeds.otherMeasurementSource',
-    ),
-    addInterval: t('structuredEditors.gasFeeds.addInterval'),
-    interval: (position) =>
-      t('structuredEditors.gasFeeds.interval', { position }),
-    startMinutes: t('structuredEditors.gasFeeds.startMinutes'),
-    endMinutes: t('structuredEditors.gasFeeds.endMinutes'),
-    flowSccm: t('structuredEditors.gasFeeds.flowSccm'),
-    removeFeed: t('structuredEditors.gasFeeds.removeFeed'),
-    removeInterval: t('structuredEditors.gasFeeds.removeInterval'),
-    moveUp: t('structuredEditors.gasFeeds.moveUp'),
-    moveDown: t('structuredEditors.gasFeeds.moveDown'),
-    flowShareTitle: t('structuredEditors.gasFeeds.flowShareTitle'),
-    flowShareDescription: t('structuredEditors.gasFeeds.flowShareDescription'),
-    flowShareInterval: t('structuredEditors.gasFeeds.flowShareInterval'),
-    flowShareComposition: t('structuredEditors.gasFeeds.flowShareComposition'),
-  }
-}
-
-export function buildPreparationOperationsEditorLabels(
-  t: TFunction,
-): PreparationOperationsEditorLabels {
-  return {
-    addOperation: t('structuredEditors.preparationOperations.addOperation'),
-    operation: (position) =>
-      t('structuredEditors.preparationOperations.operation', { position }),
-    operationType: t('structuredEditors.preparationOperations.operationType'),
-    selectOperationType: t(
-      'structuredEditors.preparationOperations.selectOperationType',
-    ),
-    operationTypes: {
-      pump_down: t(
-        'structuredEditors.preparationOperations.operationTypes.pump_down',
-      ),
-      gas_exchange: t(
-        'structuredEditors.preparationOperations.operationTypes.gas_exchange',
-      ),
-      other: t('structuredEditors.preparationOperations.operationTypes.other'),
-    },
-    moveUp: t('structuredEditors.preparationOperations.moveUp'),
-    moveDown: t('structuredEditors.preparationOperations.moveDown'),
-    removeOperation: t(
-      'structuredEditors.preparationOperations.removeOperation',
-    ),
-    targetAbsolutePressurePa: t(
-      'structuredEditors.preparationOperations.targetAbsolutePressurePa',
-    ),
-    durationMinutes: t(
-      'structuredEditors.preparationOperations.durationMinutes',
-    ),
-    cycleCount: t('structuredEditors.preparationOperations.cycleCount'),
-    addGas: t('structuredEditors.preparationOperations.addGas'),
-    gas: (position) =>
-      t('structuredEditors.preparationOperations.gas', { position }),
-    species: t('structuredEditors.preparationOperations.species'),
-    selectSpecies: t('structuredEditors.preparationOperations.selectSpecies'),
-    speciesOptions: {
-      Ar: t('structuredEditors.gasFeeds.speciesOptions.Ar'),
-      N2: t('structuredEditors.gasFeeds.speciesOptions.N2'),
-      H2: t('structuredEditors.gasFeeds.speciesOptions.H2'),
-      O2: t('structuredEditors.gasFeeds.speciesOptions.O2'),
-      CH4: t('structuredEditors.gasFeeds.speciesOptions.CH4'),
-      other: t('structuredEditors.gasFeeds.speciesOptions.other'),
-    },
-    otherGasName: t('structuredEditors.preparationOperations.otherGasName'),
-    gasCylinderLot: t('structuredEditors.preparationOperations.gasCylinderLot'),
-    purity: t('structuredEditors.gasFeeds.purity'),
-    flowSccm: t('structuredEditors.preparationOperations.flowSccm'),
-    removeGas: t('structuredEditors.preparationOperations.removeGas'),
-    otherOperationName: t(
-      'structuredEditors.preparationOperations.otherOperationName',
-    ),
-    parameters: buildNamedParameterEditorLabels(t),
-  }
-}
-
-export function buildDurationCyclesEditorLabels(
-  t: TFunction,
-): DurationCyclesEditorLabels {
-  return {
-    durationMinutes: t('structuredEditors.durationCycles.durationMinutes'),
-  }
-}
-
-export function buildCoolingParamsEditorLabels(
-  t: TFunction,
-): CoolingParamsEditorLabels {
-  return {
-    method: t('structuredEditors.coolingParams.method'),
-    selectMethod: t('structuredEditors.coolingParams.selectMethod'),
-    methods: {
-      furnace_cooling: t(
-        'structuredEditors.coolingParams.methods.furnace_cooling',
-      ),
-      open_lid_cooling: t(
-        'structuredEditors.coolingParams.methods.open_lid_cooling',
-      ),
-      rapid_furnace_move_cooling: t(
-        'structuredEditors.coolingParams.methods.rapid_furnace_move_cooling',
-      ),
-      controlled_cooling: t(
-        'structuredEditors.coolingParams.methods.controlled_cooling',
-      ),
-      other: t('structuredEditors.coolingParams.methods.other'),
-    },
-    lidOpenTemperatureC: t(
-      'structuredEditors.coolingParams.lidOpenTemperatureC',
-    ),
-    coolingRateCPerMin: t('structuredEditors.coolingParams.coolingRateCPerMin'),
-    otherMethod: t('structuredEditors.coolingParams.otherMethod'),
-    clear: t('structuredEditors.coolingParams.clear'),
-  }
-}
-
 export function buildFieldParamsEditorLabels(
   t: TFunction,
   otherFieldName?: string,
@@ -448,24 +274,6 @@ export function buildFieldParamsEditorLabels(
     },
     otherParameters: t('structuredEditors.fieldParams.otherParameters'),
     parameters: buildNamedParameterEditorLabels(t),
-  }
-}
-
-export function buildMeasuredTemperatureEditorLabels(
-  t: TFunction,
-): MeasuredTemperatureEditorLabels {
-  return {
-    files: t('structuredEditors.measuredTemperature.files'),
-    file: t('structuredEditors.measuredTemperature.file'),
-    selectFile: t('structuredEditors.measuredTemperature.selectFile'),
-    clearFile: t('structuredEditors.measuredTemperature.clearFile'),
-    timeColumn: t('structuredEditors.measuredTemperature.timeColumn'),
-    addChannel: t('structuredEditors.measuredTemperature.addChannel'),
-    channel: (position) =>
-      t('structuredEditors.measuredTemperature.channel', { position }),
-    zoneIndex: t('structuredEditors.measuredTemperature.zoneIndex'),
-    columnName: t('structuredEditors.measuredTemperature.columnName'),
-    removeChannel: t('structuredEditors.measuredTemperature.removeChannel'),
   }
 }
 

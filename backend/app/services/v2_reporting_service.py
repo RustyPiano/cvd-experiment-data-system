@@ -26,14 +26,12 @@ from app.models.sample import Sample
 from app.models.scientific import (
     AnalysisRun,
     DataDerivationEdge,
-    MaterialAssertion,
     ProcessChannel,
     PropertyValue,
     RunContributor,
     RunFeature,
     RunRevision,
     SampleRevisionAssociation,
-    SampleRevisionState,
     SourceLoad,
     SourceLoadIngredient,
     TransformationInput,
@@ -41,25 +39,15 @@ from app.models.scientific import (
     TransformationRun,
 )
 from app.models.user import User
-from app.models.v2_results import CharacterizationRecord, MeasuredProduct
+from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
-from app.schemas.scientific import (
-    normalize_process_event_for_read,
-    normalize_process_preparation_for_read,
-    normalize_source_loads_for_read,
-)
-from app.services.experiment_guards import get_owned_experiment, get_visible_experiment
+from app.services.experiment_guards import get_visible_experiment
 from app.services.sample_service import sample_revision_snapshot
-from app.services.v2_entity_snapshot_service import effective_run_module_payloads
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
-    canonical_option_value,
-    canonicalize_controlled_values,
     load_field_source,
     payload_fields_by_module,
 )
-
-LEGACY_BACKFILL_REASON = "Backfilled from production revision 20260728_0002"
 
 
 def _iso(value: date | datetime | None) -> str:
@@ -80,12 +68,12 @@ def _cell(value: Any) -> Any:
     return value
 
 
-def _walk_nested_leaves(value: Any, path: str = "") -> list[tuple[str, Any]]:
+def _nested_leaves(value: Any, path: str = "") -> list[tuple[str, Any]]:
     if isinstance(value, dict):
         leaves = [
             leaf
             for key in sorted(value)
-            for leaf in _walk_nested_leaves(
+            for leaf in _nested_leaves(
                 value[key],
                 f"{path}.{key}" if path else str(key),
             )
@@ -95,15 +83,10 @@ def _walk_nested_leaves(value: Any, path: str = "") -> list[tuple[str, Any]]:
         leaves = [
             leaf
             for index, item in enumerate(value)
-            for leaf in _walk_nested_leaves(item, f"{path}[{index}]")
+            for leaf in _nested_leaves(item, f"{path}[{index}]")
         ]
         return leaves or [(path, "")]
     return [(path, value)]
-
-
-def _nested_leaves(value: Any, path: str = "") -> list[tuple[str, Any]]:
-    """Flatten export details only after recursively normalizing controlled values."""
-    return _walk_nested_leaves(canonicalize_controlled_values(value), path)
 
 
 def _relational_rows(
@@ -141,19 +124,9 @@ def _relational_rows(
 
 def _result_rows(
     base: dict[str, Any],
-    observed_phenomena: list[str] | None,
     details: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    rows = [
-        {
-            **base,
-            "observed_phenomenon": phenomenon,
-            "detail_scope": "",
-            "detail_path": "",
-            "detail_value": "",
-        }
-        for phenomenon in observed_phenomena or []
-    ]
+    rows = []
     for scope, value in details.items():
         if value is None or value == {} or value == []:
             continue
@@ -161,7 +134,6 @@ def _result_rows(
         rows.extend(
             {
                 **base,
-                "observed_phenomenon": "",
                 "detail_scope": scope,
                 "detail_path": path,
                 "detail_value": leaf,
@@ -171,81 +143,11 @@ def _result_rows(
     return rows or [
         {
             **base,
-            "observed_phenomenon": "",
             "detail_scope": "",
             "detail_path": "",
             "detail_value": "",
         }
     ]
-
-
-def derive_gas_flow_shares(gas_feeds: Any) -> list[dict[str, Any]]:
-    """Slice gas feeds at every boundary and derive per-feed flow shares."""
-    if not isinstance(gas_feeds, list):
-        return []
-
-    valid_intervals: list[tuple[int, dict[str, Any], float, float, float]] = []
-    boundaries: set[float] = set()
-    for feed_index, feed in enumerate(gas_feeds, 1):
-        if not isinstance(feed, dict):
-            continue
-        for interval in feed.get("intervals") or []:
-            if not isinstance(interval, dict):
-                continue
-            start = interval.get("start_min")
-            end = interval.get("end_min")
-            flow = interval.get("flow_sccm")
-            if not all(
-                isinstance(value, (int, float))
-                and not isinstance(value, bool)
-                and math.isfinite(value)
-                for value in (start, end, flow)
-            ):
-                continue
-            start_value, end_value, flow_value = float(start), float(end), float(flow)
-            if start_value < 0 or end_value <= start_value or flow_value < 0:
-                continue
-            boundaries.update((start_value, end_value))
-            valid_intervals.append((feed_index, feed, start_value, end_value, flow_value))
-
-    rows: list[dict[str, Any]] = []
-    ordered = sorted(boundaries)
-    segment_index = 0
-    for start, end in zip(ordered, ordered[1:], strict=False):
-        if end <= start:
-            continue
-        flows: dict[int, float] = {}
-        feeds: dict[int, dict[str, Any]] = {}
-        for feed_index, feed, interval_start, interval_end, flow in valid_intervals:
-            if interval_start <= start and interval_end >= end and flow > 0:
-                flows[feed_index] = flows.get(feed_index, 0.0) + flow
-                feeds[feed_index] = feed
-        total = sum(flows.values())
-        if total <= 0:
-            continue
-        segment_index += 1
-        for feed_index in sorted(flows):
-            feed = feeds[feed_index]
-            reference = feed.get("lot_ref")
-            reference = reference if isinstance(reference, dict) else {}
-            species = str(feed.get("species") or "")
-            gas = str(feed.get("other_name") or "").strip() if species == "other" else species
-            flow = flows[feed_index]
-            rows.append(
-                {
-                    "interval_index": segment_index,
-                    "interval_start_min": start,
-                    "interval_end_min": end,
-                    "gas_feed_index": feed_index,
-                    "gas": gas,
-                    "gas_lot_entity_id": str(reference.get("entity_id") or ""),
-                    "gas_lot_version": reference.get("version") or "",
-                    "flow_sccm": flow,
-                    "total_flow_sccm": total,
-                    "flow_percent": flow / total * 100,
-                }
-            )
-    return rows
 
 
 class V2ReportingService:
@@ -287,56 +189,6 @@ class V2ReportingService:
             indent=2,
         ).encode("utf-8")
         return content, f"{run.run_code}-r{revision.revision_number}.json"
-
-    def export_draft_json(
-        self,
-        run_id: UUID,
-        current_user: User,
-    ) -> tuple[bytes, str]:
-        run = get_owned_experiment(
-            self.experiments,
-            run_id,
-            current_user,
-            schema_version=SCHEMA_VERSION,
-        )
-        if run.status != ExperimentStatus.DRAFT:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Only drafts have a working-copy export",
-            )
-        modules = canonicalize_controlled_values(effective_run_module_payloads(run))
-        if "precursors" in modules:
-            modules["precursors"] = normalize_source_loads_for_read(modules["precursors"])
-        if "process_steps" in modules:
-            modules["process_steps"] = normalize_process_preparation_for_read(
-                modules["process_steps"]
-            )
-        if "process_events" in modules:
-            modules["process_events"]["items"] = [
-                normalize_process_event_for_read(item)
-                for item in modules["process_events"].get("items", [])
-            ]
-        bundle = {
-            "export_kind": "draft_working_copy",
-            "citation_status": "NON_CITABLE",
-            "schema_version": SCHEMA_VERSION,
-            "exported_at": datetime.now(UTC).isoformat(),
-            "run": {
-                "id": str(run.id),
-                "run_code": run.run_code,
-                "status": run.status.value,
-                "based_on_revision_id": (
-                    str(run.draft_supersedes_revision_id)
-                    if run.draft_supersedes_revision_id
-                    else None
-                ),
-            },
-            "modules": modules,
-        }
-        return (
-            json.dumps(bundle, ensure_ascii=False, indent=2).encode("utf-8"),
-            f"{run.run_code}-DRAFT-NON-CITABLE.json",
-        )
 
     def export_runs_zip(
         self,
@@ -452,17 +304,6 @@ class V2ReportingService:
                     "empty list, and empty object."
                 ),
             },
-            "derived_tables": {
-                "gas_flow_shares.csv": {
-                    "source": "records.json $.runs[*].modules.process_steps.items[*].gas_feeds",
-                    "reconstruction_key": [
-                        "experiment_id",
-                        "process_step_index",
-                        "interval_index",
-                        "gas_feed_index",
-                    ],
-                }
-            },
         }
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -547,11 +388,10 @@ class V2ReportingService:
         return revision
 
     def _run_bundle(self, run: ExperimentRun, revision: RunRevision) -> dict[str, Any]:
-        modules = self._export_modules(revision)
+        modules = revision.content_json["modules"]
         records = self._records(run.id, revision.id)
         samples = self._samples_for_revision(run.id, revision.id, records)
-        products = self._products(samples, records, revision)
-        files = self._files_for_revision(run.id, revision, records, products)
+        files = self._files_for_revision(run.id, revision, records)
 
         bundle = {
             "export_kind": "immutable_run_revision",
@@ -574,26 +414,7 @@ class V2ReportingService:
                 files,
             ),
         }
-        return canonicalize_controlled_values(bundle)
-
-    @staticmethod
-    def _export_modules(revision: RunRevision) -> dict[str, dict[str, Any]]:
-        modules = {
-            module_key: canonicalize_controlled_values(payload)
-            for module_key, payload in revision.content_json["modules"].items()
-        }
-        if "precursors" in modules:
-            modules["precursors"] = normalize_source_loads_for_read(modules["precursors"])
-        if "process_steps" in modules:
-            modules["process_steps"] = normalize_process_preparation_for_read(
-                modules["process_steps"]
-            )
-        if "process_events" in modules:
-            modules["process_events"]["items"] = [
-                normalize_process_event_for_read(item)
-                for item in modules["process_events"].get("items", [])
-            ]
-        return modules
+        return bundle
 
     def _scientific_json(
         self,
@@ -603,7 +424,6 @@ class V2ReportingService:
         records: list[CharacterizationRecord],
         files: list[FileAsset],
     ) -> dict[str, Any]:
-        legacy_products = self._products(samples, records, revision)
         revisions = [revision]
         revision_ids = [item.id for item in revisions]
         record_ids = [item.id for item in records if item.run_revision_id is not None]
@@ -679,27 +499,9 @@ class V2ReportingService:
             if record_ids
             else []
         )
-        assertions = (
-            list(
-                self.db.scalars(
-                    select(MaterialAssertion)
-                    .where(MaterialAssertion.measurement_run_id.in_(record_ids))
-                    .order_by(
-                        MaterialAssertion.measurement_run_id,
-                        MaterialAssertion.created_at,
-                        MaterialAssertion.id,
-                    )
-                )
-            )
-            if record_ids
-            else []
-        )
         properties_by_measurement: dict[UUID, list[PropertyValue]] = {}
-        assertions_by_measurement: dict[UUID, list[MaterialAssertion]] = {}
         for item in properties:
             properties_by_measurement.setdefault(item.measurement_run_id, []).append(item)
-        for item in assertions:
-            assertions_by_measurement.setdefault(item.measurement_run_id, []).append(item)
 
         transformation_ids_for_revision = set(
             self.db.scalars(
@@ -787,15 +589,6 @@ class V2ReportingService:
         sample_snapshots = {
             item.sample_id: item.sample_snapshot_json for item in sample_associations
         }
-        sample_states = list(
-            self.db.scalars(
-                select(SampleRevisionState)
-                .where(SampleRevisionState.run_revision_id == revision.id)
-                .order_by(SampleRevisionState.sample_id)
-            )
-        )
-        sample_states_by_id = {item.sample_id: item for item in sample_states}
-
         return {
             "schema_release": {
                 "version": SCHEMA_VERSION,
@@ -872,11 +665,6 @@ class V2ReportingService:
                     "id": str(item.id),
                     "run_revision_id": str(item.run_revision_id),
                     "load_key": item.load_key,
-                    "container_instance_id": (
-                        str(item.container_instance_id) if item.container_instance_id else None
-                    ),
-                    "container_snapshot": item.container_snapshot_json,
-                    "container_state_at_loading": item.container_state_at_loading,
                     "loading_method": item.loading_method,
                     "preparation_steps": item.preparation_steps,
                     "initial_position": item.initial_position,
@@ -889,7 +677,6 @@ class V2ReportingService:
                             "material_lot_id": str(ingredient.material_lot_id),
                             "material_lot_version": ingredient.material_lot_version,
                             "material_snapshot": ingredient.material_snapshot_json,
-                            "function_role": ingredient.function_role,
                             "amount": ingredient.amount,
                             "unit": ingredient.unit,
                             "concentration_value": ingredient.concentration_value,
@@ -913,25 +700,8 @@ class V2ReportingService:
                 }
                 for item in sample_associations
             ],
-            "sample_revision_states": [
-                {
-                    "sample_id": str(item.sample_id),
-                    "run_revision_id": str(item.run_revision_id),
-                    "growth_state": item.growth_state,
-                    "identity_state": item.identity_state,
-                    "material_summary": item.material_summary,
-                    "evidence_assertion_ids": item.evidence_assertion_ids,
-                    "updated_at": _iso(item.updated_at),
-                }
-                for item in sample_states
-            ],
             "samples": [
-                self._sample_json(
-                    sample,
-                    sample_snapshots.get(sample.id),
-                    sample_states_by_id.get(sample.id),
-                )
-                for sample in samples
+                self._sample_json(sample, sample_snapshots.get(sample.id)) for sample in samples
             ],
             "process_channels": [
                 {
@@ -1053,50 +823,9 @@ class V2ReportingService:
                         }
                         for item in properties_by_measurement.get(record.id, [])
                     ],
-                    "assertions": [
-                        {
-                            "id": str(item.id),
-                            "measurement_run_id": str(item.measurement_run_id),
-                            "sample_id": str(item.sample_id),
-                            "analysis_run_id": (
-                                str(item.analysis_run_id) if item.analysis_run_id else None
-                            ),
-                            "assertion_type": item.assertion_type,
-                            "value": item.value_json,
-                            "confidence": item.confidence,
-                            "validity": item.validity,
-                            "created_at": _iso(item.created_at),
-                        }
-                        for item in assertions_by_measurement.get(record.id, [])
-                    ],
                 }
                 for record in records
                 if record.run_revision_id is not None
-            ],
-            "legacy_measured_products": [
-                {
-                    "id": str(product.id),
-                    "sample_id": str(product.sample_id),
-                    "sample_code": sample_codes.get(product.sample_id),
-                    "characterization_record_id": (
-                        str(product.characterization_record_id)
-                        if product.characterization_record_id
-                        else None
-                    ),
-                    "observed_phenomena": product.observed_phenomena,
-                    "detected_phase_stacking": product.detected_phase_stacking,
-                    "layer_count": product.layer_count,
-                    "coverage_percent": product.coverage_percent,
-                    "domain_size_um": product.domain_size_um,
-                    "nucleation_density_cm2": product.nucleation_density_cm2,
-                    "measured_layers_coverage": product.measured_layers_coverage,
-                    "domain_nucleation_continuity": product.domain_nucleation_continuity,
-                    "key_spectral_metrics": product.key_spectral_metrics,
-                    "attrs": product.attrs,
-                    "created_at": _iso(product.created_at),
-                    "updated_at": _iso(product.updated_at),
-                }
-                for product in legacy_products
             ],
             "transformations": [
                 {
@@ -1177,18 +906,16 @@ class V2ReportingService:
         sample_rows: list[dict[str, Any]] = []
         result_rows: list[dict[str, Any]] = []
         file_rows: list[dict[str, Any]] = []
-        gas_flow_share_rows: list[dict[str, Any]] = []
         revision_rows: list[dict[str, Any]] = []
         scientific_fact_rows: list[dict[str, Any]] = []
 
         for run in runs:
             revision = revisions[run.id]
-            modules = self._export_modules(revision)
+            modules = revision.content_json["modules"]
             operator = (modules.get("basic_info") or {}).get("operator") or run.owner_name
             records = self._records(run.id, revision.id)
             samples = self._samples_for_revision(run.id, revision.id, records)
-            products = self._products(samples, records, revision)
-            files = self._files_for_revision(run.id, revision, records, products)
+            files = self._files_for_revision(run.id, revision, records)
             scientific = self._scientific_json(
                 run,
                 revision,
@@ -1205,9 +932,7 @@ class V2ReportingService:
             }
             record_by_id = {record.id: record for record in records}
 
-            setup_snapshot = canonicalize_controlled_values(
-                revision.content_json["run"].get("setup_ref_snapshot") or {}
-            )
+            setup_snapshot = revision.content_json["run"].get("setup_ref_snapshot") or {}
             setup_attrs = setup_snapshot.get("attrs_snapshot")
             setup_leaves = (
                 _nested_leaves(setup_attrs) if isinstance(setup_attrs, (dict, list)) else []
@@ -1258,25 +983,6 @@ class V2ReportingService:
                 modules.get("process_steps"),
                 process_keys,
             )
-            for step_index, step in enumerate(
-                (modules.get("process_steps") or {}).get("items", []), 1
-            ):
-                if not isinstance(step, dict):
-                    continue
-                for row in derive_gas_flow_shares(step.get("gas_feeds")):
-                    relation_key = (
-                        f"{run.id}:process_steps:{step_index}:"
-                        f"{row['interval_index']}:{row['gas_feed_index']}"
-                    )
-                    gas_flow_share_rows.append(
-                        {
-                            "experiment_id": str(run.id),
-                            "run_code": run.run_code,
-                            "process_step_index": step_index,
-                            **row,
-                            "relation_key": relation_key,
-                        }
-                    )
             for module_key in (
                 "basic_info",
                 "target_product",
@@ -1320,9 +1026,6 @@ class V2ReportingService:
                             "export_revision_id": str(revision.id),
                             "run_revision_id": exported.get("run_revision_id") or "",
                             "target_material_system": sample.target_material_system,
-                            "actual_state": exported["actual_state"],
-                            "actual_material_summary": exported["actual_material_summary"],
-                            "identity_state": exported["identity_state"],
                             "lifecycle_state": exported["lifecycle_state"],
                             "current_carrier": exported["current_carrier"],
                             "control_subtype": exported["control_subtype"],
@@ -1336,7 +1039,7 @@ class V2ReportingService:
                         },
                         {
                             **{
-                                f"source_{key}": canonicalize_controlled_values(
+                                f"source_{key}": (
                                     exported.get("source_substrate_snapshot") or {}
                                 ).get(key, "")
                                 for key in substrate_keys
@@ -1374,62 +1077,12 @@ class V2ReportingService:
                     "path": path,
                     "value": value,
                 }
-                for path, value in _walk_nested_leaves(scientific)
+                for path, value in _nested_leaves(scientific)
             )
 
             result_codes_by_record: dict[UUID, list[str]] = {}
             per_sample_index: dict[UUID, int] = {}
-            for product in products:
-                sample = sample_by_id[product.sample_id]
-                per_sample_index[sample.id] = per_sample_index.get(sample.id, 0) + 1
-                result_code = f"{sample.sample_code}-R{per_sample_index[sample.id]:02d}"
-                record = (
-                    record_by_id.get(product.characterization_record_id)
-                    if product.characterization_record_id
-                    else None
-                )
-                result_row = {
-                    "run_code": run.run_code,
-                    "sample_code": sample.sample_code,
-                    "result_code": result_code,
-                    "kind": "characterization" if record else "direct_observation",
-                    "method": (canonical_option_value(record.method_instrument) if record else ""),
-                    "test_conditions": record.test_conditions if record else "",
-                    "detected_phase_stacking": product.detected_phase_stacking,
-                    "layer_count": product.layer_count,
-                    "coverage_percent": product.coverage_percent,
-                    "domain_size_um": product.domain_size_um,
-                    "nucleation_density_cm2": product.nucleation_density_cm2,
-                    "measured_layers_coverage": product.measured_layers_coverage,
-                    "domain_nucleation_continuity": product.domain_nucleation_continuity,
-                    "created_at": product.created_at,
-                }
-                result_rows.extend(
-                    _result_rows(
-                        result_row,
-                        (
-                            [canonical_option_value(value) for value in product.observed_phenomena]
-                            if product.observed_phenomena
-                            else product.observed_phenomena
-                        ),
-                        {
-                            "instrument_snapshot": (
-                                record.instrument_snapshot_json if record else None
-                            ),
-                            "raw_data": record.raw_data if record else None,
-                            "record_attrs": record.attrs if record else None,
-                            "key_spectral_metrics": product.key_spectral_metrics,
-                            "measurement_attrs": product.attrs,
-                        },
-                    )
-                )
-                if record:
-                    result_codes_by_record.setdefault(record.id, []).append(result_code)
-
-            linked_record_ids = set(result_codes_by_record)
             for record in records:
-                if record.id in linked_record_ids:
-                    continue
                 sample = sample_by_id[record.sample_id]
                 per_sample_index[sample.id] = per_sample_index.get(sample.id, 0) + 1
                 result_code = f"{sample.sample_code}-R{per_sample_index[sample.id]:02d}"
@@ -1441,18 +1094,10 @@ class V2ReportingService:
                             "sample_code": sample.sample_code,
                             "result_code": result_code,
                             "kind": "characterization",
-                            "method": canonical_option_value(record.method_instrument),
+                            "method": record.method_instrument,
                             "test_conditions": record.test_conditions,
-                            "detected_phase_stacking": "",
-                            "layer_count": "",
-                            "coverage_percent": "",
-                            "domain_size_um": "",
-                            "nucleation_density_cm2": "",
-                            "measured_layers_coverage": "",
-                            "domain_nucleation_continuity": "",
                             "created_at": record.created_at,
                         },
-                        None,
                         {
                             "instrument_snapshot": record.instrument_snapshot_json,
                             "raw_data": record.raw_data,
@@ -1487,10 +1132,9 @@ class V2ReportingService:
                         "binding_type": file.metadata_json.get("binding_type"),
                         "binding_id": file.metadata_json.get("binding_id"),
                         "filename": file.original_name,
-                        "method": canonical_option_value(file.method),
+                        "method": file.method,
                         "file_category": file.file_category,
                         "asset_role": file.asset_role,
-                        "file_kind": canonical_option_value(file.file_kind),
                         "note": file.note,
                         "content_type": file.content_type,
                         "size_bytes": file.size_bytes,
@@ -1580,25 +1224,6 @@ class V2ReportingService:
                 ],
                 process_rows,
             ),
-            "gas_flow_shares.csv": (
-                [
-                    "experiment_id",
-                    "run_code",
-                    "process_step_index",
-                    "interval_index",
-                    "interval_start_min",
-                    "interval_end_min",
-                    "gas_feed_index",
-                    "gas",
-                    "gas_lot_entity_id",
-                    "gas_lot_version",
-                    "flow_sccm",
-                    "total_flow_sccm",
-                    "flow_percent",
-                    "relation_key",
-                ],
-                gas_flow_share_rows,
-            ),
             "samples.csv": (
                 [
                     "sample_id",
@@ -1609,9 +1234,6 @@ class V2ReportingService:
                     "export_revision_id",
                     "run_revision_id",
                     "target_material_system",
-                    "actual_state",
-                    "actual_material_summary",
-                    "identity_state",
                     "lifecycle_state",
                     "current_carrier",
                     "control_subtype",
@@ -1637,14 +1259,6 @@ class V2ReportingService:
                     "kind",
                     "method",
                     "test_conditions",
-                    "observed_phenomenon",
-                    "detected_phase_stacking",
-                    "layer_count",
-                    "coverage_percent",
-                    "domain_size_um",
-                    "nucleation_density_cm2",
-                    "measured_layers_coverage",
-                    "domain_nucleation_continuity",
                     "detail_scope",
                     "detail_path",
                     "detail_value",
@@ -1667,7 +1281,6 @@ class V2ReportingService:
                     "method",
                     "file_category",
                     "asset_role",
-                    "file_kind",
                     "note",
                     "content_type",
                     "size_bytes",
@@ -1820,15 +1433,6 @@ class V2ReportingService:
         writer.writerows({key: _cell(value) for key, value in row.items()} for row in rows)
         return stream.getvalue().encode("utf-8-sig")
 
-    def _samples(self, run_id: UUID) -> list[Sample]:
-        return list(
-            self.db.scalars(
-                select(Sample)
-                .where(Sample.experiment_run_id == run_id)
-                .order_by(Sample.sample_code.asc())
-            )
-        )
-
     def _records(
         self,
         run_id: UUID,
@@ -1875,43 +1479,6 @@ class V2ReportingService:
             )
         )
 
-    def _products(
-        self,
-        samples: list[Sample],
-        records: list[CharacterizationRecord],
-        revision: RunRevision,
-    ) -> list[MeasuredProduct]:
-        sample_ids = [sample.id for sample in samples]
-        if not sample_ids:
-            return []
-        record_ids = [record.id for record in records]
-        revision_scope = []
-        if record_ids:
-            revision_scope.append(MeasuredProduct.characterization_record_id.in_(record_ids))
-        if revision.correction_reason == LEGACY_BACKFILL_REASON:
-            revision_scope.append(MeasuredProduct.characterization_record_id.is_(None))
-        if not revision_scope:
-            return []
-        return list(
-            self.db.scalars(
-                select(MeasuredProduct)
-                .where(
-                    MeasuredProduct.sample_id.in_(sample_ids),
-                    or_(*revision_scope),
-                )
-                .order_by(MeasuredProduct.created_at.asc(), MeasuredProduct.id.asc())
-            )
-        )
-
-    def _files(self, run_id: UUID) -> list[FileAsset]:
-        return list(
-            self.db.scalars(
-                select(FileAsset)
-                .where(FileAsset.experiment_run_id == run_id)
-                .order_by(FileAsset.created_at.asc(), FileAsset.id.asc())
-            )
-        )
-
     def _files_for_records(
         self,
         records: list[CharacterizationRecord],
@@ -1951,7 +1518,6 @@ class V2ReportingService:
         run_id: UUID,
         revision: RunRevision,
         records: list[CharacterizationRecord],
-        products: list[MeasuredProduct],
     ) -> list[FileAsset]:
         files = {file.id: file for file in self._files_for_records(records)}
         referenced_ids = {
@@ -1965,12 +1531,6 @@ class V2ReportingService:
             if file_id is not None
         }
         referenced_ids.update(self._payload_file_ids(revision.content_json.get("modules", {})))
-        for product in products:
-            for value in (product.attrs or {}).get("evidence_file_ids", []):
-                try:
-                    referenced_ids.add(UUID(str(value)))
-                except (TypeError, ValueError, AttributeError):
-                    continue
         if referenced_ids:
             files.update(
                 {
@@ -2009,76 +1569,6 @@ class V2ReportingService:
         return set()
 
     @staticmethod
-    def _result_json(
-        product: MeasuredProduct,
-        record: CharacterizationRecord | None,
-        files: list[FileAsset],
-    ) -> dict[str, Any]:
-        return {
-            "id": str(product.id),
-            "kind": "characterization" if record else "direct_observation",
-            "record": (V2ReportingService._record_json(record, files) if record else None),
-            "measurement": V2ReportingService._measurement_json(product),
-            "created_at": _iso(product.created_at),
-            "updated_at": _iso(product.updated_at),
-        }
-
-    @staticmethod
-    def _standalone_record_json(
-        record: CharacterizationRecord,
-        files: list[FileAsset],
-    ) -> dict[str, Any]:
-        return {
-            "id": str(record.id),
-            "kind": "characterization",
-            "record": V2ReportingService._record_json(record, files),
-            "measurement": None,
-            "created_at": _iso(record.created_at),
-            "updated_at": _iso(record.updated_at),
-        }
-
-    @staticmethod
-    def _record_json(
-        record: CharacterizationRecord,
-        files: list[FileAsset],
-    ) -> dict[str, Any]:
-        return {
-            "id": str(record.id),
-            "instrument_id": str(record.instrument_id) if record.instrument_id else None,
-            "instrument_version": record.instrument_version,
-            "instrument_snapshot": record.instrument_snapshot_json,
-            "method": canonical_option_value(record.method_instrument),
-            "test_conditions": record.test_conditions,
-            "raw_data": record.raw_data,
-            "attrs": record.attrs,
-            "created_at": _iso(record.created_at),
-            "updated_at": _iso(record.updated_at),
-            "files": [V2ReportingService._file_json(file) for file in files],
-        }
-
-    @staticmethod
-    def _measurement_json(product: MeasuredProduct) -> dict[str, Any]:
-        return {
-            "id": str(product.id),
-            "observed_phenomena": (
-                [canonical_option_value(value) for value in product.observed_phenomena]
-                if product.observed_phenomena
-                else product.observed_phenomena
-            ),
-            "detected_phase_stacking": product.detected_phase_stacking,
-            "layer_count": product.layer_count,
-            "coverage_percent": product.coverage_percent,
-            "domain_size_um": product.domain_size_um,
-            "nucleation_density_cm2": product.nucleation_density_cm2,
-            "measured_layers_coverage": product.measured_layers_coverage,
-            "domain_nucleation_continuity": product.domain_nucleation_continuity,
-            "key_spectral_metrics": product.key_spectral_metrics,
-            "attrs": product.attrs,
-            "created_at": _iso(product.created_at),
-            "updated_at": _iso(product.updated_at),
-        }
-
-    @staticmethod
     def _transformation_output_json(
         link: TransformationOutput,
         sample: Sample | None,
@@ -2101,23 +1591,9 @@ class V2ReportingService:
     def _sample_json(
         sample: Sample,
         revision_snapshot: dict[str, Any] | None,
-        revision_state: SampleRevisionState | None,
     ) -> dict[str, Any]:
         live = sample_revision_snapshot(sample)
         frozen = live | (revision_snapshot or {})
-        if revision_state is not None:
-            frozen.update(
-                {
-                    "actual_state": {
-                        "present": "growth_present",
-                        "absent": "no_growth",
-                        "uncertain": "uncertain",
-                        "unknown": "unknown",
-                    }[revision_state.growth_state],
-                    "identity_state": revision_state.identity_state,
-                    "actual_material_summary": revision_state.material_summary,
-                }
-            )
         return frozen | {
             "revision_snapshot": revision_snapshot,
             "live_state": live,
@@ -2133,10 +1609,9 @@ class V2ReportingService:
                 str(file.characterization_record_id) if file.characterization_record_id else None
             ),
             "filename": file.original_name,
-            "method": canonical_option_value(file.method),
+            "method": file.method,
             "file_category": file.file_category,
             "asset_role": file.asset_role,
-            "file_kind": canonical_option_value(file.file_kind),
             "note": file.note,
             "content_type": file.content_type,
             "size_bytes": file.size_bytes,

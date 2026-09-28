@@ -17,7 +17,6 @@ from app.models.user import User, UserRole
 from app.models.v2_entities import (
     Instrument,
     InstrumentCapability,
-    InstrumentLifecycleEvent,
     InstrumentVersion,
 )
 from app.models.v2_results import CharacterizationRecord
@@ -26,7 +25,6 @@ from app.schemas.scientific import (
     AnalysisRunCreate,
     DatasetFilter,
     DatasetQuery,
-    MaterialAssertionWrite,
     MeasurementBundleCreate,
     MeasurementConditions,
     MeasurementRunCreate,
@@ -52,7 +50,6 @@ client = TestClient(app)
         "radiation_source",
         "geometry",
         "sample_preparation",
-        "illumination_mode",
         "method_description",
     ],
 )
@@ -117,15 +114,6 @@ def test_process_channels_distinguish_physical_instances_and_normalize_gas() -> 
     timeline = ProcessTimelinePayload.model_validate(
         {
             "process_events_confirmed": False,
-            "segments": [
-                {
-                    "segment_key": "growth",
-                    "segment_type": "growth",
-                    "sequence": 1,
-                    "start_s": 0,
-                    "end_s": 60,
-                }
-            ],
             "channels": [
                 {
                     "channel_key": f"channel_{uuid4()}".replace("-", "_"),
@@ -184,6 +172,7 @@ def test_process_channels_distinguish_physical_instances_and_normalize_gas() -> 
                     for instance in ("valve-1", "valve-2")
                 ],
             ],
+            "process_duration_min": 1,
             "pressure_regime": "atmospheric",
             "cooling_method": "furnace_cooling",
         }
@@ -209,15 +198,6 @@ def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
         "series": [{"start_s": 0, "end_s": 3600, "value": 100}],
     }
     payload = {
-        "segments": [
-            {
-                "segment_key": "growth",
-                "segment_type": "growth",
-                "sequence": 1,
-                "start_s": 0,
-                "end_s": 3600,
-            }
-        ],
         "channels": [
             {
                 "channel_key": f"channel_{uuid4()}".replace("-", "_"),
@@ -236,6 +216,7 @@ def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
             },
             gas_channel,
         ],
+        "process_duration_min": 60,
         "pressure_regime": "atmospheric",
         "cooling_method": "furnace_cooling",
     }
@@ -290,20 +271,7 @@ def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
         )
 
 
-def test_measurement_contract_rejects_cross_method_properties_and_bad_composition() -> None:
-    with pytest.raises(ValueError, match="sum to one"):
-        MaterialAssertionWrite.model_validate(
-            {
-                "assertion_type": "composition",
-                "value": {
-                    "basis": "atomic_fraction",
-                    "components": [
-                        {"species": "Mo", "fraction": 0.8},
-                        {"species": "W", "fraction": 0.8},
-                    ],
-                },
-            }
-        )
+def test_measurement_contract_rejects_cross_method_properties() -> None:
     payload = {
         "measurement": {
             "sample_id": str(uuid4()),
@@ -330,9 +298,9 @@ def test_measurement_contract_rejects_cross_method_properties_and_bad_compositio
         },
         "properties": [
             {
-                "property_code": "raman_a1g_peak_position",
-                "numeric_value": 405,
-                "unit": "cm⁻¹",
+                "property_code": "tem_lattice_spacing",
+                "numeric_value": 0.27,
+                "unit": "nm",
             }
         ],
     }
@@ -383,66 +351,19 @@ def test_measurement_profiles_only_require_their_minimum_conditions() -> None:
     assert other.sample_region.geometry_type == "selected_area"
 
 
-def test_method_modes_gate_composition_and_power_is_structured() -> None:
-    with pytest.raises(ValueError, match="value and basis"):
-        MeasurementConditions(excitation_power_value=1)
-    assert (
-        MeasurementConditions(
-            excitation_power_value=1,
-            excitation_power_basis="sample_plane_mW",
-        ).excitation_power_basis
-        == "sample_plane_mW"
-    )
-
-    payload = {
-        "measurement": {
-            "sample_id": str(uuid4()),
-            "method_profile": "SEM",
-            "instrument_id": str(uuid4()),
-            "instrument_version": 1,
-            "measured_at": "2026-09-02T10:00:00+08:00",
-            "sample_region": {
-                "geometry_type": "point",
-                "label": "center",
-                "coordinate_system": "sample_local",
-            },
-            "typed_conditions": {
-                "accelerating_voltage_kV": 5,
-                "mode": "secondary_electron",
-            },
-            "raw_file_ids": [str(uuid4())],
-        },
-        "properties": [
-            {
-                "property_code": "elemental_composition",
-                "structured_value": {
-                    "basis": "atomic_fraction",
-                    "components": [{"species": "Mo", "fraction": 1}],
-                },
-            }
-        ],
-    }
-    with pytest.raises(ValueError, match="does not apply to mode"):
-        MeasurementBundleCreate.model_validate(payload)
-    payload["measurement"]["typed_conditions"]["mode"] = "EDS"
-    assert (
-        MeasurementBundleCreate.model_validate(payload).measurement.typed_conditions.mode == "EDS"
-    )
-
-
 def test_non_valid_properties_require_a_reason_and_aggregate_statistics_require_n() -> None:
     with pytest.raises(ValueError, match="quality note"):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=10,
-            unit="%",
+            unit="nm",
             quality_flag="suspect",
         )
     with pytest.raises(ValueError, match="sample_count"):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=10,
-            unit="%",
+            unit="nm",
             statistic="mean",
         )
 
@@ -461,7 +382,7 @@ def test_measurement_analysis_outputs_are_unique_and_acyclic() -> None:
             },
             "typed_conditions": {"observation_mode": "visual"},
         },
-        "properties": [{"property_code": "coverage_percent", "numeric_value": 10, "unit": "%"}],
+        "properties": [{"property_code": "observation_note", "text_value": "Recorded observation"}],
     }
     analysis = {
         "software_name": "ImageJ",
@@ -505,77 +426,34 @@ def test_analysis_cannot_start_before_its_measurement() -> None:
         MeasurementBundleCreate.model_validate(payload)
 
 
-def test_optical_measurement_does_not_require_growth_assertion() -> None:
-    bundle = MeasurementBundleCreate.model_validate(
-        {
-            "measurement": {
-                "sample_id": str(uuid4()),
-                "method_profile": "optical_microscopy",
-                "measured_at": "2026-07-29T10:00:00+08:00",
-                "sample_region": {
-                    "geometry_type": "whole_sample",
-                    "label": "whole sample",
-                    "coordinate_system": "sample_local",
-                },
-                "typed_conditions": {
-                    "observation_mode": "visual",
-                    "objective": "10x",
-                    "illumination_mode": "bright_field",
-                },
-            },
-            "properties": [
-                {
-                    "property_code": "coverage_percent",
-                    "numeric_value": 10,
-                    "unit": "%",
-                }
-            ],
-        }
-    )
-    assert bundle.assertions == []
-
-
 @pytest.mark.parametrize(
     ("property_code", "value"),
     [
-        ("coverage_percent", -0.1),
-        ("coverage_percent", 100.1),
-        ("domain_size_um", 0),
-        ("afm_rms_roughness", -0.1),
-        ("xrd_peak_2theta", 180.1),
+        ("afm_step_height", -0.1),
+        ("tem_lattice_spacing", 0),
     ],
 )
 def test_property_contract_enforces_code_specific_numeric_bounds(
     property_code: str,
     value: float,
 ) -> None:
-    unit = {
-        "coverage_percent": "%",
-        "domain_size_um": "μm",
-        "afm_rms_roughness": "nm",
-        "xrd_peak_2theta": "° 2θ",
-    }[property_code]
     with pytest.raises(ValueError):
-        PropertyValueWrite(
-            property_code=property_code,
-            numeric_value=value,
-            unit=unit,
-        )
+        PropertyValueWrite(property_code=property_code, numeric_value=value, unit="nm")
 
 
 def test_property_and_region_contract_reject_empty_or_wrongly_typed_evidence() -> None:
     with pytest.raises(ValueError, match="numeric value representation"):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             text_value="50",
         )
     with pytest.raises(ValueError, match="cannot be blank"):
         PropertyValueWrite(property_code="observation_note", text_value="   ")
     with pytest.raises(ValueError, match="cannot use a boolean"):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=True,
-            unit="%",
+            unit="nm",
         )
     with pytest.raises(ValueError, match="numeric detection threshold"):
         PropertyValueWrite(
@@ -585,9 +463,9 @@ def test_property_and_region_contract_reject_empty_or_wrongly_typed_evidence() -
         )
     assert (
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=5,
-            unit="%",
+            unit="nm",
             quality_flag="below_detection_limit",
             quality_note="instrument detection threshold",
         ).numeric_value
@@ -603,15 +481,6 @@ def test_property_and_region_contract_reject_empty_or_wrongly_typed_evidence() -
             unit="μm",
             image_file_id=uuid4(),
             pixel_roi={"x": -1, "y": 0, "width": 1, "height": 1},
-        )
-    assert MaterialAssertionWrite(
-        assertion_type="layer_count",
-        value={"count": 0},
-    ).value == {"count": 0}
-    with pytest.raises(ValueError):
-        MaterialAssertionWrite(
-            assertion_type="layer_count",
-            value={"count": True},
         )
     assert (
         SampleRegion(
@@ -694,9 +563,9 @@ def test_analysis_and_uncertainty_text_reject_blank_provenance() -> None:
         )
     with pytest.raises(ValueError):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=10,
-            unit="%",
+            unit="nm",
             uncertainty_value=1,
             uncertainty_type="   ",
         )
@@ -731,9 +600,9 @@ def test_measurement_integer_fields_fit_database_integer_columns() -> None:
         )
     with pytest.raises(ValueError):
         PropertyValueWrite(
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             numeric_value=10,
-            unit="%",
+            unit="nm",
             sample_count=10**100,
         )
 
@@ -778,39 +647,6 @@ def test_transformation_api_rejects_non_finite_json(active_user) -> None:
     assert response.status_code == 422, response.text
 
 
-def test_material_assertion_values_are_canonical_and_exact() -> None:
-    assert MaterialAssertionWrite(
-        assertion_type="phase_identity",
-        value={"phase": "  2H-MoS2  "},
-    ).value == {"phase": "2H-MoS2"}
-    assert MaterialAssertionWrite(
-        assertion_type="composition",
-        value={
-            "basis": "atomic_fraction",
-            "components": [
-                {"species": " W ", "fraction": 0.5},
-                {"species": "Mo", "fraction": 0.5},
-            ],
-        },
-    ).value == {
-        "basis": "atomic_fraction",
-        "components": [
-            {"species": "Mo", "fraction": 0.5},
-            {"species": "W", "fraction": 0.5},
-        ],
-    }
-    with pytest.raises(ValueError, match="requires exactly"):
-        MaterialAssertionWrite(
-            assertion_type="phase_identity",
-            value={"phase": "2H-MoS2", "note": "unbounded"},
-        )
-    with pytest.raises(ValueError, match="at most 256"):
-        MaterialAssertionWrite(
-            assertion_type="orientation_relationship",
-            value={"orientation_relationship": "x" * 257},
-        )
-
-
 @pytest.mark.parametrize(
     ("model", "payload"),
     [
@@ -841,9 +677,9 @@ def test_material_assertion_values_are_canonical_and_exact() -> None:
         (
             PropertyValueWrite,
             {
-                "property_code": "coverage_percent",
+                "property_code": "afm_step_height",
                 "numeric_value": 1,
-                "unit": "%",
+                "unit": "nm",
                 "uncertainty_value": True,
                 "uncertainty_type": "standard_deviation",
             },
@@ -851,34 +687,18 @@ def test_material_assertion_values_are_canonical_and_exact() -> None:
         (
             PropertyValueWrite,
             {
-                "property_code": "coverage_percent",
+                "property_code": "afm_step_height",
                 "numeric_value": 1,
-                "unit": "%",
+                "unit": "nm",
                 "sample_count": True,
             },
         ),
         (
             PropertyValueWrite,
             {
-                "property_code": "coverage_percent",
+                "property_code": "afm_step_height",
                 "numeric_value": 1,
-                "unit": "%",
-                "analysis_index": False,
-            },
-        ),
-        (
-            MaterialAssertionWrite,
-            {
-                "assertion_type": "phase_identity",
-                "value": {"phase": "2H-MoS2"},
-                "confidence": True,
-            },
-        ),
-        (
-            MaterialAssertionWrite,
-            {
-                "assertion_type": "phase_identity",
-                "value": {"phase": "2H-MoS2"},
+                "unit": "nm",
                 "analysis_index": False,
             },
         ),
@@ -893,11 +713,11 @@ def test_dataset_property_filters_only_accept_numeric_ssot_properties() -> None:
     assert (
         DatasetFilter(
             field="property",
-            property_code="coverage_percent",
+            property_code="afm_step_height",
             operator="gte",
             value=10,
         ).property_code
-        == "coverage_percent"
+        == "afm_step_height"
     )
     for invalid_code in ("layer_count", "observation_note"):
         with pytest.raises(ValueError, match="numeric property_code"):
@@ -925,7 +745,7 @@ def test_dataset_text_filters_are_trimmed_and_bounded() -> None:
 def test_dataset_numeric_filters_reject_unordered_or_non_finite_values(value: list) -> None:
     with pytest.raises(ValueError):
         DatasetFilter(
-            field="growth_duration_s",
+            field="max_temperature_setpoint_C",
             operator="between",
             value=value,
         )
@@ -933,7 +753,7 @@ def test_dataset_numeric_filters_reject_unordered_or_non_finite_values(value: li
 
 def test_dataset_cursor_is_bound_to_the_stable_query_manifest() -> None:
     payload = DatasetQuery(
-        filters=[DatasetFilter(field="growth_duration_s", operator="gte", value=1)],
+        filters=[DatasetFilter(field="max_temperature_setpoint_C", operator="gte", value=1)],
         limit=10,
     )
     query_sha256 = DatasetQueryService._query_sha256(payload)
@@ -995,12 +815,11 @@ def test_dataset_contains_treats_sql_wildcards_as_literal_text(
     [
         {
             "field": "property",
-            "property_code": "coverage_percent",
+            "property_code": "afm_step_height",
             "operator": "ne",
             "value": 10,
         },
-        {"field": "growth_duration_s", "operator": "ne", "value": 10},
-        {"field": "growth_presence", "operator": "ne", "value": "present"},
+        {"field": "max_temperature_measured_C", "operator": "ne", "value": 10},
     ],
 )
 def test_dataset_ne_excludes_missing_observations(
@@ -1096,9 +915,8 @@ def _optical_measurement(
         },
         "properties": [
             {
-                "property_code": "coverage_percent",
-                "numeric_value": 10,
-                "unit": "%",
+                "property_code": "observation_note",
+                "text_value": "Recorded observation",
                 "quality_flag": property_quality,
             }
         ],
@@ -1165,23 +983,6 @@ def test_measurement_api_rejects_below_detection_limit_for_text_property(
     )
 
     assert response.status_code == 422
-
-
-def test_new_measurements_reject_material_verdicts(
-    active_user,
-    db_session,
-) -> None:
-    _run, sample = _locked_sample(db_session, active_user, "10")
-    headers = _headers(active_user.email)
-
-    for state in ("  present  ", "present"):
-        payload = _optical_measurement(sample.id)
-        payload["assertions"] = [{"assertion_type": "growth_presence", "value": {"state": state}}]
-        response = client.post("/api/v1/measurements", json=payload, headers=headers)
-        assert response.status_code == 422, response.text
-
-    db_session.refresh(sample)
-    assert sample.actual_state == "unknown"
 
 
 def test_measurement_api_rejects_boolean_scientific_numbers(active_user, db_session) -> None:
@@ -1284,17 +1085,6 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     db_session.refresh(run)
     db_session.refresh(sample)
     assert run.not_characterized_at is not None
-    assert sample.actual_state == "unknown"
-
-    absent_query = {"filters": [{"field": "growth_presence", "operator": "eq", "value": "absent"}]}
-    assert (
-        client.post(
-            "/api/v1/datasets/query",
-            json=absent_query,
-            headers=headers,
-        ).json()["items"]
-        == []
-    )
 
     valid = client.post(
         "/api/v1/measurements",
@@ -1307,18 +1097,6 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     db_session.refresh(sample)
     assert run.not_characterized_at is None
     assert run.result_missing_todo is False
-    assert sample.actual_state == "unknown"
-    present_query = {
-        "filters": [{"field": "growth_presence", "operator": "eq", "value": "present"}]
-    }
-    assert [
-        item["run_id"]
-        for item in client.post(
-            "/api/v1/datasets/query",
-            json=present_query,
-            headers=headers,
-        ).json()["items"]
-    ] == []
 
     detail = client.get(
         f"/api/v1/measurements/{valid.json()['id']}",
@@ -1329,8 +1107,7 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     assert detail.json()["revision_number"] == 1
     assert detail.json()["can_invalidate"] is True
     assert detail.json()["performed_by_name"] == active_user.name
-    assert any(prop["property_code"] == "coverage_percent" for prop in detail.json()["properties"])
-    assert detail.json()["assertions"] == []
+    assert any(prop["property_code"] == "observation_note" for prop in detail.json()["properties"])
 
     observer = User(
         email="measurement-observer@example.com",
@@ -1368,15 +1145,6 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     db_session.refresh(run)
     db_session.refresh(sample)
     assert run.result_missing_todo is True
-    assert sample.actual_state == "unknown"
-    assert (
-        client.post(
-            "/api/v1/datasets/query",
-            json=present_query,
-            headers=headers,
-        ).json()["items"]
-        == []
-    )
     assert (
         db_session.query(AuditEvent)
         .filter_by(
@@ -1416,7 +1184,6 @@ def test_measurement_summary_accepts_observation_only(
     assert detail.status_code == 200, detail.text
     assert detail.json()["evidence_present"] is True
     assert detail.json()["property_count"] == 1
-    assert detail.json()["assertion_count"] == 0
     listed = client.get(f"/api/v1/measurements?run_id={run.id}", headers=headers)
     assert listed.status_code == 200, listed.text
     assert listed.json()["items"][0]["evidence_present"] is True
@@ -2070,7 +1837,7 @@ def test_dataset_property_filter_excludes_non_numeric_quality_states(
         "filters": [
             {
                 "field": "property",
-                "property_code": "coverage_percent",
+                "property_code": "afm_step_height",
                 "operator": "eq",
                 "value": 10,
             }
@@ -2079,17 +1846,6 @@ def test_dataset_property_filter_excludes_non_numeric_quality_states(
     excluded = client.post("/api/v1/datasets/query", json=query, headers=headers)
     assert excluded.status_code == 200, excluded.text
     assert excluded.json()["items"] == []
-
-    below_limit = client.post(
-        "/api/v1/measurements",
-        json=_optical_measurement(sample.id, property_quality="below_detection_limit"),
-        headers=headers,
-    )
-    assert below_limit.status_code == 201, below_limit.text
-    assert below_limit.json()["evidence_present"] is True
-    detection_limit_excluded = client.post("/api/v1/datasets/query", json=query, headers=headers)
-    assert detection_limit_excluded.status_code == 200, detection_limit_excluded.text
-    assert detection_limit_excluded.json()["items"] == []
 
     sample.lifecycle_state = "consumed"
     db_session.commit()
@@ -2234,150 +1990,6 @@ def test_transformation_acl_provenance_and_cross_run_lineage(
     assert still_visible.status_code == 200
 
 
-def test_raman_does_not_claim_an_unscoped_calibration_applies(active_user, db_session) -> None:
-    run, sample = _locked_sample(db_session, active_user, "03")
-    instrument = Instrument()
-    db_session.add(instrument)
-    db_session.flush()
-    version = InstrumentVersion(
-        entity_id=instrument.id,
-        version=1,
-        instrument_code="RAMAN-QA",
-        name_type="Raman",
-        attrs={},
-    )
-    db_session.add(version)
-    db_session.flush()
-    db_session.add(
-        InstrumentCapability(
-            instrument_version_id=version.id,
-            capability_code="Raman",
-            configuration_json={},
-        )
-    )
-    calibration = InstrumentLifecycleEvent(
-        instrument_id=instrument.id,
-        event_type="calibration",
-        occurred_at=datetime(2026, 7, 1, tzinfo=UTC),
-        valid_until=datetime(2027, 7, 1, tzinfo=UTC),
-        quantity="Raman shift",
-        correction=0.2,
-        expanded_uncertainty=0.5,
-        details_json={"reference": "silicon"},
-    )
-    db_session.add(calibration)
-    raw_file = FileAsset(
-        experiment_run_id=run.id,
-        sample_id=sample.id,
-        uploaded_by_id=active_user.id,
-        original_name="raman-spectrum.txt",
-        storage_path=f"test/{sample.id}_raman-spectrum.txt",
-        content_type="text/plain",
-        size_bytes=12,
-        sha256="b" * 64,
-        method="PL",
-        file_category="raw",
-        asset_role="characterization_file",
-        file_kind="spectrum",
-        metadata_json={},
-    )
-    db_session.add(raw_file)
-    db_session.commit()
-
-    payload = {
-        "measurement": {
-            "sample_id": str(sample.id),
-            "method_profile": "Raman",
-            "instrument_id": str(instrument.id),
-            "instrument_version": 1,
-            "measured_at": "2026-07-29T10:00:00+00:00",
-            "typed_conditions": {
-                "laser_wavelength_nm": 532,
-                "excitation_power_value": 1,
-                "excitation_power_basis": "sample_plane_mW",
-                "objective": "50x",
-                "integration_time_s": 5,
-                "accumulations": 3,
-            },
-            "raw_file_ids": [str(raw_file.id)],
-        },
-        "properties": [
-            {
-                "property_code": "spectral_peaks",
-                "structured_value": {
-                    "status": "recorded",
-                    "position_unit": "cm⁻¹",
-                    "intensity_unit": "counts",
-                    "source_file_id": str(raw_file.id),
-                    "peaks": [
-                        {"id": 1, "position": 384.2, "fwhm": 4.1},
-                        {"id": 2, "position": 405.6, "fwhm": 5.2},
-                    ],
-                },
-            }
-        ],
-        "assertions": [],
-    }
-    headers = _headers(active_user.email)
-    wrong_method = client.post(
-        "/api/v1/measurements",
-        json=payload,
-        headers=headers,
-    )
-    assert wrong_method.status_code == 422
-    raw_file.method = "Raman"
-    db_session.commit()
-
-    response = client.post(
-        "/api/v1/measurements",
-        json=payload,
-        headers=headers,
-    )
-    assert response.status_code == 201, response.text
-    duplicate = client.post(
-        "/api/v1/measurements",
-        json=payload,
-        headers=headers,
-    )
-    assert duplicate.status_code == 422
-    assert duplicate.json()["detail"] == "Raw data files are already linked to a measurement"
-    db_session.refresh(raw_file)
-    assert raw_file.characterization_record_id == UUID(response.json()["id"])
-    assert db_session.query(CharacterizationRecord).count() == 1
-    sample_response = client.get(
-        f"/api/v1/samples/{sample.id}",
-        headers=headers,
-    )
-    assert sample_response.status_code == 200
-    assert sample_response.json()["characterization_count"] == 1
-    snapshot = response.json()["instrument_snapshot_json"]["calibration_at_measurement"]
-    assert snapshot == {"validity_status": "not_recorded", "quantities": {}}
-    db_session.refresh(sample)
-    assert sample.actual_state == "unknown"
-    assert sample.identity_state == "unknown"
-    assert sample.actual_material_summary is None
-
-    detail = client.get(f"/api/v1/measurements/{response.json()['id']}", headers=headers)
-    assert detail.status_code == 200, detail.text
-    assert detail.json()["sample_region"] == {}
-    assert (
-        detail.json()["properties"][0]["structured_value"]
-        == payload["properties"][0]["structured_value"]
-    )
-    exported = client.get(
-        f"/api/v1/experiments/{run.id}/export",
-        params={"revision_id": str(run.current_revision_id)},
-        headers=headers,
-    )
-    assert exported.status_code == 200, exported.text
-    exported_measurement = exported.json()["scientific_record"]["measurements"][0]
-    assert (
-        exported_measurement["properties"][0]["structured_value"]
-        == payload["properties"][0]["structured_value"]
-    )
-    assert exported_measurement["assertions"] == []
-
-
 @pytest.mark.parametrize(
     "method,capability,conditions",
     [
@@ -2397,15 +2009,6 @@ def test_raman_does_not_claim_an_unscoped_calibration_applies(active_user, db_se
                 "polarization_reference": "实验室水平",
                 "measured_power_mW": 1.5,
                 "power_measurement_position": "before_objective",
-            },
-        ),
-        (
-            "Raman",
-            "low_frequency_raman",
-            {
-                "laser_wavelength_nm": 532,
-                "raman_shift_range_cm1": {"start": -50, "end": 500},
-                "filter_configuration": "ULF",
             },
         ),
     ],
@@ -2469,7 +2072,6 @@ def test_new_method_conditions_survive_save_detail_and_export(
     assert {
         key: value for key, value in detail.json()["typed_conditions"].items() if value is not None
     } == conditions
-    assert detail.json()["assertions"] == []
     exported = client.get(
         f"/api/v1/experiments/{run.id}/export",
         params={"revision_id": str(run.current_revision_id)},

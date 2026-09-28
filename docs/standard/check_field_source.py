@@ -4,7 +4,7 @@
 #
 # 校验三件事：
 #   1. 提交的 字段草案-v3.xlsx 与「由 field-source.yaml 重新渲染」逐格一致（防手改 xlsx / 防漂移）
-#   2. YAML 结构约束：必填级别词表封闭、条件必填必须带条件表达式、pending 字段必须有说明
+#   2. YAML 结构约束：必填级别词表封闭、条件必填必须带条件表达式
 #   3. 计数断言：字段数 / R0 数（防误删）
 # 用法：uv run --project backend python docs/standard/check_field_source.py
 # ============================================================================
@@ -34,8 +34,8 @@ KNOWN_LEVELS = {
     "conditional_required",
     "conditional_recommended",
 }
-EXPECTED_FIELDS = 126
-EXPECTED_ENTITY_FIELDS = 67
+EXPECTED_FIELDS = 100
+EXPECTED_ENTITY_FIELDS = 64
 EXPECTED_R0 = 26
 
 errors: list[str] = []
@@ -83,8 +83,6 @@ for profile_key, profile in (doc.get("characterization_profiles") or {}).items()
 KEY_RE = re.compile(r"^[a-z][a-zA-Z0-9_]*$")  # 单位后缀允许大写（_C 等，沿 v1 风格）
 modules_map = doc.get("modules", {})
 entity_keys = doc.get("entity_keys", {})
-stage_types = doc.get("stage_types", {})
-group_names = set((stage_types.get("groups") or {}).keys())
 ui_defaults = doc.get("field_ui_defaults") or {}
 for key in (
     "input_placeholder",
@@ -198,8 +196,6 @@ for part, scope_of in (
             f.get("options") or ""
         ).strip() in {"", "—"}:
             err(f"{where}: 下拉字段 options 必须非空且不能为 '—'")
-        if f.get("status") == "pending-alignment" and not f.get("pending"):
-            err(f"{where}: pending-alignment 缺少 pending 说明")
         validation = f.get("validation")
         if validation is not None:
             allowed_validation_keys = {
@@ -327,30 +323,6 @@ for part, scope_of in (
             if key in seen_keys.setdefault(scope, set()):
                 err(f"{where}: key {key!r} 在 {scope} 内重复")
             seen_keys[scope].add(key)
-        # D11: §5 字段必须有参数组
-        if part == "experiment_record" and scope == "process_steps":
-            if f.get("group") not in group_names:
-                err(
-                    f"{where}: process_steps 字段缺少合法 group（现值 {f.get('group')!r}）"
-                )
-
-# D11: stage_types 自洽——shows ⊆ 组名；required_extra ⊆ §5 字段键
-ps_keys = {
-    f["key"]
-    for f in iter_fields("experiment_record")
-    if modules_map.get(f["module"]) == "process_steps"
-}
-for t in stage_types.get("types", []):
-    bad = set(t.get("shows", [])) - group_names
-    if bad:
-        err(f"stage_types[{t.get('name')}]: 未知参数组 {sorted(bad)}")
-    bad = set(t.get("required_extra", [])) - ps_keys
-    if bad:
-        err(
-            f"stage_types[{t.get('name')}]: required_extra 引用不存在的字段键 {sorted(bad)}"
-        )
-if not stage_types.get("types"):
-    err("缺少 stage_types.types（§5 动态表单权威映射，D11）")
 
 # 科学合同：表征方法、属性单位和气体机器码必须自洽。
 properties = doc.get("characterization_properties") or {}
@@ -398,17 +370,6 @@ for property_code, definition in properties.items():
         and validation["min_length"] > validation["max_length"]
     ):
         err(f"{where}: validation.min_length 不得大于 validation.max_length")
-if "layer_count" in properties:
-    err("layer_count 只能作为 MaterialAssertion，不能同时作为 PropertyValue")
-known_assertions = {
-    "growth_presence",
-    "phase_identity",
-    "composition",
-    "polytype",
-    "stacking_order",
-    "orientation_relationship",
-    "layer_count",
-}
 component_keys = {
     "range": [{"min", "max"}, {"start", "end"}],
     "size": [{"x", "y"}, {"width", "height"}],
@@ -422,8 +383,6 @@ for profile_code, profile in (doc.get("characterization_profiles") or {}).items(
     allowed_properties = set(profile.get("allowed_property_codes") or [])
     if not set(profile.get("property_modes", {})) <= allowed_properties:
         err(f"characterization_profiles.{profile_code}: 模式约束包含不适用属性")
-    if profile.get("allowed_assertion_types"):
-        err(f"characterization_profiles.{profile_code}: 表征录入不接受材料判定")
     unknown_properties = allowed_properties - set(properties)
     if unknown_properties:
         err(
@@ -431,19 +390,6 @@ for profile_code, profile in (doc.get("characterization_profiles") or {}).items(
         )
     if not set(profile.get("default_property_codes") or []) <= allowed_properties:
         err(f"characterization_profiles.{profile_code}: 默认属性不属于允许属性")
-    if any(
-        properties[code].get("legacy_only")
-        for code in profile.get("default_property_codes", [])
-        if code in properties
-    ):
-        err(f"characterization_profiles.{profile_code}: 默认录入包含暂缓字段")
-    unknown_assertions = (
-        set(profile.get("allowed_assertion_types") or []) - known_assertions
-    )
-    if unknown_assertions:
-        err(
-            f"characterization_profiles.{profile_code}: 未知材料结论 {sorted(unknown_assertions)}"
-        )
     for field in condition_fields:
         value_type = field.get("value_type")
         components = field.get("components") or []

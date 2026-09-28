@@ -8,7 +8,6 @@ from app.core.config import get_settings
 from app.main import app
 from app.models.audit import AuditEvent
 from app.models.experiment import ExperimentRun, ExperimentStatus
-from app.models.file_asset import FileAsset
 from app.models.user import User, UserRole
 from app.repositories.experiment_repository import ExperimentRepository
 from app.services.file_storage_service import FileStorageService
@@ -209,20 +208,6 @@ def test_upload_file_rejects_unknown_method(active_user) -> None:
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Invalid file method"
-
-
-def test_upload_file_accepts_legacy_file_kind_alias(active_user) -> None:
-    experiment_id = create_experiment(active_user.email)
-
-    response = client.post(
-        f"/api/v1/experiments/{experiment_id}/files",
-        headers=auth_headers(active_user.email),
-        data={"file_kind": "Raman"},
-        files={"file": ("legacy.txt", b"legacy", "text/plain")},
-    )
-
-    assert response.status_code == 201
-    assert response.json()["method"] == "Raman"
 
 
 def test_upload_file_rejects_payloads_over_size_limit(active_user, monkeypatch) -> None:
@@ -522,40 +507,6 @@ def test_upload_file_allowed_on_locked_experiment(active_user, db_session) -> No
 
     assert response.status_code == 201
     assert response.json()["method"] == "Raman"
-
-
-def test_direct_observation_files_are_legacy_read_only(active_user, db_session) -> None:
-    experiment_id = create_experiment(active_user.email, objective="Legacy direct evidence")
-    sample_id = create_sample(experiment_id, active_user.email)
-    legacy = FileAsset(
-        experiment_run_id=UUID(experiment_id),
-        sample_id=UUID(sample_id),
-        uploaded_by_id=active_user.id,
-        original_name="legacy-observation.png",
-        storage_path=f"legacy/{experiment_id}/observation.png",
-        content_type="image/png",
-        size_bytes=6,
-        sha256="a" * 64,
-        method="direct_observation_file",
-        file_category="raw",
-        asset_role="direct_observation_file",
-        file_kind="direct_observation_file",
-        metadata_json={},
-    )
-    db_session.add(legacy)
-    db_session.commit()
-
-    headers = auth_headers(active_user.email)
-    assert client.get(f"/api/v1/files/{legacy.id}", headers=headers).status_code == 200
-    assert client.delete(f"/api/v1/files/{legacy.id}", headers=headers).status_code == 409
-
-    upload = client.post(
-        f"/api/v1/experiments/{experiment_id}/files",
-        headers=headers,
-        data={"asset_role": "direct_observation_file", "sample_id": sample_id},
-        files={"file": ("new.png", b"new", "image/png")},
-    )
-    assert upload.status_code == 410
 
 
 def test_deleted_file_keeps_storage_blob_for_soft_delete(active_user) -> None:

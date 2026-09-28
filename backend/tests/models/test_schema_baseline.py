@@ -5,7 +5,6 @@ from sqlalchemy import inspect
 from app.db.base import Base
 
 SCIENTIFIC_TABLES = {
-    "sample_revision_states",
     "run_revisions",
     "run_contributors",
     "target_specs",
@@ -13,7 +12,6 @@ SCIENTIFIC_TABLES = {
     "target_composition_relations",
     "source_loads",
     "source_load_ingredients",
-    "process_segments",
     "process_channels",
     "scientific_process_events",
     "transformation_runs",
@@ -21,7 +19,6 @@ SCIENTIFIC_TABLES = {
     "transformation_outputs",
     "analysis_runs",
     "property_values",
-    "material_assertions",
     "data_derivation_edges",
     "run_features",
 }
@@ -45,23 +42,8 @@ def test_migrations_build_the_current_scientific_schema(db_session) -> None:
     sample_columns = {column["name"] for column in inspector.get_columns("samples")}
     assert {
         "run_revision_id",
-        "actual_state",
-        "identity_state",
-        "actual_material_summary",
         "lifecycle_state",
     }.issubset(sample_columns)
-
-    sample_revision_columns = {
-        column["name"] for column in inspector.get_columns("sample_revision_states")
-    }
-    assert {
-        "sample_id",
-        "run_revision_id",
-        "growth_state",
-        "identity_state",
-        "material_summary",
-        "evidence_assertion_ids",
-    }.issubset(sample_revision_columns)
 
     characterization_fks = inspector.get_foreign_keys("characterization_records")
     assert any(

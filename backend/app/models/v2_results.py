@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
-    Float,
     ForeignKey,
     Integer,
     String,
@@ -106,45 +105,3 @@ class CharacterizationRecord(Base):
     sample: Mapped[Sample] = relationship("Sample")
     instrument: Mapped[Instrument | None] = relationship("Instrument")
     file_assets: Mapped[list[FileAsset]] = relationship(back_populates="characterization_record")
-
-
-class MeasuredProduct(Base):
-    __tablename__ = "measured_products"
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    sample_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("samples.id"),
-        index=True,
-    )
-    characterization_record_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("characterization_records.id"),
-        nullable=True,
-        index=True,
-    )
-    observed_phenomena: Mapped[list[str] | None] = mapped_column(json_payload_type, nullable=True)
-    detected_phase_stacking: Mapped[str | None] = mapped_column(Text, nullable=True)
-    layer_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    coverage_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
-    domain_size_um: Mapped[float | None] = mapped_column(Float, nullable=True)
-    nucleation_density_cm2: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # Legacy free-text columns remain read-only so old exports stay lossless.
-    measured_layers_coverage: Mapped[str | None] = mapped_column(Text, nullable=True)
-    domain_nucleation_continuity: Mapped[str | None] = mapped_column(Text, nullable=True)
-    key_spectral_metrics: Mapped[list[dict[str, Any]] | dict[str, Any] | None] = mapped_column(
-        json_payload_type,
-        nullable=True,
-    )
-    attrs: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-
-    sample: Mapped[Sample] = relationship("Sample")
-    characterization_record: Mapped[CharacterizationRecord | None] = relationship(
-        "CharacterizationRecord"
-    )

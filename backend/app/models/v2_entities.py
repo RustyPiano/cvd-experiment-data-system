@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     CheckConstraint,
-    Date,
     DateTime,
     Float,
     ForeignKey,
-    Index,
     Integer,
     String,
     Text,
@@ -112,10 +110,6 @@ class MaterialLot(Base):
         back_populates="entity",
         cascade="all, delete-orphan",
     )
-    containers: Mapped[list[ContainerInstance]] = relationship(
-        back_populates="material_lot",
-        cascade="all, delete-orphan",
-    )
 
 
 class MaterialLotVersion(Base):
@@ -139,49 +133,6 @@ class MaterialLotVersion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     entity: Mapped[MaterialLot] = relationship(back_populates="versions")
-
-
-class ContainerInstance(Base):
-    __tablename__ = "container_instances"
-    __table_args__ = (
-        UniqueConstraint("container_code", name="uq_container_instances_code"),
-        CheckConstraint(
-            "remaining_amount IS NULL OR remaining_amount >= 0",
-            name="ck_container_instances_remaining_amount",
-        ),
-        CheckConstraint(
-            "status IN ('available', 'in_use', 'empty', 'quarantined', 'disposed')",
-            name="ck_container_instances_status",
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    material_lot_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("material_lots.id"),
-        nullable=False,
-        index=True,
-    )
-    container_code: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    container_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    opened_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    storage_history: Mapped[list[dict[str, Any]]] = mapped_column(
-        json_payload_type,
-        nullable=False,
-        default=list,
-    )
-    remaining_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
-    remaining_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="available", index=True)
-    attrs: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-
-    material_lot: Mapped[MaterialLot] = relationship(back_populates="containers")
 
 
 class SubstrateStack(Base):
@@ -282,92 +233,6 @@ class SetupVersion(Base):
     entity: Mapped[Setup] = relationship(back_populates="versions")
 
 
-class EquipmentComponentInstance(Base):
-    __tablename__ = "equipment_component_instances"
-    __table_args__ = (UniqueConstraint("component_code", name="uq_equipment_components_code"),)
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    component_code: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    component_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    manufacturer: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    model: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    serial_number: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
-    attrs: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-
-
-class SetupVersionComponent(Base):
-    __tablename__ = "setup_version_components"
-    __table_args__ = (
-        UniqueConstraint(
-            "setup_version_id",
-            "component_id",
-            "role",
-            name="uq_setup_version_components_binding",
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    setup_version_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("setup_versions.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    component_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("equipment_component_instances.id"),
-        nullable=False,
-        index=True,
-    )
-    role: Mapped[str] = mapped_column(String(64), nullable=False)
-    position_json: Mapped[dict[str, Any] | None] = mapped_column(
-        json_payload_type,
-        nullable=True,
-    )
-
-
-class EquipmentLifecycleEvent(Base):
-    __tablename__ = "equipment_lifecycle_events"
-    __table_args__ = (
-        CheckConstraint(
-            "event_type IN ('install', 'remove', 'calibration', 'maintenance')",
-            name="ck_equipment_lifecycle_events_type",
-        ),
-        Index("ix_equipment_events_component_time", "component_id", "occurred_at"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    component_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("equipment_component_instances.id"),
-        nullable=False,
-        index=True,
-    )
-    event_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    quantity: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    correction: Mapped[float | None] = mapped_column(Float, nullable=True)
-    expanded_uncertainty: Mapped[float | None] = mapped_column(Float, nullable=True)
-    details_json: Mapped[dict[str, Any]] = mapped_column(
-        json_payload_type,
-        nullable=False,
-        default=dict,
-    )
-    certificate_file_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("file_assets.id"),
-        nullable=True,
-        index=True,
-    )
-
-
 class Instrument(Base):
     __tablename__ = "instruments"
 
@@ -428,43 +293,6 @@ class InstrumentCapability(Base):
         json_payload_type,
         nullable=False,
         default=dict,
-    )
-
-
-class InstrumentLifecycleEvent(Base):
-    __tablename__ = "instrument_lifecycle_events"
-    __table_args__ = (
-        CheckConstraint(
-            "event_type IN ('calibration', 'maintenance')",
-            name="ck_instrument_lifecycle_events_type",
-        ),
-        Index("ix_instrument_events_instrument_time", "instrument_id", "occurred_at"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    instrument_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("instruments.id"),
-        nullable=False,
-        index=True,
-    )
-    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    affected_component: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    quantity: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    correction: Mapped[float | None] = mapped_column(Float, nullable=True)
-    expanded_uncertainty: Mapped[float | None] = mapped_column(Float, nullable=True)
-    details_json: Mapped[dict[str, Any]] = mapped_column(
-        json_payload_type,
-        nullable=False,
-        default=dict,
-    )
-    certificate_file_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("file_assets.id"),
-        nullable=True,
-        index=True,
     )
 
 

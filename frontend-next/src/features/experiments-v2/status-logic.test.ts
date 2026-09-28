@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   availableStatusActions,
   isProcessReadOnly,
-  isResultsReadOnly,
   statusBadgeVariant,
   invalidateRunQueries,
 } from './status-logic'
@@ -28,7 +27,6 @@ describe('v2 status logic', () => {
     (status) => {
       expect(availableStatusActions(status, false, false)).toEqual([])
       expect(isProcessReadOnly(status, false)).toBe(true)
-      expect(isResultsReadOnly(status, false)).toBe(true)
     },
   )
 
@@ -36,12 +34,6 @@ describe('v2 status logic', () => {
     expect(isProcessReadOnly('locked', true)).toBe(true)
     expect(isProcessReadOnly('invalid', true)).toBe(true)
     expect(isProcessReadOnly('draft', true)).toBe(false)
-  })
-
-  it('keeps results editable when locked and locks them when invalid', () => {
-    expect(isResultsReadOnly('locked', true)).toBe(false)
-    expect(isResultsReadOnly('invalid', true)).toBe(true)
-    expect(isResultsReadOnly('draft', true)).toBe(false)
   })
 
   it('maps every status to an existing badge variant', () => {

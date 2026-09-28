@@ -1,40 +1,36 @@
 # 文档索引
 
-本目录只保留一个现状入口：[`standard/STATUS.md`](standard/STATUS.md)。任何文档与它冲突时，以 `STATUS.md` 为准。
+现状入口：[`standard/STATUS.md`](standard/STATUS.md)，与其他文档冲突时以它为准。
 
 ## 现行文档
 
 | 类别 | 文档 | 作用 |
 |---|---|---|
-| SHG实施 | [reviews/2026-09-13-shg-implementation.md](reviews/2026-09-13-shg-implementation.md) | alpha.48检测方式与变化参数分类、设备目录、功率与测量位置、偏振角规则、预设及校准适用性；本地验证通过，未部署 |
-| SHG专项审查 | [reviews/2026-09-11-shg-field-review.md](reviews/2026-09-11-shg-field-review.md) | 43项条件、数据类型分类、设备目录、偏振/脉冲/功率序列、预设与切换、载体及校准的逐项建议；50组只读探针，未实施 |
-| PL实施 | [reviews/2026-09-11-pl-implementation.md](reviews/2026-09-11-pl-implementation.md) | alpha.47设备配置、扫描/偏振、光谱单位、逐文件校正与校准适用性；本地验证通过，未部署 |
-| PL专项审查 | [reviews/2026-09-11-pl-field-review.md](reviews/2026-09-11-pl-field-review.md) | 34项条件、设备配置、偏振/脉冲、光谱单位与校正、峰来源及校准的逐项建议；只读探针与测试证据，未实施 |
-| Raman实施 | [reviews/2026-09-11-raman-implementation.md](reviews/2026-09-11-raman-implementation.md) | alpha.46设备配置、功率与序列、峰来源、校准适用性和验证记录；本地未部署 |
-| Raman专项审查 | [reviews/2026-09-10-raman-field-review.md](reviews/2026-09-10-raman-field-review.md) | 31项条件、设备登记、功率/偏振/扫描/峰来源及校准的逐项建议；只读探针与现有测试证据，未修改业务或发布 |
-| OM实施 | [reviews/2026-09-10-om-implementation.md](reviews/2026-09-10-om-implementation.md) | alpha.45设备目录、采集表单、图像校验及历史兼容的本地实施与验证 |
-| OM专项审查 | [`reviews/2026-09-10-om-field-review.md`](reviews/2026-09-10-om-field-review.md) | 35项OM条件、设备与预设、文件及导出的逐项建议；包含NA、白平衡及切换行为的复核证据，未实施的规则不视为已确认标准 |
-| 前端修复计划 | [`engineering/2026-09-10-frontend-design-remediation-plan.md`](engineering/2026-09-10-frontend-design-remediation-plan.md) | A～D 本地实现、426 前端用例及 PostgreSQL/浏览器/容器联调记录；生产发布前验收待执行 |
-| 前端审查复核 | [`reviews/2026-09-10-frontend-design-audit-verification.md`](reviews/2026-09-10-frontend-design-audit-verification.md) | 原审计逐项核实、误报修正与同类问题证据 |
-| 现状 | [`standard/STATUS.md`](standard/STATUS.md) | 已发布 `57a25b7` 基线、本地 U 批次状态、已定决策和下一步 |
-| 当前整改计划 | [`product/2026-07-27-preparation-module-finalization-plan.md`](product/2026-07-27-preparation-module-finalization-plan.md) | 制备模块终版第一批的实施边界、当前结果、下一批交互收口与专业待确认项 |
-| 历史整改计划 | [`product/2026-07-24-meeting-remediation-plan.md`](product/2026-07-24-meeting-remediation-plan.md) | M-01—M-24、A-01—A-09、F-01—F-12 历史基线，以及发布后 U-01—U-32 整改与终验定义 |
-| 当前整改报告 | [`reviews/2026-07-24-teacher-meeting-remediation.md`](reviews/2026-07-24-teacher-meeting-remediation.md) | M/A/F 历史门禁与主线证据、U 批次逐项状态、生产边界和 11 项专业待裁定问题 |
-| v4 深度审查整改 | [`reviews/2026-07-28-deep-audit-remediation.md`](reviews/2026-07-28-deep-audit-remediation.md) | P0-1—P0-9 代码落地、科学模型、自动化证据与明确后置项 |
-| 产品 | [`product/run-first-workflow-and-copy-design.md`](product/run-first-workflow-and-copy-design.md) | 2026-07-16 已确认的炉次优先工作流；阶段 0–4 已完成 |
+| 现状 | [`standard/STATUS.md`](standard/STATUS.md) | 当前版本与已定决策 |
 | 标准 | [`standard/cvd-2d-process-data-standard-v2.0.md`](standard/cvd-2d-process-data-standard-v2.0.md) | CVD-2D 元数据规则书 |
 | 字段 | [`standard/field-source.yaml`](standard/field-source.yaml) | 字段、词表和必填规则的唯一机器源 |
 | 字段表 | [`standard/字段草案-v3.xlsx`](standard/字段草案-v3.xlsx) | 由字段单一源生成的人读表格 |
 | 设计依据 | [`standard/metadata-v2-review-and-redesign.md`](standard/metadata-v2-review-and-redesign.md) | 国际对标、文献和字段设计理由 |
-| 研究输入 | [`research/`](research/) | 导师批注原件、会议纪要、国际对标表和调研附件 |
-| 生产切换 | [`engineering/v2-single-track-plan.md`](engineering/v2-single-track-plan.md) | v1 拆除与批8生产切换的计划及历史依据 |
-| 生产部署 | [`operations/production-deployment-report-2026-07-24.md`](operations/production-deployment-report-2026-07-24.md) | 香港生产 v2 切换、旧库归档、恢复与线上验收证据 |
-| 技术决策 | [`engineering/v2-implementation-plan.md`](engineering/v2-implementation-plan.md) | P0–P4 与 D1–D12 的历史技术决策 |
+| 产品 | [`product/run-first-workflow-and-copy-design.md`](product/run-first-workflow-and-copy-design.md) | 炉次优先工作流（2026-07-16 确认） |
+| 字段术语审核 | [`reviews/2026-09-21-field-terminology-taxonomy-review.md`](reviews/2026-09-21-field-terminology-taxonomy-review.md) | 字段名称、前端文字与分类体系的 30 项问题 |
+| SHG | [审查](reviews/2026-09-11-shg-field-review.md) · [实施](reviews/2026-09-13-shg-implementation.md) | 检测方式与变化参数、设备目录、功率、偏振角、预设（alpha.48） |
+| PL | [审查](reviews/2026-09-11-pl-field-review.md) · [实施](reviews/2026-09-11-pl-implementation.md) | 设备配置、扫描/偏振、光谱单位、逐文件校正（alpha.47） |
+| Raman | [审查](reviews/2026-09-10-raman-field-review.md) · [实施](reviews/2026-09-11-raman-implementation.md) | 设备配置、功率与序列、峰来源、校准适用性（alpha.46） |
+| OM | [审查](reviews/2026-09-10-om-field-review.md) · [实施](reviews/2026-09-10-om-implementation.md) | 设备目录、采集表单、图像校验（alpha.45） |
+| AFM | [审查](reviews/2026-09-11-afm-field-review.md) | 探针、模式联动、扫描尺寸单位、处理字段归位 |
+| 表征元数据 | [审查](reviews/2026-09-09-characterization-metadata-audit.md) · [实施](reviews/2026-09-09-characterization-metadata-implementation.md) | 采集参数与文件来源（alpha.43） |
+| 制备字段 | [`reviews/2026-09-09-preparation-field-review.md`](reviews/2026-09-09-preparation-field-review.md) | 目标结构形式、形态、装置附加能力、溶液用量（alpha.41） |
+| 前端 | [复核](reviews/2026-09-10-frontend-design-audit-verification.md) · [修复计划](engineering/2026-09-10-frontend-design-remediation-plan.md) | 前端审计核实与 A～D 修复 |
+| 制备模块终版 | [`product/2026-07-27-preparation-module-finalization-plan.md`](product/2026-07-27-preparation-module-finalization-plan.md) | 制备模块实施边界与专业待确认项 |
+| 导师走查整改 | [计划](product/2026-07-24-meeting-remediation-plan.md) · [报告](reviews/2026-07-24-teacher-meeting-remediation.md) | M/A/F 与 U-01—U-32 整改、11 项专业待裁定问题 |
+| v4 深度审查 | [`reviews/2026-07-28-deep-audit-remediation.md`](reviews/2026-07-28-deep-audit-remediation.md) | P0-1—P0-9 科学模型整改 |
+| 生产部署 | [`operations/production-deployment-report-2026-07-24.md`](operations/production-deployment-report-2026-07-24.md) | 香港生产切换、各次发布、旧库归档与线上验收 |
+| 生产切换 | [`engineering/v2-single-track-plan.md`](engineering/v2-single-track-plan.md) | v1 拆除与批8 生产切换 |
+| 技术决策 | [`engineering/v2-implementation-plan.md`](engineering/v2-implementation-plan.md) | P0–P4 与 D1–D12 |
 | 操作检查 | [`operations/e2e-walkthrough-checklist.md`](operations/e2e-walkthrough-checklist.md) | 浏览器端到端走查工单 |
-| 前置验收 | [`operations/e2e-comprehensive-hardening-report-2026-07-24.md`](operations/e2e-comprehensive-hardening-report-2026-07-24.md) | 导师线上走查之前的全库加固门禁、PostgreSQL 与浏览器证据，不替代本轮验收 |
-| 历史验收 | [`operations/e2e-run-first-report-2026-07-17.md`](operations/e2e-run-first-report-2026-07-17.md) | 炉次优先 17 项主线首次完整浏览器 E2E |
-| 前置评审 | [`reviews/2026-07-24-comprehensive-audit-remediation.md`](reviews/2026-07-24-comprehensive-audit-remediation.md) | 导师线上走查之前的科学、数据、安全、运维与用户体验加固矩阵 |
-| 评审 | [`reviews/2026-07-08-simplify-review.md`](reviews/2026-07-08-simplify-review.md) | 代码精简评审与执行记录 |
+| 历史验收 | [加固报告](operations/e2e-comprehensive-hardening-report-2026-07-24.md) · [全库审查](reviews/2026-07-24-comprehensive-audit-remediation.md) · [首次 E2E](operations/e2e-run-first-report-2026-07-17.md) | 2026-07 加固与主线 E2E 证据 |
+| 精简评审 | [`reviews/2026-07-08-simplify-review.md`](reviews/2026-07-08-simplify-review.md) | 代码精简评审与执行记录 |
+| 研究输入 | [`research/`](research/) | 导师批注原件、会议纪要、国际对标表和调研附件 |
 
 ## 目录约定
 
@@ -44,11 +40,11 @@
 - `operations/`：可直接执行的运行、验收和部署检查单。
 - `reviews/`：评审报告。
 - `research/`：支撑标准设计的原始评审和调研材料，不是权威规范。
-- `archive/`：v1 与早期历史，只供追溯，不代表现状。
+- `archive/`：v1 与早期历史，只供追溯。
 
 ## 维护规则
 
-1. 实质改动完成后更新 `standard/STATUS.md` 的日期、进展和下一步。
+1. 实质改动完成后更新 `standard/STATUS.md` 的日期和进展。
 2. 字段改动只修改 `standard/field-source.yaml`，随后重跑全部生成器和字段源校验。
 3. 产品决策写入 `product/`，工程执行记录写入 `engineering/`，操作步骤写入 `operations/`。
 4. 已失效文档移入 `archive/` 并在文件开头注明历史状态，不在现行目录保留重复真相。

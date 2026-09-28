@@ -2,7 +2,7 @@
 
 日期：2026-09-10。输入：`2026-09-10-frontend-design-audit.md`。本轮仅核查与记录，未执行输入报告里的整改指令。
 
-范围：HEAD `304c96f` 加当前未提交的 alpha.44 工作区；生产公开 HTTP 响应仅用于核实静态资源部署行为，不能代替 alpha.44 页面验收。保留全部既有修改及原报告。未登录生产、未写入业务数据。
+范围：HEAD `304c96f` 加当前未提交的 alpha.44 工作区；生产公开 HTTP 响应仅用于核实静态资源部署行为。保留全部既有修改及原报告。未登录生产、未写入业务数据。
 
 ## 结论
 
@@ -46,7 +46,7 @@
 
 | 原编号 | 结论 | 证据与处理尺度 |
 | --- | --- | --- |
-| 1 Toaster 固定亮色 | **成立** | `sonner.tsx:15` 固定 light；`main.tsx:55` 有 ThemeProvider，登录、注册、AppShell 都有 ThemeToggle。注释已失真。应修主题一致性，但本轮未进行视觉验收，不能声称所有 toast 背景都显示亮色——其 CSS 变量仍有主题作用。 |
+| 1 Toaster 固定亮色 | **成立** | `sonner.tsx:15` 固定 light；`main.tsx:55` 有 ThemeProvider，登录、注册、AppShell 都有 ThemeToggle。注释已失真。应修主题一致性；其 CSS 变量仍有主题作用，本轮未做视觉验收。 |
 | 2 缺 noUncheckedIndexedAccess | **配置事实成立，不是独立 bug** | tsconfig 未开启。需要结合实际索引读取发现错误；单一开关缺失不足以判故障。 |
 | 3 关闭 no-unnecessary-condition | **事实成立，有明确理由** | ESLint 注释说明 API 非空类型与运行时边界差异。启用前需校准类型/边界，不能把删除防御守卫作为整改成果。 |
 | 4 列表页模板重复 | **布局相似，不构成必须修复项** | 已复用 PageHeader/Card/Table；业务差异仍大。暂无证据需要再抽 ListPage/DataTable 框架。 |

@@ -7,8 +7,6 @@ const PRODUCT_PAGES = [
   'shared/ui/app-shell.tsx',
   'features/experiments-v2/simple-experiment-create-form.tsx',
   'features/experiments-v2/experiment-v2-edit-page.tsx',
-  // The current six-step UI is provided by these simple editors; the parent
-  // file also retains unmounted legacy editors for the internal scientific model.
   'features/experiments-v2/simple-preparation-editors.tsx',
   'features/experiments-v2/simple-characterization-workspace.tsx',
   'features/characterizations/characterization-list-page.tsx',

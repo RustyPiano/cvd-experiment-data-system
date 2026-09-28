@@ -158,13 +158,3 @@ export function commonSuggestedBulkSpaceGroups(
       ),
   )
 }
-
-export function couldMatchMaterialPhaseCatalog(formula: unknown): boolean {
-  const normalized = String(formula ?? '')
-    .trim()
-    .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => ASCII_DIGITS[digit])
-    .replace(/\s+/g, '')
-  return Object.keys(materialPhaseCatalog).some((candidate) =>
-    candidate.startsWith(normalized),
-  )
-}

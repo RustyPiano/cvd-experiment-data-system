@@ -1,14 +1,10 @@
 from copy import deepcopy
-from datetime import UTC, date, datetime
 from uuid import UUID
 
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.module_payload import ExperimentModulePayload
-from app.models.scientific import RunRevision
-from app.services.v2_field_source import SCHEMA_VERSION
 from tests.helpers.v2_payloads import (
     chemical_lot_payload,
     gas_lot_payload,
@@ -77,112 +73,6 @@ def _boat_load(lot_id: str) -> dict:
             }
         ]
     }
-
-
-def test_alpha15_correction_preserves_read_only_function_role(
-    active_user,
-    admin_user,
-    db_session,
-) -> None:
-    headers = _headers(active_user.email)
-    admin_headers = _headers(admin_user.email)
-    chemical = _post(
-        "/api/v1/material-lots",
-        chemical_lot_payload(batch_number="LEGACY-SOURCE"),
-        admin_headers,
-    )
-    legacy_precursors = {
-        "items": [
-            {
-                "load_key": "legacy_source",
-                "loading_method": "boat",
-                "ingredients": [
-                    {
-                        "material_lot_id": chemical["id"],
-                        "material_lot_version": 1,
-                        "function_role": "metal_source",
-                    }
-                ],
-            }
-        ]
-    }
-    run = ExperimentRun(
-        run_code="CVD-2026-1301",
-        owner_id=active_user.id,
-        schema_version=SCHEMA_VERSION,
-        material_system="MoS2",
-        experiment_date=date(2026, 8, 13),
-        status=ExperimentStatus.LOCKED,
-        locked_at=datetime.now(UTC),
-    )
-    db_session.add(run)
-    db_session.flush()
-    revision = RunRevision(
-        experiment_run_id=run.id,
-        revision_number=1,
-        schema_version="v4.0-alpha.15",
-        schema_status="internal_validation",
-        content_json={
-            "run": {"id": str(run.id)},
-            "modules": {"precursors": legacy_precursors},
-        },
-        content_sha256="a" * 64,
-        locked_by_id=active_user.id,
-    )
-    db_session.add(revision)
-    db_session.flush()
-    run.current_revision_id = revision.id
-    db_session.add(
-        ExperimentModulePayload(
-            experiment_run_id=run.id,
-            module_key="precursors",
-            schema_version=SCHEMA_VERSION,
-            payload_json=legacy_precursors,
-        )
-    )
-    db_session.commit()
-
-    historical = client.get(
-        f"/api/v1/experiments/{run.id}/modules/precursors",
-        headers=headers,
-    )
-    assert historical.status_code == 200, historical.text
-    assert historical.json()["payload_json"]["items"][0]["ingredients"][0] == {
-        "material_lot_id": chemical["id"],
-        "material_lot_version": 1,
-        "function_role": "metal_source",
-    }
-    correction = client.post(
-        f"/api/v1/experiments/{run.id}/correction-drafts",
-        json={"reason": "correct an unrelated note"},
-        headers=headers,
-    )
-    assert correction.status_code == 200, correction.text
-
-    edited = deepcopy(historical.json()["payload_json"])
-    edited["items"][0]["ingredients"][0].pop("function_role")
-    saved = _put_precursors(headers, str(run.id), edited)
-    assert saved.status_code == 200, saved.text
-    assert saved.json()["payload_json"]["items"][0]["ingredients"][0]["function_role"] == (
-        "metal_source"
-    )
-    assert "amount" not in saved.json()["payload_json"]["items"][0]["ingredients"][0]
-
-    changed = deepcopy(saved.json()["payload_json"])
-    changed["items"][0]["ingredients"][0]["function_role"] = "chalcogen_source"
-    rejected = _put_precursors(headers, str(run.id), changed)
-    assert rejected.status_code == 422
-    assert rejected.json()["detail"]["invalid"][0] == {
-        "key": "function_role",
-        "reason": "legacy_read_only",
-    }
-
-    current = _create_run(headers, "CVD-2026-1302")
-    bypass = deepcopy(legacy_precursors)
-    bypass["items"][0]["load_key"] = "new_source"
-    rejected = _put_precursors(headers, current["id"], bypass)
-    assert rejected.status_code == 422
-    assert rejected.json()["detail"]["invalid"][0]["reason"] == "legacy_read_only"
 
 
 def test_source_load_lot_category_is_checked_on_save_and_lock(
@@ -305,7 +195,6 @@ def test_source_load_lot_category_is_checked_on_save_and_lock(
         f"/api/v1/experiments/{run['id']}/modules/process_steps",
         json={
             "payload_json": {
-                "segments": [],
                 "channels": [
                     {
                         "channel_key": "channel_11111111_1111_4111_8111_111111111111",
@@ -335,6 +224,7 @@ def test_source_load_lot_category_is_checked_on_save_and_lock(
                         "series": [{"start_s": 0, "end_s": 600, "value": 100}],
                     },
                 ],
+                "process_duration_min": 10,
                 "pressure_regime": "atmospheric",
                 "cooling_method": "furnace_cooling",
             }

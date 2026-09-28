@@ -30,7 +30,6 @@ import { LoadingState } from '@/shared/ui/loading-state'
 
 type AttachmentRole =
   | 'characterization_file'
-  | 'direct_observation_file'
   | 'process_event_attachment'
   | 'temperature_timeseries'
 const EMPTY_FILES: FileAssetRead[] = []

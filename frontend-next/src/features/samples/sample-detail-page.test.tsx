@@ -73,7 +73,6 @@ vi.mock('@tanstack/react-query', () => ({
               evidence_present: true,
               raw_file_count: 1,
               property_count: 2,
-              assertion_count: 1,
             },
             {
               id: 'measurement-2',
@@ -84,7 +83,6 @@ vi.mock('@tanstack/react-query', () => ({
               evidence_present: true,
               raw_file_count: 1,
               property_count: 1,
-              assertion_count: 0,
             },
           ],
         },
@@ -99,8 +97,6 @@ vi.mock('@tanstack/react-query', () => ({
         sample_code: 'CVD-2026-0001-S01',
         run_code: 'CVD-2026-0001',
         target_material_system: 'MoS₂',
-        actual_state: 'growth_present',
-        actual_material_summary: '2H-MoS₂',
         source_substrate_snapshot_json: {
           material: 'sio2_si',
           zone_thermocouple_distance_mm: {
@@ -141,14 +137,12 @@ beforeEach(async () => {
 })
 
 describe('sample detail product view', () => {
-  it('shows sample facts, substrate, conclusions, records, and note', () => {
+  it('shows sample facts, substrate, records, and note', () => {
     render(<SampleDetailPage />)
 
     expect(screen.getAllByText('CVD-2026-0001-S01')).not.toHaveLength(0)
     expect(screen.getByText('CVD-2026-0001')).toBeInTheDocument()
-    expect(screen.getByText('观察到生长')).toBeInTheDocument()
     expect(screen.getByText('MoS₂')).toBeInTheDocument()
-    expect(screen.getByText('2H-MoS₂')).toBeInTheDocument()
     expect(screen.getByText('SUB-DEMO-01')).toBeInTheDocument()
     expect(screen.getByText('10 × 10 × 0.5 mm')).toBeInTheDocument()
     expect(screen.getByText('温区 1；相对测温点 +12 mm')).toBeInTheDocument()

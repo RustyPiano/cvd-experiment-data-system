@@ -19,9 +19,4 @@ backups/
 /.claude/launch.json
 /.claude/skills/
 /.codex/
-/.impeccable/
-/.opencode/
-/.superpowers/
-/.workbuddy/
-/skills-lock.json
 /*.xlsx

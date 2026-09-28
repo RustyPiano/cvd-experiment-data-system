@@ -54,24 +54,6 @@ const detail = {
       quality_flag: 'valid',
     },
   ],
-  assertions: [
-    {
-      id: 'assertion-1',
-      assertion_type: 'phase_identity',
-      value: { phase: '2H' },
-      analysis_run_id: null,
-      confidence: null,
-      validity: 'active',
-    },
-    {
-      id: 'assertion-2',
-      assertion_type: 'mystery_assertion',
-      value: { mystery_key: 'mystery_value' },
-      analysis_run_id: null,
-      confidence: null,
-      validity: 'active',
-    },
-  ],
   raw_files: [
     {
       id: 'file-1',
@@ -187,8 +169,6 @@ describe('MeasurementDetails', () => {
       '选定区域',
     )
     expect(screen.getByText(/raw-region/)).toBeInTheDocument()
-    expect(screen.getByText(/物相判定/)).toBeInTheDocument()
-    expect(screen.getByText(/mystery_assertion/)).toBeInTheDocument()
     expect(screen.getByText('基线校正')).toBeInTheDocument()
     expect(screen.getByText(/vendor_parameter/)).toBeInTheDocument()
     expect(await screen.findByText('fitted.csv')).toBeInTheDocument()
@@ -227,13 +207,6 @@ describe('MeasurementDetails', () => {
           sample_count: 5,
         },
       ],
-      assertions: [
-        {
-          ...detail.assertions[0],
-          analysis_run_id: 'analysis-1',
-          confidence: 0.92,
-        },
-      ],
     })
     renderDetails()
 
@@ -242,42 +215,15 @@ describe('MeasurementDetails', () => {
       screen.getByText('不确定度：0.4 cm⁻¹（standard_deviation）'),
     ).toBeInTheDocument()
     expect(screen.getByText('样本数：5')).toBeInTheDocument()
-    expect(screen.getByText('置信度：0.92')).toBeInTheDocument()
     expect(
-      screen.getAllByText('数据处理记录：LabFit 2.0 · analysis-1'),
-    ).toHaveLength(2)
+      screen.getByText('数据处理记录：LabFit 2.0 · analysis-1'),
+    ).toBeInTheDocument()
     expect(screen.getByText('分析开始时间').parentElement).toHaveTextContent(
       new Date(detail.analyses[0].started_at).toLocaleString('zh'),
     )
     expect(screen.getByText('分析完成时间').parentElement).toHaveTextContent(
       new Date(detail.analyses[0].completed_at).toLocaleString('zh'),
     )
-  })
-
-  it('still displays deferred conditions and results from historical records', async () => {
-    measurementApi.getMeasurement.mockResolvedValue({
-      ...detail,
-      method_profile: 'AFM',
-      typed_conditions: {
-        scan_size_um: { x: 5, y: 5 },
-        height_processing: '逐行校平',
-      },
-      properties: [
-        {
-          ...detail.properties[0],
-          property_code: 'afm_rms_roughness',
-          numeric_value: 0.3,
-          unit: 'nm',
-        },
-      ],
-    })
-    renderDetails()
-    expect(await screen.findByText('0.3 nm')).toBeInTheDocument()
-    expect(screen.getByText('高度数据处理')).toBeInTheDocument()
-    expect(screen.getByText('高度数据处理').parentElement).toHaveTextContent(
-      '逐行校平',
-    )
-    expect(screen.getByText('fitted.csv')).toBeInTheDocument()
   })
 
   it('uses the server permission flag and submits an append-only invalidation', async () => {

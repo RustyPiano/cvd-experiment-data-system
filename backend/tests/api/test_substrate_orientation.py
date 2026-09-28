@@ -93,13 +93,6 @@ def test_independent_specs_quartz_and_frozen_projection(db_session, admin_user):
         material_lot_item_projection("substrates", cut.model_dump())["crystal_orientation"]
         == "AT-cut"
     )
-    legacy = {
-        "substrate_orientation_polish": {"value": "c面 原始规格", "option": "single_side_polished"}
-    }
-    assert (
-        material_lot_item_projection("substrates", legacy)["crystal_orientation"]
-        == "c面 原始规格；single_side_polished"
-    )
     # The service also validates callers that do not use the generated request model.
     with pytest.raises(HTTPException) as error:
         service.create_entity(

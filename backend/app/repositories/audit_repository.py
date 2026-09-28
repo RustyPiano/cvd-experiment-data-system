@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.audit import AuditEvent
@@ -19,21 +19,6 @@ class AuditRepository:
         statement = (
             select(AuditEvent)
             .where(AuditEvent.entity_type == entity_type, AuditEvent.entity_id == entity_id)
-            .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
-        )
-        return list(self.db.scalars(statement).all())
-
-    def list_for_entities(self, refs: list[tuple[str, UUID]]) -> list[AuditEvent]:
-        if not refs:
-            return []
-
-        conditions = [
-            and_(AuditEvent.entity_type == entity_type, AuditEvent.entity_id == entity_id)
-            for entity_type, entity_id in refs
-        ]
-        statement = (
-            select(AuditEvent)
-            .where(or_(*conditions))
             .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
         )
         return list(self.db.scalars(statement).all())

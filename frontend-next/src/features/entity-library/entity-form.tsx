@@ -137,11 +137,7 @@ const INSTRUMENT_CAPABILITY_CODES = new Set(
 )
 
 const catalogMethod = (code: string) =>
-  code === 'low_frequency_raman'
-    ? 'Raman'
-    : SCAN_METHODS.includes(code)
-      ? code
-      : 'optical_microscopy'
+  SCAN_METHODS.includes(code) ? code : 'optical_microscopy'
 
 function instrumentCapabilitiesAreValid(value: string | string[]): boolean {
   const capabilities = parseEntityJsonArray<InstrumentCapability>(value)
@@ -976,24 +972,16 @@ function EntityFieldControl({
               className="grid gap-2 rounded-md border border-input px-3 py-2 sm:grid-cols-2"
             >
               {Object.entries(characterizationProfiles)
-                .filter(([, profile]) => !profile.legacy_only)
                 .sort(
                   ([a], [b]) => Number(a === 'other') - Number(b === 'other'),
                 )
                 .map(([code, profile]) => {
                   const capabilities =
                     parseEntityJsonArray<InstrumentCapability>(rhf.value)
-                  const selected = capabilities.some(
-                    (capability) =>
-                      capability.code === code ||
-                      (code === 'Raman' &&
-                        capability.code === 'low_frequency_raman'),
-                  )
                   const capability = capabilities.find(
-                    (item) =>
-                      item.code === code ||
-                      (code === 'Raman' && item.code === 'low_frequency_raman'),
+                    (item) => item.code === code,
                   )
+                  const selected = capability !== undefined
                   const catalogKey = SCAN_METHODS.includes(code)
                     ? code.toLowerCase()
                     : 'om'
@@ -1057,12 +1045,7 @@ function EntityFieldControl({
                                       },
                                     ]
                                   : capabilities.filter(
-                                      (item) =>
-                                        item.code !== code &&
-                                        !(
-                                          code === 'Raman' &&
-                                          item.code === 'low_frequency_raman'
-                                        ),
+                                      (item) => item.code !== code,
                                     ),
                               ),
                             )

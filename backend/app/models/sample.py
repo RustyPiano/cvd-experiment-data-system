@@ -58,23 +58,6 @@ class Sample(Base):
         nullable=True,
     )
     role: Mapped[str] = mapped_column(String(32), index=True)
-    actual_state: Mapped[str] = mapped_column(
-        String(32),
-        nullable=False,
-        default="unknown",
-        index=True,
-    )
-    actual_material_summary: Mapped[str | None] = mapped_column(
-        String(255),
-        nullable=True,
-        index=True,
-    )
-    identity_state: Mapped[str] = mapped_column(
-        String(32),
-        nullable=False,
-        default="unknown",
-        index=True,
-    )
     current_carrier: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sample_region: Mapped[dict | None] = mapped_column(json_payload_type, nullable=True)
     dimensions_json: Mapped[dict | None] = mapped_column(json_payload_type, nullable=True)
@@ -120,10 +103,6 @@ class Sample(Base):
     @property
     def run_code(self) -> str | None:
         return self.experiment_run.run_code if self.experiment_run else None
-
-    @property
-    def material_system(self) -> str | None:
-        return self.actual_material_summary
 
     @property
     def target_material_system(self) -> str | None:

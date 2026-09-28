@@ -80,12 +80,7 @@ uv run python -m app.commands.create_user \
   --email admin@example.com --name Admin --role admin
 ```
 
-成员账号可以用同一命令将 `--role` 改为 `member` 创建，也可以在登录页使用 `REGISTRATION_INVITE_CODE` 自助注册。兼容的管理员初始化命令为：
-
-```bash
-uv run python -m app.commands.create_admin \
-  --email admin@example.com --name Admin
-```
+成员账号可以用同一命令将 `--role` 改为 `member` 创建，也可以在登录页使用 `REGISTRATION_INVITE_CODE` 自助注册。
 
 ## 质量门禁
 
@@ -121,16 +116,13 @@ uv run --project backend python docs/standard/check_field_source.py
 - 当前状态：[`docs/standard/STATUS.md`](docs/standard/STATUS.md)
 - 文档索引：[`docs/README.md`](docs/README.md)
 - 字段标准：[`docs/standard/field-source.yaml`](docs/standard/field-source.yaml)
-- 生产切换：[`docs/engineering/v2-single-track-plan.md`](docs/engineering/v2-single-track-plan.md)
 - 端到端检查：[`docs/operations/e2e-walkthrough-checklist.md`](docs/operations/e2e-walkthrough-checklist.md)
-- 最新验收：[`docs/operations/e2e-comprehensive-hardening-report-2026-07-24.md`](docs/operations/e2e-comprehensive-hardening-report-2026-07-24.md)
 - 生产部署：[`docs/operations/production-deployment-report-2026-07-24.md`](docs/operations/production-deployment-report-2026-07-24.md)
-- 全库整改：[`docs/reviews/2026-07-24-comprehensive-audit-remediation.md`](docs/reviews/2026-07-24-comprehensive-audit-remediation.md)
 
-生产使用 `docker-compose.prod.yml`，共享 1Panel PostgreSQL，并由 openresty 反向代理。批8已经完成，后续普通发布顺序为：
+生产使用 `docker-compose.prod.yml`，共享 1Panel PostgreSQL，并由 openresty 反向代理。发布顺序：
 
 ```text
 push → required checks 全绿 → 服务器 ./deploy.sh → 健康检查与线上冒烟
 ```
 
-不要再次使用批8能力重建数据库；普通 `./deploy.sh` 会先做现场备份，再快进拉取和部署。
+`./deploy.sh` 先做现场备份，再快进拉取和部署。

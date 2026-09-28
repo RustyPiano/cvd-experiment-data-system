@@ -3,18 +3,10 @@ import { additionalCapabilityNames } from '@/shared/additional-capabilities'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Plus,
-  Trash2,
-  Upload,
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useAuth } from '@/features/auth/use-auth'
-import { uploadExperimentFile } from '@/features/samples/api'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -26,14 +18,13 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { RequiredMark } from '@/shared/ui/required-mark'
-import { gasSpecies, optionLabelsZh } from '@/shared/generated/field-metadata'
+import { optionLabelsZh } from '@/shared/generated/field-metadata'
 import {
   createRun,
   listContributors,
@@ -46,14 +37,12 @@ import { buildSubstratesPayload } from './field-logic'
 import {
   channelsForSetupZoneCount,
   peakTemperatureC,
-  processChannelTitle,
   saveBeforeStepChange,
   targetSummary,
   targetValidationIssue,
   timelineValidationIssue,
   tubeUsageParts,
   tubeUsagePartsValidity,
-  withProcessChannelSubject,
 } from './scientific-form-workflow'
 import { ModuleCard } from './components/module-card'
 import { EntityReferenceSelect } from './components/entity-reference-select'
@@ -73,7 +62,6 @@ import {
   sourceLoadIngredientsAreValid,
   sourcePreparationStepsAreValid,
   sourceSolutionMode,
-  sourceSolutionVolumesRecorded,
   switchTargetDraft,
   targetKind,
 } from './simple-preparation-editors'
@@ -84,7 +72,6 @@ import type {
   TargetKind,
 } from './simple-preparation-editors'
 import {
-  PROCESS_DEVIATION_OPTIONS,
   buildSimpleSourceLoadsPayload,
   simpleProcessEndSeconds,
   simpleGrowthIssue,
@@ -134,8 +121,6 @@ type TargetSpec = {
   in_plane_outline_other?: string
   dimensional_form?:
     | 'planar'
-    | 'continuous_film'
-    | 'discrete_planar_crystal'
     | 'ribbon'
     | 'wire'
     | 'tube'
@@ -161,7 +146,6 @@ type TargetSpec = {
 type Ingredient = {
   material_lot_id: string
   material_lot_version: number
-  function_role?: string
   amount?: number
   unit?: string
   concentration_value?: number
@@ -173,7 +157,6 @@ type Ingredient = {
 type SourceLoad = {
   attrs?: Record<string, unknown>
   load_key: string
-  container_instance_id?: string
   loading_method: string
   preparation_steps: Array<{
     step_type: string
@@ -184,28 +167,18 @@ type SourceLoad = {
     axial_mm: number
     radial_mm?: number
     azimuth_deg?: number
-    reference: 'setup_origin' | 'zone_thermocouple'
+    reference: 'zone_thermocouple'
   }
   position_program: Array<{
     t_s: number
     axial_mm: number
     radial_mm?: number
     azimuth_deg?: number
-    reference: 'setup_origin' | 'zone_thermocouple'
+    reference: 'zone_thermocouple'
   }>
   heating_zone_ref?: string
   substrate_source_ids?: string[]
   ingredients: Ingredient[]
-}
-
-type Segment = {
-  segment_key: string
-  segment_type: string
-  sequence: number
-  start_s: number
-  end_s: number
-  label?: string
-  note?: string
 }
 
 type Channel = {
@@ -284,81 +257,9 @@ const DEFAULT_TARGET: TargetSpec = {
 }
 
 const EMPTY_TIMELINE = {
-  segments: [] satisfies Segment[],
   channels: [] satisfies Channel[],
 }
 
-const PRESERVED_PROCESS_FIELDS = [
-  'reaction_timer_origin',
-  'reaction_timer_origin_other',
-  'post_reaction_operations',
-] as const
-
-const PROCESS_UNITS: Record<string, string[]> = {
-  temperature: ['°C', 'K'],
-  flow: ['sccm', 'slm'],
-  pressure: ['Pa', 'kPa', 'mbar', 'Torr', 'bar', 'atm'],
-  valve_state: ['state'],
-  source_position: ['mm', 'cm', 'm'],
-  furnace_position: ['mm', 'cm', 'm'],
-  plasma_power: ['W', 'kW'],
-  shutter_state: ['state'],
-}
-const CHANNEL_LABELS: Record<string, string> = {
-  temperature: '温度',
-  flow: '气体流量',
-  pressure: '压力',
-  valve_state: '阀门状态',
-  source_position: '源位置',
-  furnace_position: '炉体位置',
-  plasma_power: '等离子体功率',
-  shutter_state: '挡板状态',
-}
-const SEGMENT_LABELS: Record<string, string> = {
-  system_preparation: '实验前准备',
-  pre_reaction: '温度程序',
-  reaction: '反应',
-  post_reaction: '反应后处理',
-  cooling: '降温',
-  other: '其他阶段',
-  purge: '系统准备（历史记录）',
-  ramp: '升降温（历史记录）',
-  nucleation: '成核（历史记录）',
-  growth: '生长（历史记录）',
-  anneal: '退火（历史记录）',
-  transfer: '转移（历史记录）',
-}
-const EVENT_OPTIONS = {
-  observed_deviations: PROCESS_DEVIATION_OPTIONS,
-  intervention_actions: [
-    ['adjust_flow', '调整流量'],
-    ['adjust_pressure', '调整压力'],
-    ['adjust_temperature', '调整温度'],
-    ['restart_supply', '恢复供应'],
-    ['inspect_equipment', '检查设备'],
-    ['stop_run', '停止实验'],
-    ['other', '其他'],
-  ],
-  affected_objects: [
-    ['source_load', '装料'],
-    ['gas_line', '气路'],
-    ['furnace', '炉体'],
-    ['substrate', '衬底'],
-    ['sample', '样品'],
-    ['process_channel', '过程通道'],
-    ['instrument', '仪器'],
-    ['other', '其他'],
-  ],
-  suspected_causes: [
-    ['line_blockage', '管路堵塞'],
-    ['equipment_fault', '设备故障'],
-    ['utility_interruption', '水/电/气供应中断'],
-    ['operator_action', '人员操作'],
-    ['process_instability', '过程不稳定'],
-    ['unknown', '原因未知'],
-    ['other', '其他'],
-  ],
-} satisfies Record<string, ReadonlyArray<readonly [string, string]>>
 export const WORKFLOW_STEPS = [
   '基本信息',
   '目标材料',
@@ -380,23 +281,11 @@ const STEP_MODULES = [
 const PRESSURE_REGIME_LABELS: Record<string, string> = {
   atmospheric: '常压',
   low_pressure: '减压（含真空）',
-  ultra_high_vacuum: '减压（含真空）',
   high_pressure: '加压',
   other: '其他',
 }
 
-function normalizedCoolingMethod(
-  value: unknown,
-): SimpleProcessSettings['cooling_method'] {
-  return ({
-    natural: 'furnace_cooling',
-    rapid_furnace_move: 'rapid_furnace_move_cooling',
-    controlled: 'controlled_cooling',
-  }[String(value)] ?? value) as SimpleProcessSettings['cooling_method']
-}
-
 function stepForModule(module: string): number {
-  if (['characterization', 'measured_products'].includes(module)) return 5
   const index = STEP_MODULES.findIndex((modules) =>
     (modules as readonly string[]).includes(module),
   )
@@ -405,10 +294,6 @@ function stepForModule(module: string): number {
 
 function numberOrUndefined(value: string): number | undefined {
   return value.trim() === '' ? undefined : Number(value)
-}
-
-function machineKey(prefix: string): string {
-  return `${prefix}_${crypto.randomUUID().replaceAll('-', '_')}`
 }
 
 function ambientComplete(
@@ -650,43 +535,17 @@ export function ScientificExperimentForm({
       EMPTY_TIMELINE,
     ),
   )
-  const [segments, setSegments] = useState<Segment[]>(() =>
-    Array.isArray(initialProcessPayload['segments'])
-      ? (initialProcessPayload['segments'] as Segment[])
-      : [],
-  )
   const [channels, setChannels] = useState<Channel[]>(() =>
     Array.isArray(initialProcessPayload['channels'])
       ? (initialProcessPayload['channels'] as Channel[])
       : [],
   )
-  const [preservedProcessFields] = useState<Record<string, unknown>>(() =>
-    Object.fromEntries(
-      PRESERVED_PROCESS_FIELDS.filter(
-        (key) => key in initialProcessPayload,
-      ).map((key) => [key, initialProcessPayload[key]]),
-    ),
-  )
   const [processSettings, setProcessSettings] = useState<SimpleProcessSettings>(
     () => {
       const payload = initialProcessPayload
-      const legacyExternalFields = Array.isArray(payload['external_fields'])
-        ? (payload['external_fields'] as string[])
-        : []
       const fieldParams = Array.isArray(payload['field_params'])
         ? (payload['field_params'] as ActualField[])
-        : legacyExternalFields
-            .filter((item) =>
-              actualFieldTypes.includes(
-                item as (typeof actualFieldTypes)[number],
-              ),
-            )
-            .map((field_type) => ({
-              field_type: field_type as ActualField['field_type'],
-              start_min: null,
-              end_min: null,
-              parameters: [],
-            }))
+        : []
       return {
         process_duration_min: payload['process_duration_min'] as
           | number
@@ -697,11 +556,10 @@ export function ScientificExperimentForm({
         pressure_regime: payload[
           'pressure_regime'
         ] as SimpleProcessSettings['pressure_regime'],
-        cooling_method: normalizedCoolingMethod(payload['cooling_method']),
+        cooling_method: payload[
+          'cooling_method'
+        ] as SimpleProcessSettings['cooling_method'],
         cooling_other: payload['cooling_other'] as string | undefined,
-        cooling_rate_C_per_min: payload['cooling_rate_C_per_min'] as
-          | number
-          | undefined,
         lid_open_temperature_C: payload['lid_open_temperature_C'] as
           | number
           | undefined,
@@ -711,7 +569,6 @@ export function ScientificExperimentForm({
             ] as SimpleProcessSettings['preparation_operations'])
           : [],
         field_params: fieldParams,
-        external_fields: legacyExternalFields,
       }
     },
   )
@@ -970,12 +827,7 @@ export function ScientificExperimentForm({
   const totalDuration =
     processSettings.process_duration_min !== undefined
       ? processSettings.process_duration_min * 60
-      : simpleProcessEndSeconds(
-          segments,
-          channels,
-          processSettings.field_params,
-          events,
-        )
+      : simpleProcessEndSeconds(channels, processSettings.field_params, events)
   const peakTemperature = peakTemperatureC(channels)
   const hasTemperatureFile = channels.some(
     (channel) =>
@@ -987,13 +839,12 @@ export function ScientificExperimentForm({
       ? '请至少添加一条异常事件。'
       : null) ??
     simpleGrowthIssue(
-      segments,
       channels,
       processSettings,
       setupZoneCount,
       processFieldParamsValid,
     ) ??
-    timelineValidationIssue(segments, channels) ??
+    timelineValidationIssue(channels) ??
     simpleProcessEventsIssue(events)
   const targetIssue = targetValidationIssue(target)
   const startedAtValid = Boolean(
@@ -1049,11 +900,8 @@ export function ScientificExperimentForm({
           load.ingredients,
           sourceSolutionMode(load.preparation_steps).hasSolution,
           load.loading_method !== 'gas_line' &&
-            !sourceSolutionMode(load.preparation_steps).immersionOnly &&
-            !sourceSolutionVolumesRecorded(load.preparation_steps),
+            !sourceSolutionMode(load.preparation_steps).hasSolution,
           sourceSolutionMode(load.preparation_steps).concentrationRequired,
-          sourceSolutionMode(load.preparation_steps).volumeRequired &&
-            !sourceSolutionVolumesRecorded(load.preparation_steps),
         ),
     ),
   )
@@ -1084,11 +932,9 @@ export function ScientificExperimentForm({
     }
     if (key === 'process_steps') {
       return {
-        segments,
         channels,
         process_events_confirmed: processEventsConfirmed,
         ...processSettings,
-        ...preservedProcessFields,
       }
     }
     if (key === 'process_events') return { items: events }
@@ -1689,7 +1535,6 @@ export function ScientificExperimentForm({
 
           {activeStep === 4 ? (
             <SimpleGrowthEditor
-              segments={segments}
               channels={channels}
               settings={processSettings}
               events={events}
@@ -1704,8 +1549,7 @@ export function ScientificExperimentForm({
                 errors.process_steps || errors.process_events,
               )}
               validationIssue={processTimelineIssue}
-              onTimelineChange={(nextSegments, nextChannels) => {
-                setSegments(nextSegments)
+              onTimelineChange={(nextChannels) => {
                 setChannels(nextChannels)
                 markDirty('process_steps')
               }}
@@ -2042,1048 +1886,5 @@ export function ScientificExperimentForm({
         </CardContent>
       </Card>
     </div>
-  )
-}
-
-export function TargetEditor({
-  target,
-  onChange,
-  disabled,
-}: {
-  target: TargetSpec
-  onChange: (value: TargetSpec) => void
-  disabled: boolean
-}) {
-  return (
-    <SimpleTargetEditor
-      target={target as SimpleTarget}
-      onChange={onChange}
-      disabled={disabled}
-    />
-  )
-}
-
-export function TimelineEditor({
-  runId,
-  token,
-  segments,
-  channels,
-  zoneCount,
-  onChange,
-  disabled,
-}: {
-  runId: string
-  token: string
-  segments: Segment[]
-  channels: Channel[]
-  zoneCount: number | null
-  onChange: (segments: Segment[], channels: Channel[]) => void
-  disabled: boolean
-}) {
-  const patchSegment = (index: number, patch: Partial<Segment>) =>
-    onChange(
-      segments.map((item, current) =>
-        current === index ? { ...item, ...patch } : item,
-      ),
-      channels,
-    )
-  const patchChannel = (index: number, patch: Partial<Channel>) =>
-    onChange(
-      segments,
-      channels.map((item, current) =>
-        current === index ? { ...item, ...patch } : item,
-      ),
-    )
-  const addChannel = (channelType: string) => {
-    const stateChannel = channelType.endsWith('_state')
-    const deviceChannel = !['temperature', 'flow', 'pressure'].includes(
-      channelType,
-    )
-    const channel: Channel = {
-      channel_key: machineKey('channel'),
-      channel_type: channelType,
-      source_type: '',
-      subject_type: deviceChannel
-        ? 'device'
-        : channelType === 'temperature'
-          ? 'temperature_zone'
-          : channelType === 'flow'
-            ? 'gas_species'
-            : 'pressure_location',
-      subject_ref: deviceChannel ? channelType : '',
-      subject_instance_ref: '',
-      unit: PROCESS_UNITS[channelType][0],
-      data_kind: stateChannel ? 'interval_series' : 'scalar',
-      ...(stateChannel
-        ? { series: [{ start_s: 0, end_s: 60, value: '' }] }
-        : {}),
-    }
-    onChange(segments, [...channels, channel])
-  }
-  const setChannelSubject = (
-    index: number,
-    subject: 'zone' | 'gas_species' | 'pressure_location',
-    value: string,
-  ) => {
-    const channel = channels[index]
-    const patch =
-      subject === 'zone'
-        ? {
-            subject_type: 'temperature_zone',
-            subject_ref: value,
-            zone_index: Number(value.replace('zone_', '')) || undefined,
-          }
-        : subject === 'gas_species'
-          ? {
-              subject_type: 'gas_species',
-              subject_ref: value,
-              gas_species_code: value,
-            }
-          : {
-              subject_type: 'pressure_location',
-              subject_ref: value.trim(),
-              pressure_location: value,
-            }
-    patchChannel(index, withProcessChannelSubject(channel, patch))
-  }
-  const uploadSeries = async (index: number, file: File) => {
-    const channel = channels[index]
-    try {
-      const uploaded = await uploadExperimentFile(token, runId, {
-        file,
-        assetRole: 'process_timeseries',
-        bindingType: 'process_channel',
-        bindingId: channel.channel_key,
-      })
-      patchChannel(index, {
-        data_kind: 'timeseries_file',
-        file_asset_id: uploaded.id,
-        scalar_value: undefined,
-        series: undefined,
-      })
-      toast.success('时间序列文件已上传')
-    } catch (error) {
-      toast.error(resolveErrorMessage(error, '时间序列上传失败'))
-    }
-  }
-  return (
-    <ModuleCard id="module-process_steps" title="生长程序">
-      <div className="grid gap-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-medium">实验阶段</p>
-            <p className="text-xs text-muted-foreground">
-              按实际操作填写系统准备、预处理、反应、反应后处理和降温。
-            </p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={disabled}
-            onClick={() =>
-              onChange(
-                [
-                  ...segments,
-                  {
-                    segment_key: machineKey('segment'),
-                    segment_type: segments.length === 0 ? 'reaction' : 'other',
-                    sequence: segments.length + 1,
-                    start_s: segments.at(-1)?.end_s ?? 0,
-                    end_s: (segments.at(-1)?.end_s ?? 0) + 60,
-                  },
-                ],
-                channels,
-              )
-            }
-          >
-            <Plus /> 添加阶段
-          </Button>
-        </div>
-        {segments.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            尚未填写实验阶段。
-          </p>
-        ) : null}
-        {segments.map((segment, index) => (
-          <div key={index} className="grid gap-4 rounded-lg border p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-medium">阶段 {index + 1}</p>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={disabled}
-                onClick={() =>
-                  onChange(
-                    segments
-                      .filter((_, current) => current !== index)
-                      .map((item, current) => ({
-                        ...item,
-                        sequence: current + 1,
-                      })),
-                    channels,
-                  )
-                }
-              >
-                <Trash2 /> 删除
-              </Button>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label>阶段类型</Label>
-                <Select
-                  value={segment.segment_type}
-                  disabled={disabled}
-                  onValueChange={(value) =>
-                    patchSegment(index, { segment_type: value })
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {[
-                        'system_preparation',
-                        'pre_reaction',
-                        'reaction',
-                        'post_reaction',
-                        'cooling',
-                        'other',
-                      ].map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {SEGMENT_LABELS[value]}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>阶段名称</Label>
-                <Input
-                  value={segment.label ?? ''}
-                  disabled={disabled}
-                  onChange={(event) =>
-                    patchSegment(index, { label: event.target.value })
-                  }
-                  placeholder="例如快速升温"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>开始时间（min）</Label>
-                <Input
-                  type="number"
-                  value={segment.start_s / 60}
-                  disabled={disabled}
-                  onChange={(event) =>
-                    patchSegment(index, {
-                      start_s: Number(event.target.value) * 60,
-                    })
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>结束时间（min）</Label>
-                <Input
-                  type="number"
-                  value={segment.end_s / 60}
-                  disabled={disabled}
-                  onChange={(event) =>
-                    patchSegment(index, {
-                      end_s: Number(event.target.value) * 60,
-                    })
-                  }
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-3">
-        <div className="grid gap-3">
-          <div>
-            <p className="font-medium">温度、气体与压力条件</p>
-            <p className="text-xs text-muted-foreground">
-              按实际记录添加对应条件；新记录不会自动带入任何实验数值。
-            </p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {[
-              ['temperature', '添加温度条件'],
-              ['flow', '添加气体流量'],
-              ['pressure', '添加压力条件'],
-              ['plasma_power', '添加外场或设备状态'],
-            ].map(([type, label]) => (
-              <Button
-                key={type}
-                type="button"
-                size="sm"
-                variant="outline"
-                className="justify-start"
-                disabled={disabled}
-                onClick={() => addChannel(type)}
-              >
-                <Plus data-icon="inline-start" />
-                {label}
-              </Button>
-            ))}
-          </div>
-        </div>
-        {channels.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            尚未填写温度、气体、压力或设备条件。
-          </p>
-        ) : null}
-        {channels.map((channel, index) => (
-          <div
-            key={channel.channel_key}
-            className="grid gap-4 rounded-lg border p-4"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-medium">{processChannelTitle(channel)}</p>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={disabled}
-                onClick={() =>
-                  onChange(
-                    segments,
-                    channels.filter((_, current) => current !== index),
-                  )
-                }
-              >
-                <Trash2 /> 删除
-              </Button>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {channel.channel_type === 'temperature' ? (
-                <div className="grid gap-2">
-                  <Label>对应温区</Label>
-                  {zoneCount ? (
-                    <Select
-                      value={String(
-                        channel.zone_index ? `zone_${channel.zone_index}` : '',
-                      )}
-                      disabled={disabled}
-                      onValueChange={(value) =>
-                        setChannelSubject(index, 'zone', value)
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="选择温区" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {Array.from({ length: zoneCount }, (_, zoneIndex) => (
-                            <SelectItem
-                              key={zoneIndex}
-                              value={`zone_${zoneIndex + 1}`}
-                            >
-                              温区 {zoneIndex + 1}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      value={String(channel.zone_index ?? '')}
-                      disabled={disabled}
-                      type="number"
-                      min="1"
-                      placeholder="例如 1"
-                      onChange={(event) =>
-                        setChannelSubject(
-                          index,
-                          'zone',
-                          event.target.value
-                            ? `zone_${event.target.value}`
-                            : '',
-                        )
-                      }
-                    />
-                  )}
-                </div>
-              ) : channel.channel_type === 'flow' ? (
-                <>
-                  <div className="grid gap-2">
-                    <Label>气体种类</Label>
-                    <Select
-                      value={String(channel.gas_species_code ?? '')}
-                      disabled={disabled}
-                      onValueChange={(value) =>
-                        setChannelSubject(index, 'gas_species', value)
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="选择气体" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {Object.entries(gasSpecies).map(([code, item]) => (
-                            <SelectItem key={code} value={code}>
-                              {item.label_zh}（{code}）
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>气瓶批次（物料批次库）</Label>
-                    <EntityReferenceSelect
-                      kind="material_lot"
-                      value={channel.gas_lot_id ?? ''}
-                      selectedVersion={channel.gas_lot_version}
-                      selectedSnapshot={null}
-                      disabled={disabled}
-                      filter={(entity) =>
-                        entity.latest_version?.data['lot_category'] ===
-                        'gas_cylinder'
-                      }
-                      allowedLotCategories={['gas_cylinder']}
-                      onChange={(gas_lot_id, entity) =>
-                        patchChannel(index, {
-                          gas_lot_id,
-                          gas_lot_version:
-                            entity?.latest_version?.version ?? undefined,
-                        })
-                      }
-                    />
-                  </div>
-                </>
-              ) : channel.channel_type === 'pressure' ? (
-                <>
-                  <div className="grid gap-2">
-                    <Label>压力位置</Label>
-                    <Input
-                      value={String(channel.pressure_location ?? '')}
-                      disabled={disabled}
-                      placeholder="例如 反应腔"
-                      onChange={(event) =>
-                        setChannelSubject(
-                          index,
-                          'pressure_location',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>压力类型</Label>
-                    <Select
-                      value={String(channel.pressure_type ?? '')}
-                      disabled={disabled}
-                      onValueChange={(value) =>
-                        patchChannel(index, { pressure_type: value })
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="选择压力类型" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="absolute">绝对压力</SelectItem>
-                          <SelectItem value="gauge">表压</SelectItem>
-                          <SelectItem value="differential">压差</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              ) : (
-                <div className="grid gap-2">
-                  <Label>记录对象</Label>
-                  <Select
-                    value={channel.channel_type}
-                    disabled={disabled}
-                    onValueChange={(value) => {
-                      const stateChannel = value.endsWith('_state')
-                      patchChannel(index, {
-                        channel_type: value,
-                        subject_type: 'device',
-                        subject_ref: value,
-                        unit: PROCESS_UNITS[value][0],
-                        data_kind: stateChannel ? 'interval_series' : 'scalar',
-                        scalar_value: undefined,
-                        series: stateChannel
-                          ? [{ start_s: 0, end_s: 60, value: '' }]
-                          : undefined,
-                        file_asset_id: undefined,
-                      })
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {[
-                          'plasma_power',
-                          'valve_state',
-                          'source_position',
-                          'furnace_position',
-                          'shutter_state',
-                        ].map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {CHANNEL_LABELS[value]}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="grid gap-2">
-                <Label>物理通道实例</Label>
-                <Input
-                  value={channel.subject_instance_ref}
-                  disabled={disabled}
-                  placeholder={
-                    channel.channel_type === 'flow'
-                      ? '例如 MFC-Ar-1'
-                      : channel.channel_type === 'temperature'
-                        ? '例如 TC-zone1-A'
-                        : channel.channel_type === 'pressure'
-                          ? '例如 PG-outlet-1'
-                          : '例如 valve-1'
-                  }
-                  onChange={(event) =>
-                    patchChannel(index, {
-                      subject_instance_ref: event.target.value,
-                    })
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  填写装置中可稳定识别的传感器、MFC、阀门或执行器编号。
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <Label>记录的是</Label>
-                <Select
-                  value={channel.source_type}
-                  disabled={disabled}
-                  onValueChange={(value) =>
-                    patchChannel(index, { source_type: value })
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="选择数据来源" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="setpoint">设定值</SelectItem>
-                      <SelectItem value="measured">实测值</SelectItem>
-                      <SelectItem value="inferred">推断值</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>单位</Label>
-                <Select
-                  value={channel.unit}
-                  disabled={disabled}
-                  onValueChange={(unit) => patchChannel(index, { unit })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {(PROCESS_UNITS[channel.channel_type] ?? []).map(
-                        (unit) => (
-                          <SelectItem key={unit} value={unit}>
-                            {unit}
-                          </SelectItem>
-                        ),
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>记录方式</Label>
-                <Select
-                  value={channel.data_kind}
-                  disabled={disabled}
-                  onValueChange={(value) =>
-                    patchChannel(index, {
-                      data_kind: value as Channel['data_kind'],
-                      scalar_value: undefined,
-                      series:
-                        value === 'interval_series'
-                          ? [{ start_s: 0, end_s: 60, value: '' }]
-                          : undefined,
-                      file_asset_id: undefined,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {!channel.channel_type.endsWith('_state') ? (
-                        <SelectItem value="scalar">单次值</SelectItem>
-                      ) : null}
-                      <SelectItem value="interval_series">分时段</SelectItem>
-                      {!channel.channel_type.endsWith('_state') ? (
-                        <SelectItem value="timeseries_file">
-                          上传时间序列
-                        </SelectItem>
-                      ) : null}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2 sm:col-span-2">
-                <Label>
-                  {channel.channel_type === 'temperature'
-                    ? '温度'
-                    : channel.channel_type === 'flow'
-                      ? '流量'
-                      : channel.channel_type === 'pressure'
-                        ? '压力'
-                        : '记录值'}
-                </Label>
-                {channel.data_kind === 'scalar' ? (
-                  <Input
-                    type={
-                      channel.channel_type.endsWith('_state')
-                        ? 'text'
-                        : 'number'
-                    }
-                    value={channel.scalar_value ?? ''}
-                    disabled={disabled}
-                    onChange={(event) =>
-                      patchChannel(index, {
-                        scalar_value: numberOrUndefined(event.target.value),
-                      })
-                    }
-                  />
-                ) : channel.data_kind === 'interval_series' ? (
-                  <div className="grid gap-1">
-                    {(channel.series ?? []).map((point, pointIndex) => (
-                      <div
-                        key={pointIndex}
-                        className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2"
-                      >
-                        {(
-                          [
-                            ['start_s', '开始时间（min）'],
-                            ['end_s', '结束时间（min）'],
-                            [
-                              'value',
-                              channel.channel_type === 'temperature'
-                                ? '温度'
-                                : channel.channel_type === 'flow'
-                                  ? '流量'
-                                  : channel.channel_type === 'pressure'
-                                    ? '压力'
-                                    : '状态或数值',
-                            ],
-                          ] as const
-                        ).map(([key, label]) => (
-                          <div key={key} className="grid gap-2">
-                            <Label>{label}</Label>
-                            <Input
-                              type={
-                                key === 'value' &&
-                                channel.channel_type.endsWith('_state')
-                                  ? 'text'
-                                  : 'number'
-                              }
-                              value={
-                                key === 'value'
-                                  ? point.value
-                                  : point[key] === undefined
-                                    ? ''
-                                    : Number(point[key]) / 60
-                              }
-                              disabled={disabled}
-                              onChange={(event) =>
-                                patchChannel(index, {
-                                  series: (channel.series ?? []).map(
-                                    (item, current) =>
-                                      current === pointIndex
-                                        ? {
-                                            ...item,
-                                            [key]:
-                                              key === 'value'
-                                                ? channel.channel_type.endsWith(
-                                                    '_state',
-                                                  )
-                                                  ? event.target.value
-                                                  : event.target.value === ''
-                                                    ? ''
-                                                    : Number(event.target.value)
-                                                : event.target.value === ''
-                                                  ? undefined
-                                                  : Number(event.target.value) *
-                                                    60,
-                                          }
-                                        : item,
-                                  ),
-                                })
-                              }
-                            />
-                          </div>
-                        ))}
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="sm:col-span-2 sm:justify-self-end"
-                          disabled={disabled}
-                          onClick={() =>
-                            patchChannel(index, {
-                              series: channel.series?.filter(
-                                (_, current) => current !== pointIndex,
-                              ),
-                            })
-                          }
-                        >
-                          <Trash2 /> 删除区间
-                        </Button>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={disabled}
-                      onClick={() =>
-                        patchChannel(index, {
-                          series: [
-                            ...(channel.series ?? []),
-                            {
-                              start_s: channel.series?.at(-1)?.end_s ?? 0,
-                              end_s: (channel.series?.at(-1)?.end_s ?? 0) + 60,
-                              value: '',
-                            },
-                          ],
-                        })
-                      }
-                    >
-                      <Plus /> 添加区间
-                    </Button>
-                  </div>
-                ) : (
-                  <label className="flex cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
-                    <Upload className="size-4" />
-                    {channel.file_asset_id ? '已上传' : '上传 CSV'}
-                    <input
-                      type="file"
-                      accept=".csv,text/csv"
-                      className="sr-only"
-                      disabled={disabled}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0]
-                        if (file) void uploadSeries(index, file)
-                      }}
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      表头须含 time_s,value
-                    </span>
-                  </label>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </ModuleCard>
-  )
-}
-
-function ControlledChecklist({
-  label,
-  values,
-  options,
-  disabled,
-  required = false,
-  onChange,
-}: {
-  label: string
-  values: string[]
-  options: ReadonlyArray<readonly [string, string]>
-  disabled: boolean
-  required?: boolean
-  onChange: (values: string[]) => void
-}) {
-  return (
-    <fieldset className="grid gap-2 rounded-md border p-3 sm:col-span-2">
-      <legend className="px-1 text-sm font-medium">{label}</legend>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {options.map(([value, optionLabel]) => {
-          const checked = values.includes(value)
-          return (
-            <label key={value} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={checked}
-                disabled={
-                  disabled || (required && checked && values.length === 1)
-                }
-                onCheckedChange={(nextChecked) =>
-                  onChange(
-                    nextChecked === true
-                      ? [...values, value]
-                      : values.filter((item) => item !== value),
-                  )
-                }
-              />
-              {optionLabel}
-            </label>
-          )
-        })}
-      </div>
-    </fieldset>
-  )
-}
-
-export function EventsEditor({
-  events,
-  onChange,
-  disabled,
-}: {
-  events: ProcessEvent[]
-  onChange: (events: ProcessEvent[]) => void
-  disabled: boolean
-}) {
-  const patch = (index: number, patchValue: Partial<ProcessEvent>) =>
-    onChange(
-      events.map((item, current) =>
-        current === index ? { ...item, ...patchValue } : item,
-      ),
-    )
-  return (
-    <ModuleCard id="module-process_events" title="异常情况">
-      {events.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          发生异常、计划变更或数据失效时记录。
-        </p>
-      ) : null}
-      {events.map((event, index) => (
-        <div
-          key={index}
-          className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
-        >
-          <div className="flex items-center justify-between gap-3 sm:col-span-2">
-            <p className="font-medium">异常 {index + 1}</p>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={disabled}
-              onClick={() =>
-                onChange(events.filter((_, current) => current !== index))
-              }
-            >
-              <Trash2 /> 删除
-            </Button>
-          </div>
-          <div className="grid gap-2">
-            <Label>开始时间（s）</Label>
-            <Input
-              type="number"
-              value={event.start_s}
-              disabled={disabled}
-              onChange={(input) =>
-                patch(index, { start_s: Number(input.target.value) })
-              }
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>结束时间（s）</Label>
-            <Input
-              type="number"
-              value={event.end_s ?? ''}
-              disabled={disabled}
-              onChange={(input) =>
-                patch(index, { end_s: numberOrUndefined(input.target.value) })
-              }
-            />
-          </div>
-          <ControlledChecklist
-            label="观察到的偏差"
-            values={event.observed_deviations}
-            options={EVENT_OPTIONS.observed_deviations}
-            disabled={disabled}
-            required
-            onChange={(values) => patch(index, { observed_deviations: values })}
-          />
-          <div className="grid gap-2">
-            <Label>对数据有效性的影响</Label>
-            <Select
-              value={event.data_validity_impact ?? 'unknown'}
-              disabled={disabled}
-              onValueChange={(value) =>
-                patch(index, { data_validity_impact: value })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="none">不影响</SelectItem>
-                  <SelectItem value="partial">部分影响</SelectItem>
-                  <SelectItem value="invalid">数据无效</SelectItem>
-                  <SelectItem value="unknown">未知</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2 sm:col-span-2">
-            <Label>客观描述</Label>
-            <Textarea
-              value={event.description ?? ''}
-              disabled={disabled}
-              onChange={(input) =>
-                patch(index, { description: input.target.value })
-              }
-              placeholder="描述观察到的现象和发生经过"
-            />
-          </div>
-          {(
-            [
-              ['intervention_actions', '干预动作'],
-              ['affected_objects', '受影响对象'],
-              ['suspected_causes', '怀疑原因'],
-            ] as const
-          ).map(([key, label]) => (
-            <ControlledChecklist
-              key={key}
-              label={label}
-              values={event[key]}
-              options={EVENT_OPTIONS[key]}
-              disabled={disabled}
-              onChange={(values) => patch(index, { [key]: values })}
-            />
-          ))}
-          <div className="grid gap-2">
-            <Label>处理结果</Label>
-            <Select
-              value={event.outcome ?? 'unknown'}
-              disabled={disabled}
-              onValueChange={(outcome) => patch(index, { outcome })}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="recovered">已恢复</SelectItem>
-                  <SelectItem value="partially_recovered">部分恢复</SelectItem>
-                  <SelectItem value="terminated">实验终止</SelectItem>
-                  <SelectItem value="unknown">结果未知</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2 sm:col-span-2">
-            <div className="flex items-center justify-between">
-              <Label>排除的数据时间范围</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={disabled}
-                onClick={() =>
-                  patch(index, {
-                    excluded_time_ranges: [
-                      ...event.excluded_time_ranges,
-                      {
-                        start_s: event.start_s,
-                        end_s: event.end_s ?? event.start_s + 1,
-                      },
-                    ],
-                  })
-                }
-              >
-                <Plus /> 添加范围
-              </Button>
-            </div>
-            {event.excluded_time_ranges.map((range, rangeIndex) => (
-              <div
-                key={rangeIndex}
-                className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2"
-              >
-                {(['start_s', 'end_s'] as const).map((key) => (
-                  <div key={key} className="grid gap-2">
-                    <Label>
-                      {key === 'start_s'
-                        ? '排除开始时间（s）'
-                        : '排除结束时间（s）'}
-                    </Label>
-                    <Input
-                      type="number"
-                      value={range[key]}
-                      disabled={disabled}
-                      onChange={(input) =>
-                        patch(index, {
-                          excluded_time_ranges: event.excluded_time_ranges.map(
-                            (item, current) =>
-                              current === rangeIndex
-                                ? {
-                                    ...item,
-                                    [key]: Number(input.target.value),
-                                  }
-                                : item,
-                          ),
-                        })
-                      }
-                    />
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="sm:col-span-2 sm:justify-self-end"
-                  disabled={disabled}
-                  onClick={() =>
-                    patch(index, {
-                      excluded_time_ranges: event.excluded_time_ranges.filter(
-                        (_, current) => current !== rangeIndex,
-                      ),
-                    })
-                  }
-                >
-                  <Trash2 /> 删除范围
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-      <Button
-        type="button"
-        variant="outline"
-        disabled={disabled}
-        onClick={() =>
-          onChange([
-            ...events,
-            {
-              event_key: machineKey('event'),
-              start_s: 0,
-              observed_deviations: ['gas_interruption'],
-              intervention_actions: [],
-              affected_objects: [],
-              suspected_causes: [],
-              excluded_time_ranges: [],
-              attachment_file_ids: [],
-            },
-          ])
-        }
-      >
-        <Plus /> 添加事件
-      </Button>
-    </ModuleCard>
   )
 }

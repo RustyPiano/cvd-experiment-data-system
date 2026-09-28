@@ -484,9 +484,12 @@ describe('buildSubmitPayload', () => {
     expect(payload.field_devices).toEqual(['light', 'electric_field'])
   })
 
-  it('round-trips named tube dimensions and backfills the legacy shape', () => {
+  it('round-trips named tube dimensions', () => {
     const defaults = buildDefaultValues('setup', {
-      tube_outer_diameter_wall_mm: { value: 2, option: '2″' },
+      tube_outer_diameter_wall_mm: {
+        outer_diameter_mm: 50.8,
+        wall_thickness_mm: 2,
+      },
     })
     expect(JSON.parse(defaults.tube_outer_diameter_wall_mm as string)).toEqual({
       outer_diameter_mm: 50.8,

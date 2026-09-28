@@ -1,12 +1,10 @@
 from copy import deepcopy
-from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
 from app.commands.export_v2_schema import export_v2_schema
 from app.core.scientific_json_schema import ScientificJSONValidator
-from app.models.v2_entities import InstrumentLifecycleEvent
 from app.schemas.scientific import MeasurementBundleCreate
 from app.services.om_configuration import resolve_om_configuration, validate_om_catalog
 from app.services.v2_entity_service import V2EntityService
@@ -70,22 +68,6 @@ def test_pl_configuration_series_response_and_export(admin_user, db_session):
     assert response.status_code == 201, response.text
     instrument = response.json()
     selection = {"lasers": "Green", "objectives": "100x", "spectrometers": "1800 CCD"}
-    for day, method, correction in [(8, "PL", 0.1), (9, "Raman", 0.2)]:
-        db_session.add(
-            InstrumentLifecycleEvent(
-                instrument_id=UUID(instrument["id"]),
-                event_type="calibration",
-                occurred_at=datetime.fromisoformat(f"2026-09-{day:02d}T00:00:00+00:00"),
-                quantity="wavelength",
-                correction=correction,
-                details_json={
-                    "instrument_version": 1,
-                    "method_profile": method,
-                    "configuration": {"lasers": "Green", "spectrometers": "1800 CCD"},
-                },
-            )
-        )
-    db_session.commit()
     uploaded = client.post(
         f"/api/v1/experiments/{run.id}/files",
         headers=headers,
@@ -176,12 +158,6 @@ def test_pl_configuration_series_response_and_export(admin_user, db_session):
     assert detail["typed_conditions"]["objective_na"] == 0.9
     assert detail["scan_file_id"] == file_id
     assert detail["file_response_corrections"] == data["measurement"]["file_response_corrections"]
-    assert (
-        detail["instrument_snapshot_json"]["calibration_at_measurement"]["quantities"][
-            "wavelength"
-        ]["correction"]
-        == 0.1
-    )
     exported = client.get(
         f"/api/v1/experiments/{run.id}/export",
         headers=headers,
@@ -252,46 +228,3 @@ def test_pl_condition_and_schema_boundaries():
         else:
             with pytest.raises(ValueError):
                 MeasurementBundleCreate.model_validate(data)
-
-
-def test_pl_calibration_matches_power_conditions_and_emission_band():
-    from types import SimpleNamespace
-
-    from app.services.scientific_measurement_service import ScientificMeasurementService
-
-    instrument_id = uuid4()
-    selection = {"lasers": "Green", "objectives": "100x", "spectrometers": "CCD"}
-    events = []
-    for quantity, scope, correction in [
-        ("laser_power", {"conditions": {"excitation_wavelength_nm": 633}}, 9),
-        ("laser_power", {"conditions": {"excitation_wavelength_nm": 532}}, 1),
-        ("emission_response", {"spectral_range_nm": {"min": 700, "max": 800}}, 9),
-        ("emission_response", {"spectral_range_nm": {"min": 600, "max": 900}}, 2),
-    ]:
-        events.append(
-            InstrumentLifecycleEvent(
-                id=uuid4(),
-                instrument_id=instrument_id,
-                event_type="calibration",
-                occurred_at=datetime.fromisoformat("2026-09-10T00:00:00+00:00"),
-                quantity=quantity,
-                correction=correction,
-                details_json={
-                    "instrument_version": 1,
-                    "method_profile": "PL",
-                    "configuration": selection,
-                    **scope,
-                },
-            )
-        )
-    service = ScientificMeasurementService(SimpleNamespace(scalars=lambda _: events))
-    result = service._raman_calibration_snapshot(
-        instrument_id,
-        datetime.fromisoformat("2026-09-11T00:00:00+00:00"),
-        selection,
-        1,
-        method="PL",
-        conditions={"excitation_wavelength_nm": 532, "spectral_range_nm": {"min": 610, "max": 800}},
-    )
-    assert result["quantities"]["laser_power"]["correction"] == 1
-    assert result["quantities"]["emission_response"]["correction"] == 2

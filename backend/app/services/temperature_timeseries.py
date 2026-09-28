@@ -101,32 +101,6 @@ def temperature_timeseries_metadata_is_valid(metadata: dict[str, Any]) -> bool:
     )
 
 
-def temperature_timeseries_mapping_error(
-    metadata: dict[str, Any],
-    reference: dict[str, Any],
-) -> str | None:
-    if not temperature_timeseries_metadata_is_valid(metadata):
-        return "file_metadata"
-    numeric_columns = set(metadata["numeric_columns"])
-    time_column = reference.get("time_column")
-    if time_column not in numeric_columns:
-        return "time_column"
-    channels = reference.get("channels")
-    if not isinstance(channels, list) or not channels:
-        return "column_name"
-    channel_columns = [
-        channel.get("column_name") if isinstance(channel, dict) else None for channel in channels
-    ]
-    if any(column not in numeric_columns for column in channel_columns):
-        return "column_name"
-    if time_column in channel_columns:
-        return "column_reuse"
-    paired_columns = {frozenset(pair) for pair in metadata["numeric_column_pairs"]}
-    if any(frozenset((time_column, column)) not in paired_columns for column in channel_columns):
-        return "column_pair"
-    return None
-
-
 def _rows_metadata(rows: list[tuple[Any, ...]] | list[list[str]]) -> dict[str, object]:
     while rows and not any(_present(cell) for cell in rows[-1]):
         rows.pop()

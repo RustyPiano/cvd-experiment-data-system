@@ -28,8 +28,6 @@ vi.mock('@tanstack/react-query', () => ({
           experiment_run_id: 'run-1',
           run_code: 'CVD-2026-0001',
           target_material_system: 'MoS₂',
-          actual_state: 'growth_present',
-          actual_material_summary: '2H-MoS₂',
           characterization_count: 3,
           source_substrate_snapshot_json: {
             material: 'sio2_si',
@@ -53,7 +51,6 @@ describe('sample list product view', () => {
       '来源实验',
       '衬底',
       '目标材料',
-      '实际结果',
       '表征记录',
       '操作',
     ]) {

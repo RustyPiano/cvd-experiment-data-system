@@ -73,8 +73,6 @@ def test_manual_sample_create_list_and_detail(active_user) -> None:
     assert list_response.json()["items"] == [detail_response.json()]
     assert detail_response.json()["run_code"] == run["run_code"]
     assert detail_response.json()["target_material_system"] == "WSe2"
-    assert detail_response.json()["material_system"] is None
-    assert detail_response.json()["actual_state"] == "unknown"
     assert detail_response.json()["characterization_count"] == 0
     assert "storage_location" not in detail_response.json()
 

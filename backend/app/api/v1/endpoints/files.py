@@ -29,17 +29,13 @@ def list_files(
     asset_role: Annotated[str | None, Query()] = None,
     binding_type: Annotated[str | None, Query(max_length=64)] = None,
     binding_id: Annotated[str | None, Query(max_length=64)] = None,
-    legacy_file_kind: Annotated[
-        str | None,
-        Query(alias="file_kind", include_in_schema=False),
-    ] = None,
 ) -> FileAssetListResponse:
     return FileAssetService(db).list_files(
         current_user=current_user,
         experiment_id=experiment_id,
         sample_id=sample_id,
         characterization_record_id=characterization_record_id,
-        method=method or legacy_file_kind,
+        method=method,
         file_category=file_category,
         asset_role=asset_role,
         binding_type=binding_type,
@@ -65,10 +61,6 @@ def upload_file(
     binding_type: Annotated[str | None, Form(max_length=64)] = None,
     binding_id: Annotated[str | None, Form(max_length=64)] = None,
     note: Annotated[str | None, Form(max_length=FILE_NOTE_MAX_LENGTH)] = None,
-    legacy_file_kind: Annotated[
-        str | None,
-        Form(alias="file_kind", include_in_schema=False),
-    ] = None,
 ) -> FileAssetRead:
     return FileAssetService(db).upload_file(
         experiment_id=experiment_id,
@@ -76,7 +68,7 @@ def upload_file(
         current_user=current_user,
         sample_id=sample_id,
         characterization_record_id=characterization_record_id,
-        method=method or legacy_file_kind,
+        method=method,
         file_category=file_category,
         asset_role=asset_role,
         binding_type=binding_type,

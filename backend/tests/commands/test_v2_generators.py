@@ -160,20 +160,23 @@ def test_measurement_json_schema_enforces_property_and_profile_contract() -> Non
     payload = {
         "measurement": {
             "sample_id": "00000000-0000-0000-0000-000000000001",
-            "method_profile": "optical_microscopy",
+            "method_profile": "AFM",
+            "instrument_id": "00000000-0000-0000-0000-000000000002",
+            "instrument_version": 1,
             "measured_at": "2026-08-30T12:00:00+00:00",
             "sample_region": {
                 "geometry_type": "whole_sample",
                 "label": "whole sample",
                 "coordinate_system": "sample_local",
             },
-            "typed_conditions": {"observation_mode": "visual"},
+            "typed_conditions": {"scan_size_um": {"x": 5, "y": 5}},
+            "raw_file_ids": ["00000000-0000-0000-0000-000000000003"],
         },
         "properties": [
             {
-                "property_code": "coverage_percent",
-                "numeric_value": 80,
-                "unit": "%",
+                "property_code": "afm_step_height",
+                "numeric_value": 0.8,
+                "unit": "nm",
                 "quality_flag": "valid",
             }
         ],
@@ -182,13 +185,13 @@ def test_measurement_json_schema_enforces_property_and_profile_contract() -> Non
 
     wrong_representation = deepcopy(payload)
     wrong_representation["properties"][0] = {
-        "property_code": "coverage_percent",
+        "property_code": "afm_step_height",
         "text_value": "negative",
     }
     assert list(validator.iter_errors(wrong_representation))
 
     out_of_range = deepcopy(payload)
-    out_of_range["properties"][0]["numeric_value"] = 101
+    out_of_range["properties"][0]["numeric_value"] = -1
     assert list(validator.iter_errors(out_of_range))
 
     numeric_below_limit = deepcopy(payload)
@@ -210,7 +213,7 @@ def test_measurement_json_schema_enforces_property_and_profile_contract() -> Non
     assert list(validator.iter_errors(wrong_profile))
 
     missing_evidence = deepcopy(payload)
-    missing_evidence["properties"] = []
+    missing_evidence["measurement"]["raw_file_ids"] = []
     assert list(validator.iter_errors(missing_evidence))
 
     other = {
@@ -263,13 +266,7 @@ def test_measurement_json_schema_and_openapi_reject_runtime_invalid_shapes() -> 
             },
             "typed_conditions": {"observation_mode": "visual"},
         },
-        "properties": [
-            {
-                "property_code": "coverage_percent",
-                "numeric_value": 80,
-                "unit": "%",
-            }
-        ],
+        "properties": [{"property_code": "observation_note", "text_value": "Visible islands"}],
     }
     invalid_payloads: list[dict] = []
 
@@ -315,15 +312,6 @@ def test_measurement_json_schema_and_openapi_reject_runtime_invalid_shapes() -> 
         {"x": 1, "y": 2, "unit": "um"}
     )
     invalid_payloads.append(whole_sample_with_coordinates)
-
-    malformed_assertion = deepcopy(payload)
-    malformed_assertion["assertions"] = [
-        {
-            "assertion_type": "phase_identity",
-            "value": {"phase": " ", "extra": "not allowed"},
-        }
-    ]
-    invalid_payloads.append(malformed_assertion)
 
     duplicate_analysis_input = deepcopy(payload)
     duplicate_analysis_input["analyses"] = [
@@ -377,9 +365,6 @@ def test_characterization_field_source_matches_runtime_discriminators() -> None:
         field["key"] for profile in profiles for field in profile["condition_fields"]
     }
     assert profile_condition_fields == set(MeasurementConditions.model_fields)
-    assert {
-        assertion for profile in profiles for assertion in profile["allowed_assertion_types"]
-    } == set()
     assert {region for profile in profiles for region in profile["allowed_region_types"]} == set(
         get_args(SampleRegion.model_fields["geometry_type"].annotation)
     )
@@ -482,8 +467,8 @@ def test_standard_schema_exports_current_scientific_and_result_models() -> None:
         "transformation",
         "dataset_query",
     }
-    assert schema["version"] == "v4.0-alpha.48"
-    assert schema["status"] == "INTERNAL_VALIDATION"
+    meta = load_field_source()["meta"]
+    assert (schema["version"], schema["status"]) == (meta["version"], meta["status"])
     tilt_schema = schema["modules"]["substrates"]["$defs"]["SubstrateSizePlacementPayload"]
     assert tilt_schema["properties"]["tilt_angle_deg"]["anyOf"][0]["not"] == {"const": 0}
     assert "pvd" not in schema["modules"]
@@ -513,7 +498,6 @@ def test_process_timeline_schema_validates_the_current_top_level_contract() -> N
     schema = export_v2_schema(output_dir=None)["json_schema_doc"]["modules"]["process_steps"]
     validator = Draft202012Validator(schema)
     payload = {
-        "segments": [],
         "channels": [
             {
                 "channel_key": "channel_11111111_1111_4111_8111_111111111111",
@@ -528,6 +512,7 @@ def test_process_timeline_schema_validates_the_current_top_level_contract() -> N
                 "scalar_value": 750,
             }
         ],
+        "process_duration_min": 60,
         "pressure_regime": "atmospheric",
         "cooling_method": "furnace_cooling",
     }
@@ -676,9 +661,9 @@ def test_setup_and_instrument_entity_contracts() -> None:
     assert setup.orientation == "horizontal"
 
     named_field_setup = SetupVersionPayload.model_validate(
-        _setup(field_devices=["other"], field_device_other_name="magnetic field")
+        _setup(field_devices=["other"], field_device_other_names=["magnetic field"])
     )
-    assert named_field_setup.field_device_other_name == "magnetic field"
+    assert named_field_setup.field_device_other_names == ["magnetic field"]
     with pytest.raises(ValueError, match="named additional capabilities"):
         SetupVersionPayload.model_validate(_setup(field_devices=["other"]))
 

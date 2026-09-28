@@ -1,6 +1,6 @@
 # SHG 整改实施记录 · 2026-09-13
 
-按用户“进行修改”的授权实施 [SHG 逐项复核](./2026-09-11-shg-field-review.md)。本地契约为 **v4.0-alpha.48 / INTERNAL_VALIDATION**，生产基线仍为 STATUS 记录的 alpha.43。本轮由 Claude 直接实现（Codex 不可用）。未提交、推送或部署，无新增依赖，无数据库迁移。
+按用户“进行修改”的授权实施 [SHG 逐项复核](./2026-09-11-shg-field-review.md)。本地契约为 **v4.0-alpha.48 / INTERNAL_VALIDATION**，生产基线仍为 STATUS 记录的 alpha.43。未提交、推送或部署，无新增依赖，无数据库迁移。
 
 ## 1. 分类
 

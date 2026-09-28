@@ -296,93 +296,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/container-instances": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Container Instances */
-        get: operations["list_container_instances_api_v1_container_instances_get"];
-        put?: never;
-        /** Create Container Instance */
-        post: operations["create_container_instance_api_v1_container_instances_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/equipment-components": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Equipment Components */
-        get: operations["list_equipment_components_api_v1_equipment_components_get"];
-        put?: never;
-        /** Create Equipment Component */
-        post: operations["create_equipment_component_api_v1_equipment_components_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/setup-versions/{setup_version_id}/components": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Bind Setup Component */
-        post: operations["bind_setup_component_api_v1_setup_versions__setup_version_id__components_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/equipment-components/{component_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Equipment Lifecycle Event */
-        post: operations["create_equipment_lifecycle_event_api_v1_equipment_components__component_id__events_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/instruments/{instrument_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Instrument Lifecycle Event */
-        post: operations["create_instrument_lifecycle_event_api_v1_instruments__instrument_id__events_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/datasets/query": {
         parameters: {
             query?: never;
@@ -714,23 +627,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{run_id}/draft-export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Export Draft Run Json */
-        get: operations["export_draft_run_json_api_v1_experiments__run_id__draft_export_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/exports/runs": {
         parameters: {
             query?: never;
@@ -902,114 +798,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{run_id}/characterization-records": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Characterization Records */
-        get: operations["list_characterization_records_api_v1_experiments__run_id__characterization_records_get"];
-        put?: never;
-        /** Create Characterization Record */
-        post: operations["create_characterization_record_api_v1_experiments__run_id__characterization_records_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/characterization-records/{record_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Characterization Record */
-        delete: operations["delete_characterization_record_api_v1_characterization_records__record_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Characterization Record */
-        patch: operations["update_characterization_record_api_v1_characterization_records__record_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/samples/{sample_id}/measured-products": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Measured Products */
-        get: operations["list_measured_products_api_v1_samples__sample_id__measured_products_get"];
-        put?: never;
-        /** Create Measured Product */
-        post: operations["create_measured_product_api_v1_samples__sample_id__measured_products_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/measured-products/{product_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Measured Product */
-        delete: operations["delete_measured_product_api_v1_measured_products__product_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Measured Product */
-        patch: operations["update_measured_product_api_v1_measured_products__product_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/samples/{sample_id}/results": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Results */
-        get: operations["list_results_api_v1_samples__sample_id__results_get"];
-        put?: never;
-        /** Create Result */
-        post: operations["create_result_api_v1_samples__sample_id__results_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/results/{result_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Result */
-        put: operations["update_result_api_v1_results__result_id__put"];
-        post?: never;
-        /** Delete Result */
-        delete: operations["delete_result_api_v1_results__result_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1079,125 +867,6 @@ export interface components {
             binding_id?: string | null;
             /** Note */
             note?: string | null;
-            /** File Kind */
-            file_kind?: string | null;
-        };
-        /** CharacterizationRecordListResponse */
-        CharacterizationRecordListResponse: {
-            /** Items */
-            items: components["schemas"]["CharacterizationRecordRead"][];
-            /** Total */
-            total: number;
-        };
-        /** CharacterizationRecordRead */
-        CharacterizationRecordRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Experiment Run Id
-             * Format: uuid
-             */
-            experiment_run_id: string;
-            /**
-             * Sample Id
-             * Format: uuid
-             */
-            sample_id: string;
-            /** Instrument Id */
-            instrument_id: string | null;
-            /** Instrument Version */
-            instrument_version: number | null;
-            /** Instrument Snapshot Json */
-            instrument_snapshot_json: {
-                [key: string]: unknown;
-            } | null;
-            /** Method Instrument */
-            method_instrument: string | null;
-            /** Test Conditions */
-            test_conditions: string | null;
-            /** Raw Data */
-            raw_data: {
-                [key: string]: unknown;
-            } | null;
-            /** Attrs */
-            attrs: {
-                [key: string]: unknown;
-            };
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** ContainerInstanceCreate */
-        ContainerInstanceCreate: {
-            /**
-             * Material Lot Id
-             * Format: uuid
-             */
-            material_lot_id: string;
-            /** Container Code */
-            container_code: string;
-            /**
-             * Container Type
-             * @enum {string}
-             */
-            container_type: "bottle" | "gas_cylinder" | "boat" | "crucible" | "bubbler" | "other";
-            /** Opened Date */
-            opened_date?: string | null;
-            /** Storage History */
-            storage_history?: {
-                [key: string]: unknown;
-            }[];
-            /** Remaining Amount */
-            remaining_amount?: number | null;
-            /** Remaining Unit */
-            remaining_unit?: string | null;
-            /** Attrs */
-            attrs?: {
-                [key: string]: unknown;
-            };
-        };
-        /** ContainerInstanceRead */
-        ContainerInstanceRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Material Lot Id
-             * Format: uuid
-             */
-            material_lot_id: string;
-            /** Container Code */
-            container_code: string;
-            /** Container Type */
-            container_type: string;
-            /** Opened Date */
-            opened_date: string | null;
-            /** Storage History */
-            storage_history: {
-                [key: string]: unknown;
-            }[];
-            /** Remaining Amount */
-            remaining_amount: number | null;
-            /** Remaining Unit */
-            remaining_unit: string | null;
-            /** Status */
-            status: string;
-            /** Attrs */
-            attrs: {
-                [key: string]: unknown;
-            };
         };
         /** ControlSampleCreate */
         ControlSampleCreate: {
@@ -1219,7 +888,7 @@ export interface components {
              * Field
              * @enum {string}
              */
-            field: "target_formula" | "architecture_type" | "setup_id" | "material_lot_id" | "substrate_material" | "max_temperature_setpoint_C" | "max_temperature_measured_C" | "ramp_rate_setpoint_C_min" | "ramp_rate_measured_C_min" | "growth_duration_s" | "pressure_setpoint_min_Pa" | "pressure_setpoint_max_Pa" | "pressure_measured_min_Pa" | "pressure_measured_max_Pa" | "gas_species" | "has_process_event" | "growth_presence" | "property" | "provenance_complete";
+            field: "target_formula" | "architecture_type" | "setup_id" | "material_lot_id" | "substrate_material" | "max_temperature_setpoint_C" | "max_temperature_measured_C" | "ramp_rate_setpoint_C_min" | "ramp_rate_measured_C_min" | "pressure_setpoint_min_Pa" | "pressure_setpoint_max_Pa" | "pressure_measured_min_Pa" | "pressure_measured_max_Pa" | "gas_species" | "has_process_event" | "property" | "provenance_complete";
             /**
              * Operator
              * @enum {string}
@@ -1282,48 +951,6 @@ export interface components {
             };
             /** Provenance Complete */
             provenance_complete: boolean;
-        };
-        /** EquipmentComponentCreate */
-        EquipmentComponentCreate: {
-            /** Component Code */
-            component_code: string;
-            /**
-             * Component Type
-             * @enum {string}
-             */
-            component_type: "furnace_tube" | "temperature_sensor" | "mfc" | "pressure_gauge" | "vacuum_pump" | "boat" | "crucible" | "valve" | "plasma_source" | "other";
-            /** Manufacturer */
-            manufacturer?: string | null;
-            /** Model */
-            model?: string | null;
-            /** Serial Number */
-            serial_number?: string | null;
-            /** Attrs */
-            attrs?: {
-                [key: string]: unknown;
-            };
-        };
-        /** EquipmentComponentRead */
-        EquipmentComponentRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Component Code */
-            component_code: string;
-            /** Component Type */
-            component_type: string;
-            /** Manufacturer */
-            manufacturer: string | null;
-            /** Model */
-            model: string | null;
-            /** Serial Number */
-            serial_number: string | null;
-            /** Attrs */
-            attrs: {
-                [key: string]: unknown;
-            };
         };
         /**
          * ExperimentStatus
@@ -1461,64 +1088,6 @@ export interface components {
             /** Reason */
             reason: string;
         };
-        /** LifecycleEventCreate */
-        LifecycleEventCreate: {
-            /**
-             * Event Type
-             * @enum {string}
-             */
-            event_type: "install" | "remove" | "calibration" | "maintenance";
-            /**
-             * Occurred At
-             * Format: date-time
-             */
-            occurred_at: string;
-            /** Valid Until */
-            valid_until?: string | null;
-            /** Affected Component */
-            affected_component?: string | null;
-            /** Quantity */
-            quantity?: string | null;
-            /** Correction */
-            correction?: number | null;
-            /** Expanded Uncertainty */
-            expanded_uncertainty?: number | null;
-            /** Details */
-            details?: {
-                [key: string]: unknown;
-            };
-            /** Certificate File Id */
-            certificate_file_id?: string | null;
-        };
-        /** LifecycleEventRead */
-        LifecycleEventRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Event Type */
-            event_type: string;
-            /**
-             * Occurred At
-             * Format: date-time
-             */
-            occurred_at: string;
-            /** Valid Until */
-            valid_until: string | null;
-            /** Quantity */
-            quantity: string | null;
-            /** Correction */
-            correction: number | null;
-            /** Expanded Uncertainty */
-            expanded_uncertainty: number | null;
-            /** Details */
-            details: {
-                [key: string]: unknown;
-            };
-            /** Certificate File Id */
-            certificate_file_id: string | null;
-        };
         /** LineageSampleRead */
         LineageSampleRead: {
             /**
@@ -1535,10 +1104,6 @@ export interface components {
             sample_code: string;
             /** Role */
             role: string;
-            /** Actual State */
-            actual_state: string;
-            /** Actual Material Summary */
-            actual_material_summary: string | null;
             /** Lifecycle State */
             lifecycle_state: string;
             /** Deleted At */
@@ -1580,70 +1145,6 @@ export interface components {
             /** Password */
             password: string;
         };
-        /** MaterialAssertionWrite */
-        MaterialAssertionWrite: {
-            /**
-             * Assertion Type
-             * @enum {string}
-             */
-            assertion_type: "growth_presence" | "phase_identity" | "composition" | "polytype" | "stacking_order" | "orientation_relationship" | "layer_count";
-            /** Value */
-            value: {
-                [key: string]: unknown;
-            };
-            /** Confidence */
-            confidence?: number | null;
-            /** Analysis Index */
-            analysis_index?: number | null;
-        } & ({
-            /** @constant */
-            assertion_type: "growth_presence";
-            value: {
-                /** @enum {unknown} */
-                state: "present" | "absent" | "uncertain";
-            };
-        } | {
-            /** @constant */
-            assertion_type: "phase_identity";
-            value: {
-                phase: string;
-            };
-        } | {
-            /** @constant */
-            assertion_type: "polytype";
-            value: {
-                polytype: string;
-            };
-        } | {
-            /** @constant */
-            assertion_type: "stacking_order";
-            value: {
-                stacking_order: string;
-            };
-        } | {
-            /** @constant */
-            assertion_type: "orientation_relationship";
-            value: {
-                orientation_relationship: string;
-            };
-        } | {
-            /** @constant */
-            assertion_type: "layer_count";
-            value: {
-                count: number;
-            };
-        } | {
-            /** @constant */
-            assertion_type: "composition";
-            value: {
-                /** @enum {unknown} */
-                basis: "site_fraction" | "atomic_fraction" | "mass_fraction";
-                components: {
-                    species: string;
-                    fraction: number;
-                }[];
-            };
-        });
         /** MaterialLotVersionPayload */
         MaterialLotVersionPayload: {
             /**
@@ -1695,7 +1196,6 @@ export interface components {
             substrate_cut_spec?: string | null;
             /** Substrate Polish */
             substrate_polish?: ("double_side_polished" | "not_provided" | "single_side_polished" | "unpolished") | null;
-            substrate_orientation_polish?: components["schemas"]["SubstrateOrientationPolishValue"] | null;
             /** Substrate Miscut Availability */
             substrate_miscut_availability?: ("not_applicable" | "not_provided" | "reported") | null;
             /** Substrate Miscut Angle Deg */
@@ -1717,62 +1217,6 @@ export interface components {
             gas_purity_grade?: ("4N" | "5N" | "6N" | "industrial_grade") | null;
             /** Gas Cylinder Number */
             gas_cylinder_number?: string | null;
-        };
-        /** MeasuredProductListResponse */
-        MeasuredProductListResponse: {
-            /** Items */
-            items: components["schemas"]["MeasuredProductRead"][];
-            /** Total */
-            total: number;
-        };
-        /** MeasuredProductRead */
-        MeasuredProductRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Sample Id
-             * Format: uuid
-             */
-            sample_id: string;
-            /** Characterization Record Id */
-            characterization_record_id: string | null;
-            /** Observed Phenomena */
-            observed_phenomena: string[] | null;
-            /** Detected Phase Stacking */
-            detected_phase_stacking: string | null;
-            /** Layer Count */
-            layer_count: number | null;
-            /** Coverage Percent */
-            coverage_percent: number | null;
-            /** Domain Size Um */
-            domain_size_um: number | null;
-            /** Nucleation Density Cm2 */
-            nucleation_density_cm2: number | null;
-            /** Measured Layers Coverage */
-            measured_layers_coverage: string | null;
-            /** Domain Nucleation Continuity */
-            domain_nucleation_continuity: string | null;
-            /** Key Spectral Metrics */
-            key_spectral_metrics: components["schemas"]["SpectralMetric"][] | {
-                [key: string]: unknown;
-            } | null;
-            /** Attrs */
-            attrs: {
-                [key: string]: unknown;
-            };
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
         };
         /** MeasurementAnalysisRead */
         MeasurementAnalysisRead: {
@@ -1814,26 +1258,6 @@ export interface components {
             /** Output Files */
             output_files: components["schemas"]["MeasurementRawFileRead"][];
         };
-        /** MeasurementAssertionRead */
-        MeasurementAssertionRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Analysis Run Id */
-            analysis_run_id: string | null;
-            /** Assertion Type */
-            assertion_type: string;
-            /** Value */
-            value: {
-                [key: string]: unknown;
-            };
-            /** Confidence */
-            confidence: number | null;
-            /** Validity */
-            validity: string;
-        };
         /** MeasurementBundleCreate */
         MeasurementBundleCreate: {
             measurement: components["schemas"]["MeasurementRunCreate"];
@@ -1841,19 +1265,13 @@ export interface components {
             analyses?: components["schemas"]["AnalysisRunCreate"][];
             /** Properties */
             properties?: components["schemas"]["PropertyValueWrite"][];
-            /** Assertions */
-            assertions?: components["schemas"]["MaterialAssertionWrite"][];
         } & ((({
             measurement?: {
                 /** @constant */
                 method_profile: "optical_microscopy";
                 typed_conditions: {
-                    image_object_type?: string;
-                    /** @enum {string} */
-                    image_size_metric?: "maximum_length" | "equivalent_diameter" | "width";
                     objective_magnification?: number;
                     objective?: string;
-                    illumination_mode?: string;
                     image_scale_um_per_px?: number;
                     /** @enum {string} */
                     observation_mode: "visual" | "digital";
@@ -1918,16 +1336,12 @@ export interface components {
                 instrument_version: number;
             });
             properties?: unknown;
-            assertions?: unknown;
-        } & (unknown & unknown & unknown)) | ({
+        } & unknown) | ({
             measurement?: {
                 /** @constant */
                 method_profile: "Raman";
                 typed_conditions: {
                     laser_wavelength_nm: number;
-                    excitation_power_value?: number;
-                    /** @enum {string} */
-                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
                     objective?: string;
                     integration_time_s?: number;
                     accumulations?: number;
@@ -1958,8 +1372,6 @@ export interface components {
                     measurement_environment?: string;
                     /** @enum {string} */
                     temperature_basis?: "ambient" | "stage_setpoint" | "sample_measured";
-                    /** @enum {string} */
-                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
                     /** @enum {string} */
                     accumulation_method?: "sum" | "mean";
                     confocal_aperture_um?: number;
@@ -1994,38 +1406,6 @@ export interface components {
                 variable_conditions?: ("power_setting" | "sample_power_mW" | "integration_time_s" | "temperature_K" | "incident_polarization_angle_deg" | "analyzer_angle_deg")[];
             } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
             properties?: unknown;
-            assertions?: unknown;
-        } & {
-            properties?: unknown;
-        }) | ({
-            measurement?: {
-                /** @constant */
-                method_profile: "low_frequency_raman";
-                typed_conditions: {
-                    laser_wavelength_nm: number;
-                    excitation_power_value?: number;
-                    /** @enum {string} */
-                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
-                    objective?: string;
-                    integration_time_s?: number;
-                    accumulations?: number;
-                };
-                sample_region?: {
-                    /** @enum {unknown} */
-                    geometry_type: "point" | "line" | "whole_sample" | "selected_area";
-                } | null;
-                raw_file_ids: unknown[];
-                /** Format: uuid */
-                instrument_id: string;
-                instrument_version: number;
-                instrument_configuration?: unknown;
-                scan_file_id?: null;
-                variable_conditions?: unknown;
-                file_intensity_units?: unknown;
-                file_response_corrections?: unknown;
-            };
-            properties?: unknown;
-            assertions?: unknown;
         } & {
             properties?: unknown;
         }) | ({
@@ -2034,9 +1414,6 @@ export interface components {
                 method_profile: "PL";
                 typed_conditions: {
                     excitation_wavelength_nm: number;
-                    excitation_power_value?: number;
-                    /** @enum {string} */
-                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
                     integration_time_s?: number;
                     spectral_range_nm?: {
                         min: number;
@@ -2068,12 +1445,7 @@ export interface components {
                     /** @enum {string} */
                     temperature_basis?: "ambient" | "stage_setpoint" | "sample_measured";
                     /** @enum {string} */
-                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
-                    /** @enum {string} */
                     accumulation_method?: "sum" | "mean";
-                    /** @enum {string} */
-                    response_correction?: "applied" | "not_applied";
-                    response_correction_source?: string;
                     /** @enum {string} */
                     excitation_mode?: "continuous" | "pulsed";
                     pulse_width_fs?: number;
@@ -2110,7 +1482,7 @@ export interface components {
                     /** @enum {string} */
                     spectral_acquisition?: "array" | "scanning";
                     wavelength_step_nm?: number;
-                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "line" | "whole_sample" | "selected_area";
@@ -2125,7 +1497,6 @@ export interface components {
                 variable_conditions?: ("power_setting" | "sample_power_mW" | "integration_time_s" | "temperature_K" | "incident_polarization_angle_deg" | "analyzer_angle_deg" | "pulse_width_fs" | "repetition_rate_MHz" | "elapsed_time_s")[];
             } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
             properties?: unknown;
-            assertions?: unknown;
         } & {
             properties?: unknown;
         }) | {
@@ -2177,15 +1548,11 @@ export interface components {
                 file_response_corrections?: unknown;
             };
             properties?: unknown;
-            assertions?: unknown;
-        } | ({
+        } | {
             measurement?: {
                 /** @constant */
                 method_profile: "SEM";
                 typed_conditions: {
-                    image_object_type?: string;
-                    /** @enum {string} */
-                    image_size_metric?: "maximum_length" | "equivalent_diameter" | "width";
                     accelerating_voltage_kV: number;
                     /** @enum {string} */
                     mode: "secondary_electron" | "backscattered_electron" | "EDS";
@@ -2242,8 +1609,7 @@ export interface components {
                 file_response_corrections?: unknown;
             };
             properties?: unknown;
-            assertions?: unknown;
-        } & (unknown & unknown & unknown & unknown & unknown & unknown)) | ({
+        } | ({
             measurement?: {
                 /** @constant */
                 method_profile: "XRD";
@@ -2258,10 +1624,6 @@ export interface components {
                     };
                     radiation_source: string;
                     source_wavelength_nm: number;
-                    scan_range_2theta_deg?: {
-                        start: number;
-                        end: number;
-                    };
                     step_size_deg?: number;
                     count_time_s?: number;
                     scan_rate_deg_min?: number;
@@ -2297,7 +1659,6 @@ export interface components {
                 file_response_corrections?: unknown;
             };
             properties?: unknown;
-            assertions?: unknown;
         } & (unknown & unknown & unknown & unknown & {
             properties?: unknown;
         })) | ({
@@ -2308,8 +1669,6 @@ export interface components {
                     /** @enum {string} */
                     data_type: "image" | "diffraction" | "spectrum";
                     accelerating_voltage_kV: number;
-                    /** @enum {string} */
-                    mode?: "bright_field" | "HRTEM" | "SAED" | "STEM" | "EDS" | "EELS";
                     sample_preparation?: string;
                     /** @enum {string} */
                     acquisition_mode?: "TEM" | "STEM";
@@ -2373,8 +1732,7 @@ export interface components {
                 file_response_corrections?: unknown;
             };
             properties?: unknown;
-            assertions?: unknown;
-        } & (unknown & unknown)) | {
+        } & unknown) | {
             measurement?: {
                 /** @constant */
                 method_profile: "other";
@@ -2402,7 +1760,6 @@ export interface components {
                 instrument_version: number;
             });
             properties?: unknown;
-            assertions?: unknown;
         } | ({
             measurement?: {
                 /** @constant */
@@ -2465,29 +1822,7 @@ export interface components {
                     elapsed_time_s?: number;
                     sample_preparation?: string;
                     acquisition_note?: string;
-                    /** @enum {string} */
-                    data_type?: "spectrum" | "polarization_scan" | "image" | "power_scan";
-                    excitation_power_value?: number;
-                    /** @enum {string} */
-                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
-                    input_polarization?: string;
-                    analyzer_polarization?: string;
-                    angle_reference?: string;
-                    /** @enum {string} */
-                    polarization_scan_axis?: "input_polarization" | "analyzer" | "sample";
-                    angle_range_deg?: {
-                        start: number;
-                        end: number;
-                    };
-                    /** @enum {string} */
-                    scan_angle_quantity?: "waveplate" | "polarization" | "analyzer" | "sample";
-                    angle_step_deg?: number;
-                    power_scan_coordinates?: string;
-                    spot_size_um?: number;
-                    spot_size_definition?: string;
-                    /** @enum {string} */
-                    intensity_processing?: "unscaled" | "count_rate" | "normalized";
-                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
+                } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
                 sample_region?: {
                     /** @enum {unknown} */
                     geometry_type: "point" | "area" | "selected_area" | "whole_sample";
@@ -2500,7 +1835,6 @@ export interface components {
                 variable_conditions?: ("power_setting" | "measured_power_mW" | "excitation_wavelength_nm" | "incident_polarization_angle_deg" | "waveplate_angle_deg" | "sample_rotation_deg" | "analyzer_angle_deg" | "elapsed_time_s")[];
             } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
             properties?: unknown;
-            assertions?: unknown;
         } & (unknown & {
             properties?: unknown;
         }))) & ({
@@ -2509,8 +1843,6 @@ export interface components {
             };
         } | {
             properties: unknown;
-        } | {
-            assertions: unknown;
         }));
         /** MeasurementConditions */
         MeasurementConditions: {
@@ -2614,18 +1946,12 @@ export interface components {
             measurement_environment?: string | null;
             /** Temperature Basis */
             temperature_basis?: string | null;
-            /** Intensity Processing */
-            intensity_processing?: string | null;
             /** Accumulation Method */
             accumulation_method?: string | null;
             /** Confocal Aperture Um */
             confocal_aperture_um?: number | null;
             /** Filter Cutoff */
             filter_cutoff?: string | null;
-            /** Response Correction */
-            response_correction?: string | null;
-            /** Response Correction Source */
-            response_correction_source?: string | null;
             /** Scan Rate Definition */
             scan_rate_definition?: string | null;
             /** Data Channel */
@@ -2710,23 +2036,12 @@ export interface components {
             eels_collection_semiangle_mrad?: number | null;
             /** Zero Loss Calibration */
             zero_loss_calibration?: string | null;
-            /** Scan Angle Quantity */
-            scan_angle_quantity?: string | null;
-            /** Angle Step Deg */
-            angle_step_deg?: number | null;
-            /** Power Scan Coordinates */
-            power_scan_coordinates?: string | null;
-            /** Spot Size Um */
-            spot_size_um?: number | null;
-            /** Spot Size Definition */
-            spot_size_definition?: string | null;
             /** Laser Wavelength Nm */
             laser_wavelength_nm?: number | null;
             /** Excitation Wavelength Nm */
             excitation_wavelength_nm?: number | null;
             raman_shift_range_cm1?: components["schemas"]["SignedScanRange"] | null;
             scan_range_deg?: components["schemas"]["SignedScanRange"] | null;
-            angle_range_deg?: components["schemas"]["SignedScanRange"] | null;
             /** Image Scale Um Per Px */
             image_scale_um_per_px?: number | null;
             /** Pulse Width Fs */
@@ -2775,20 +2090,8 @@ export interface components {
             wavelength_calibration?: string | null;
             /** Excitation Mode */
             excitation_mode?: string | null;
-            /** Input Polarization */
-            input_polarization?: string | null;
-            /** Analyzer Polarization */
-            analyzer_polarization?: string | null;
-            /** Angle Reference */
-            angle_reference?: string | null;
-            /** Polarization Scan Axis */
-            polarization_scan_axis?: string | null;
             /** Power Setting */
             power_setting?: string | null;
-            /** Excitation Power Value */
-            excitation_power_value?: number | null;
-            /** Excitation Power Basis */
-            excitation_power_basis?: ("sample_plane_mW" | "instrument_percent") | null;
             /** Objective */
             objective?: string | null;
             /** Integration Time S */
@@ -2821,7 +2124,6 @@ export interface components {
             radiation_source?: string | null;
             /** Source Wavelength Nm */
             source_wavelength_nm?: number | null;
-            scan_range_2theta_deg?: components["schemas"]["ScanRange"] | null;
             /** Step Size Deg */
             step_size_deg?: number | null;
             /** Count Time S */
@@ -2836,21 +2138,9 @@ export interface components {
             sample_preparation?: string | null;
             /** Height Processing */
             height_processing?: string | null;
-            /** Illumination Mode */
-            illumination_mode?: string | null;
-            /** Image Object Type */
-            image_object_type?: string | null;
-            /** Image Size Metric */
-            image_size_metric?: string | null;
             /** Method Description */
             method_description?: string | null;
-        } & (unknown & ({
-            excitation_power_value?: null;
-            excitation_power_basis?: null;
-        } | {
-            excitation_power_value: number;
-            excitation_power_basis: string;
-        }));
+        };
         /** MeasurementDetailRead */
         MeasurementDetailRead: {
             /**
@@ -2908,8 +2198,6 @@ export interface components {
             analysis_count: number;
             /** Property Count */
             property_count: number;
-            /** Assertion Count */
-            assertion_count: number;
             /** Instrument Configuration */
             instrument_configuration?: {
                 [key: string]: string;
@@ -2947,8 +2235,6 @@ export interface components {
             analyses: components["schemas"]["MeasurementAnalysisRead"][];
             /** Properties */
             properties: components["schemas"]["MeasurementPropertyRead"][];
-            /** Assertions */
-            assertions: components["schemas"]["MeasurementAssertionRead"][];
             /** Invalidation Reason */
             invalidation_reason?: string | null;
             /** Invalidated By Id */
@@ -3141,8 +2427,6 @@ export interface components {
             analysis_count: number;
             /** Property Count */
             property_count: number;
-            /** Assertion Count */
-            assertion_count: number;
         };
         /** MeasurementSupplementaryFile */
         MeasurementSupplementaryFile: {
@@ -3228,7 +2512,7 @@ export interface components {
             text_value?: null;
             structured_value: {
                 /** @enum {unknown} */
-                status: "recorded" | "not_detected" | "not_analyzed";
+                status: "recorded" | "not_detected";
                 /** @enum {unknown} */
                 position_unit: "cm⁻¹" | "nm" | "eV" | "° 2θ" | "° ω" | "° φ" | "° χ";
                 /** @enum {unknown} */
@@ -3252,191 +2536,7 @@ export interface components {
             uncertainty_type?: null;
         } | {
             /** @constant */
-            property_code: "elemental_composition";
-            numeric_value?: null;
-            text_value?: null;
-            structured_value: {
-                /** @enum {unknown} */
-                basis: "atomic_fraction" | "mass_fraction";
-                components: {
-                    species: string;
-                    fraction: number;
-                }[];
-            };
-            unit?: null;
-            uncertainty_value?: null;
-            uncertainty_type?: null;
-        } | {
-            /** @constant */
-            property_code: "image_object_size_um";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "μm";
-        } | {
-            /** @constant */
-            property_code: "image_object_density_cm2";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻²";
-        } | {
-            /** @constant */
-            property_code: "coverage_percent";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "%";
-        } | {
-            /** @constant */
-            property_code: "domain_size_um";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "μm";
-        } | {
-            /** @constant */
-            property_code: "nucleation_density_cm2";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻²";
-        } | {
-            /** @constant */
-            property_code: "raman_e2g_peak_position";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "raman_a1g_peak_position";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "raman_peak_separation";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "raman_peak_fwhm";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "raman_intensity_ratio";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "ratio";
-        } | {
-            /** @constant */
-            property_code: "shear_mode_peak_position";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "low_frequency_peak_fwhm";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "cm⁻¹";
-        } | {
-            /** @constant */
-            property_code: "pl_a_exciton_peak_energy";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "eV";
-        } | {
-            /** @constant */
-            property_code: "pl_b_exciton_peak_energy";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "eV";
-        } | {
-            /** @constant */
-            property_code: "pl_integrated_intensity";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "a.u.";
-        } | {
-            /** @constant */
-            property_code: "pl_peak_fwhm";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "meV";
-        } | {
-            /** @constant */
-            property_code: "afm_ra_roughness";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "nm";
-        } | {
-            /** @constant */
-            property_code: "afm_rms_roughness";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "nm";
-        } | {
-            /** @constant */
             property_code: "afm_step_height";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "nm";
-        } | {
-            /** @constant */
-            property_code: "xrd_peak_2theta";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "° 2θ";
-        } | {
-            /** @constant */
-            property_code: "xrd_peak_fwhm";
-            numeric_value: number;
-            text_value?: null;
-            structured_value?: null;
-            /** @constant */
-            unit: "° 2θ";
-        } | {
-            /** @constant */
-            property_code: "xrd_d_spacing";
             numeric_value: number;
             text_value?: null;
             structured_value?: null;
@@ -3578,19 +2678,11 @@ export interface components {
             run_code?: string | null;
             /** Target Material System */
             target_material_system?: string | null;
-            /** Material System */
-            material_system?: string | null;
             /**
              * Characterization Count
              * @default 0
              */
             characterization_count?: number;
-            /** Actual State */
-            actual_state: string;
-            /** Identity State */
-            identity_state: string;
-            /** Actual Material Summary */
-            actual_material_summary: string | null;
             /** Parent Sample Id */
             parent_sample_id: string | null;
             /** Role */
@@ -3673,27 +2765,6 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        /** ScanRange */
-        ScanRange: {
-            /** Start */
-            start: number;
-            /** End */
-            end: number;
-        };
-        /** SetupComponentBindingCreate */
-        SetupComponentBindingCreate: {
-            /**
-             * Component Id
-             * Format: uuid
-             */
-            component_id: string;
-            /** Role */
-            role: string;
-            /** Position */
-            position?: {
-                [key: string]: unknown;
-            } | null;
-        };
         /** SetupVersionPayload */
         SetupVersionPayload: {
             /** Setup Name */
@@ -3730,15 +2801,9 @@ export interface components {
             wall_type?: ("cold_wall" | "hot_wall") | null;
             /** Field Devices */
             field_devices: ("electric_field" | "light" | "none" | "other" | "plasma")[];
-            /** Field Device Other Name */
-            field_device_other_name?: string | null;
             /** Field Device Other Names */
             field_device_other_names?: string[] | null;
             setup_diagram?: components["schemas"]["FileAssetReferencePayload"] | null;
-            /** Component Bindings */
-            component_bindings?: {
-                [key: string]: unknown;
-            }[] | null;
         };
         /** SignedScanRange */
         SignedScanRange: {
@@ -3754,15 +2819,6 @@ export interface components {
             /** Y */
             y: number;
         };
-        /** SpectralMetric */
-        SpectralMetric: {
-            /** Metric Code */
-            metric_code: string;
-            /** Value */
-            value: number;
-            /** Unit */
-            unit: string;
-        };
         /** SpectralResponseCorrection */
         SpectralResponseCorrection: {
             /**
@@ -3773,21 +2829,13 @@ export interface components {
             /** Source */
             source?: string | null;
         };
-        /** SubstrateOrientationPolishValue */
-        SubstrateOrientationPolishValue: {
-            /** Value */
-            value?: string | null;
-            /** Option */
-            option?: ("double_side_polished" | "single_side_polished") | null;
-        };
         /** SurfaceRoughnessPayload */
         SurfaceRoughnessPayload: {
             /**
              * Availability
-             * @default reported
              * @enum {string}
              */
-            availability?: "reported" | "not_provided";
+            availability: "reported" | "not_provided";
             /** Metric */
             metric?: ("Ra" | "RMS") | null;
             /** Value Nm */
@@ -4157,81 +3205,6 @@ export interface components {
         V2NotCharacterizedRequest: {
             /** Confirmed */
             confirmed: boolean;
-        };
-        /** V2ResultListResponse */
-        V2ResultListResponse: {
-            /** Items */
-            items: components["schemas"]["V2ResultRead"][];
-            /** Total */
-            total: number;
-        };
-        /** V2ResultRead */
-        V2ResultRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Sample Id
-             * Format: uuid
-             */
-            sample_id: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "direct_observation" | "characterization";
-            /** Characterization Record Id */
-            characterization_record_id: string | null;
-            /** Instrument Id */
-            instrument_id: string | null;
-            /** Instrument Version */
-            instrument_version: number | null;
-            /** Instrument Snapshot Json */
-            instrument_snapshot_json: {
-                [key: string]: unknown;
-            } | null;
-            /** Method Instrument */
-            method_instrument: string | null;
-            /** Method Other */
-            method_other: string | null;
-            /** Test Conditions */
-            test_conditions: string | null;
-            /** File Asset Ids */
-            file_asset_ids: string[];
-            /** Observed Phenomena */
-            observed_phenomena: string[] | null;
-            /** Observed Phenomena Other */
-            observed_phenomena_other: string | null;
-            /** Detected Phase Stacking */
-            detected_phase_stacking: string | null;
-            /** Layer Count */
-            layer_count: number | null;
-            /** Coverage Percent */
-            coverage_percent: number | null;
-            /** Domain Size Um */
-            domain_size_um: number | null;
-            /** Nucleation Density Cm2 */
-            nucleation_density_cm2: number | null;
-            /** Measured Layers Coverage */
-            measured_layers_coverage: string | null;
-            /** Domain Nucleation Continuity */
-            domain_nucleation_continuity: string | null;
-            /** Key Spectral Metrics */
-            key_spectral_metrics: components["schemas"]["SpectralMetric"][] | {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
         };
         /** V2RunAuditEventListResponse */
         V2RunAuditEventListResponse: {
@@ -4878,226 +3851,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserRead"][];
-                };
-            };
-        };
-    };
-    list_container_instances_api_v1_container_instances_get: {
-        parameters: {
-            query?: {
-                material_lot_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContainerInstanceRead"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_container_instance_api_v1_container_instances_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ContainerInstanceCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContainerInstanceRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_equipment_components_api_v1_equipment_components_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EquipmentComponentRead"][];
-                };
-            };
-        };
-    };
-    create_equipment_component_api_v1_equipment_components_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EquipmentComponentCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EquipmentComponentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bind_setup_component_api_v1_setup_versions__setup_version_id__components_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                setup_version_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetupComponentBindingCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_equipment_lifecycle_event_api_v1_equipment_components__component_id__events_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                component_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LifecycleEventCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LifecycleEventRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_instrument_lifecycle_event_api_v1_instruments__instrument_id__events_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                instrument_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LifecycleEventCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LifecycleEventRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -5950,37 +4703,6 @@ export interface operations {
             };
         };
     };
-    export_draft_run_json_api_v1_experiments__run_id__draft_export_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     export_runs_zip_api_v1_exports_runs_get: {
         parameters: {
             query?: {
@@ -6340,378 +5062,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["V2ModulePayloadRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_characterization_records_api_v1_experiments__run_id__characterization_records_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CharacterizationRecordListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_characterization_record_api_v1_experiments__run_id__characterization_records_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_characterization_record_api_v1_characterization_records__record_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                record_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_characterization_record_api_v1_characterization_records__record_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                record_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_measured_products_api_v1_samples__sample_id__measured_products_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sample_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MeasuredProductListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_measured_product_api_v1_samples__sample_id__measured_products_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sample_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_measured_product_api_v1_measured_products__product_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                product_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_measured_product_api_v1_measured_products__product_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                product_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_results_api_v1_samples__sample_id__results_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sample_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ResultListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_result_api_v1_samples__sample_id__results_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sample_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_result_api_v1_results__result_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                result_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_result_api_v1_results__result_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                result_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -42,7 +42,7 @@ function substrateValueFromPayload(field: FieldMetadata, raw: unknown): string {
     return JSON.stringify(raw)
   }
   if (isStructuredInput(field.input) && typeof raw === 'object') {
-    return structuredValueFromRaw(field.key, raw)
+    return structuredValueFromRaw(raw)
   }
   if (/(\u4e0b\u62c9|多选)/.test(field.input)) {
     return canonicalFieldOption(field.key, String(raw))

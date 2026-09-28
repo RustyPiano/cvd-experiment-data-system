@@ -18,19 +18,16 @@ from app.models.sample import Sample
 from app.models.scientific import (
     AnalysisRun,
     DataDerivationEdge,
-    MaterialAssertion,
     PropertyValue,
     RunRevision,
-    SampleRevisionState,
 )
 from app.models.user import User, UserRole
-from app.models.v2_entities import InstrumentCapability, InstrumentLifecycleEvent
+from app.models.v2_entities import InstrumentCapability
 from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
 from app.schemas.scientific import (
     SCAN_METHODS,
     MeasurementAnalysisRead,
-    MeasurementAssertionRead,
     MeasurementBundleCreate,
     MeasurementDetailRead,
     MeasurementListResponse,
@@ -236,29 +233,14 @@ class ScientificMeasurementService:
             measurement.instrument_id,
             measurement.instrument_version,
             measurement.method_profile,
-            measurement.measured_at,
         )
         if measurement.method_profile in SCAN_METHODS:
-            instrument_snapshot["calibration_at_measurement"] = self._raman_calibration_snapshot(
-                measurement.instrument_id,
-                measurement.measured_at,
-                measurement.instrument_configuration,
-                measurement.instrument_version,
-                method=measurement.method_profile,
-                conditions=measurement.typed_conditions.model_dump(exclude_none=True),
-            )
             attrs = (instrument_snapshot or {}).get("attrs_snapshot", {})
             capability = next(
                 (
                     item
                     for item in attrs.get("capabilities", [])
-                    if isinstance(item, dict)
-                    and item.get("code")
-                    in (
-                        {"Raman", "low_frequency_raman"}
-                        if measurement.method_profile == "Raman"
-                        else {measurement.method_profile}
-                    )
+                    if isinstance(item, dict) and item.get("code") == measurement.method_profile
                 ),
                 {},
             )
@@ -493,21 +475,6 @@ class ScientificMeasurementService:
             self.db.add(property_row)
             property_rows.append((property_row, item.quality_note))
 
-        assertions: list[MaterialAssertion] = []
-        for item in payload.assertions:
-            assertion = MaterialAssertion(
-                sample_id=sample.id,
-                measurement_run_id=record.id,
-                analysis_run_id=(
-                    analyses[item.analysis_index].id if item.analysis_index is not None else None
-                ),
-                assertion_type=item.assertion_type,
-                value_json=item.value,
-                confidence=item.confidence,
-            )
-            self.db.add(assertion)
-            assertions.append(assertion)
-
         self.db.flush()
         property_evidence = {
             str(row.id): item.model_dump(
@@ -528,7 +495,6 @@ class ScientificMeasurementService:
                 **(record.attrs or {}),
                 "property_quality_notes": property_quality_notes,
             }
-        self._refresh_sample_actual_state(sample, run_revision_id)
         refresh_revision_provenance(self.db, run_revision_id)
         self.audit.record_event(
             actor=actor,
@@ -544,7 +510,6 @@ class ScientificMeasurementService:
                 "supplementary_file_ids": [str(file.id) for file in supplementary_files],
                 "analysis_count": len(analyses),
                 "property_count": len(payload.properties),
-                "assertion_count": len(assertions),
             },
         )
         if measurement.quality_flag == "valid" and (
@@ -553,7 +518,6 @@ class ScientificMeasurementService:
                 item.quality_flag in {"valid", "below_detection_limit"}
                 for item in payload.properties
             )
-            or assertions
         ):
             clear_not_characterized(self.db, run, actor)
         refresh_result_missing_todo(self.db, run)
@@ -602,12 +566,6 @@ class ScientificMeasurementService:
             .correlate(CharacterizationRecord)
             .scalar_subquery()
         )
-        assertion_count = (
-            select(func.count(MaterialAssertion.id))
-            .where(MaterialAssertion.measurement_run_id == CharacterizationRecord.id)
-            .correlate(CharacterizationRecord)
-            .scalar_subquery()
-        )
         statement = (
             select(
                 CharacterizationRecord,
@@ -616,7 +574,6 @@ class ScientificMeasurementService:
                 raw_count.label("raw_file_count"),
                 analysis_count.label("analysis_count"),
                 property_count.label("property_count"),
-                assertion_count.label("assertion_count"),
             )
             .join(Sample, Sample.id == CharacterizationRecord.sample_id)
             .join(ExperimentRun, ExperimentRun.id == CharacterizationRecord.experiment_run_id)
@@ -690,7 +647,6 @@ class ScientificMeasurementService:
                 raw_file_count=row.raw_file_count,
                 analysis_count=row.analysis_count,
                 property_count=row.property_count,
-                assertion_count=row.assertion_count,
                 evidence_present=(
                     row.CharacterizationRecord.quality_flag == "valid"
                     and row.CharacterizationRecord.id in evidence_record_ids
@@ -798,7 +754,6 @@ class ScientificMeasurementService:
         }
         self.db.flush()
         assert sample is not None
-        self._refresh_sample_actual_state(sample, record.run_revision_id)
         refresh_revision_provenance(self.db, record.run_revision_id)
         self.audit.record_event(
             actor=actor,
@@ -898,13 +853,6 @@ class ScientificMeasurementService:
                 select(PropertyValue)
                 .where(PropertyValue.measurement_run_id == record.id)
                 .order_by(PropertyValue.id)
-            )
-        )
-        assertions = list(
-            self.db.scalars(
-                select(MaterialAssertion)
-                .where(MaterialAssertion.measurement_run_id == record.id)
-                .order_by(MaterialAssertion.created_at, MaterialAssertion.id)
             )
         )
         attrs = record.attrs or {}
@@ -1017,17 +965,6 @@ class ScientificMeasurementService:
                 )
                 for item in properties
             ],
-            assertions=[
-                MeasurementAssertionRead(
-                    id=item.id,
-                    analysis_run_id=item.analysis_run_id,
-                    assertion_type=item.assertion_type,
-                    value=item.value_json,
-                    confidence=item.confidence,
-                    validity=item.validity,
-                )
-                for item in assertions
-            ],
             invalidation_reason=attrs.get("invalidation_reason"),
             invalidated_by_id=attrs.get("invalidated_by_id"),
             invalidated_at=attrs.get("invalidated_at"),
@@ -1058,7 +995,6 @@ class ScientificMeasurementService:
         instrument_id: UUID | None,
         version_number: int | None,
         method_profile: str,
-        measured_at: datetime,
     ) -> dict | None:
         profile = characterization_profiles().get(method_profile)
         if profile is None:
@@ -1081,179 +1017,14 @@ class ScientificMeasurementService:
                 )
             )
         )
-        legacy_capability = str(version.name_type)
-        matching_methods = {method_profile}
-        if method_profile == "Raman":
-            matching_methods.add("low_frequency_raman")
-        if capabilities and not capabilities.intersection(matching_methods):
+        if method_profile not in capabilities:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Instrument does not support the selected method profile",
             )
-        if not capabilities and legacy_capability not in matching_methods | {"other"}:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Instrument type does not match the selected method profile",
-            )
         snapshot = instrument_version_snapshot(version)
-        snapshot["capabilities"] = sorted(capabilities or {legacy_capability})
-        snapshot["calibration_at_measurement"] = self._calibration_snapshot(
-            instrument_id,
-            measured_at,
-        )
+        snapshot["capabilities"] = sorted(capabilities)
         return snapshot
-
-    def _raman_calibration_snapshot(
-        self,
-        instrument_id: UUID,
-        measured_at: datetime,
-        selection: dict,
-        version: int,
-        method: str = "Raman",
-        conditions: dict | None = None,
-    ) -> dict:
-        events = self.db.scalars(
-            select(InstrumentLifecycleEvent)
-            .where(
-                InstrumentLifecycleEvent.instrument_id == instrument_id,
-                InstrumentLifecycleEvent.event_type == "calibration",
-                InstrumentLifecycleEvent.occurred_at <= measured_at,
-            )
-            .order_by(
-                InstrumentLifecycleEvent.occurred_at.desc(), InstrumentLifecycleEvent.id.desc()
-            )
-        )
-        matched = {}
-        for event in events:
-            scope_version = (event.details_json or {}).get("instrument_version")
-            if type(scope_version) is not int or scope_version != version:
-                continue
-            quantity = (event.quantity or "").strip().lower().replace(" ", "_")
-            allowed = {
-                "PL": {"wavelength", "emission_response", "laser_power"},
-                "SHG": {"polarization", "laser_power"},
-            }.get(method, {"raman_shift", "relative_intensity", "laser_power"})
-            if quantity not in allowed:
-                continue
-            if (
-                method in {"PL", "SHG"}
-                and (event.details_json or {}).get("method_profile") != method
-            ):
-                continue
-            if method in {"PL", "SHG"} and quantity == "laser_power":
-                measured = conditions or {}
-                calibrated = (event.details_json or {}).get("conditions", {})
-                keys = {
-                    "excitation_wavelength_nm",
-                    "pulse_width_fs",
-                    "repetition_rate_MHz",
-                } & measured.keys()
-                if (
-                    not keys
-                    or not isinstance(calibrated, dict)
-                    or any(calibrated.get(key) != measured[key] for key in keys)
-                ):
-                    continue
-            if method == "PL" and quantity == "emission_response":
-                covered = (event.details_json or {}).get("spectral_range_nm", {})
-                used = (conditions or {}).get("spectral_range_nm", {})
-                if (
-                    not isinstance(covered, dict)
-                    or not used
-                    or not all(type(covered.get(key)) in {int, float} for key in ["min", "max"])
-                ):
-                    continue
-                if not 0 < covered["min"] <= used["min"] < used["max"] <= covered["max"]:
-                    continue
-            refs = (event.details_json or {}).get("configuration", {})
-            required = {
-                "lasers",
-                "objectives"
-                if quantity == "laser_power"
-                else "detections"
-                if method == "SHG"
-                else "spectrometers",
-            }
-            if (
-                not isinstance(refs, dict)
-                or not required <= refs.keys()
-                or any(
-                    not isinstance(value, str)
-                    or not value.strip()
-                    or key not in selection
-                    or selection[key] != value
-                    for key, value in refs.items()
-                )
-            ):
-                continue
-            if quantity not in matched:
-                matched[quantity] = self._calibration_snapshot(
-                    instrument_id, measured_at, event=event
-                )
-        return {
-            "validity_status": "scoped_records" if matched else "not_recorded",
-            "quantities": matched,
-        }
-
-    def _calibration_snapshot(
-        self,
-        instrument_id: UUID,
-        measured_at: datetime,
-        *,
-        event: InstrumentLifecycleEvent | None = None,
-    ) -> dict:
-        event = event or self.db.scalar(
-            select(InstrumentLifecycleEvent)
-            .where(
-                InstrumentLifecycleEvent.instrument_id == instrument_id,
-                InstrumentLifecycleEvent.event_type == "calibration",
-                InstrumentLifecycleEvent.occurred_at <= measured_at,
-            )
-            .order_by(
-                InstrumentLifecycleEvent.occurred_at.desc(),
-                InstrumentLifecycleEvent.id.desc(),
-            )
-            .limit(1)
-        )
-        if event is None:
-            return {
-                "measured_at": measured_at.isoformat(),
-                "validity_status": "not_recorded",
-            }
-        certificate = (
-            self.db.get(FileAsset, event.certificate_file_id) if event.certificate_file_id else None
-        )
-        validity = (
-            "validity_not_declared"
-            if event.valid_until is None
-            else "valid"
-            if normalize_offset_datetime(event.valid_until) >= measured_at
-            else "expired"
-        )
-        return {
-            "event_id": str(event.id),
-            "occurred_at": normalize_offset_datetime(event.occurred_at).isoformat(),
-            "valid_until": (
-                normalize_offset_datetime(event.valid_until).isoformat()
-                if event.valid_until
-                else None
-            ),
-            "validity_status": validity,
-            "affected_component": event.affected_component,
-            "quantity": event.quantity,
-            "correction": event.correction,
-            "expanded_uncertainty": event.expanded_uncertainty,
-            "details": event.details_json,
-            "certificate": (
-                {
-                    "file_asset_id": str(certificate.id),
-                    "original_name": certificate.original_name,
-                    "sha256": certificate.sha256,
-                }
-                if certificate
-                else None
-            ),
-        }
 
     def _active_files(
         self,
@@ -1427,12 +1198,6 @@ class ScientificMeasurementService:
                 )
             )
             or 0,
-            assertion_count=self.db.scalar(
-                select(func.count(MaterialAssertion.id)).where(
-                    MaterialAssertion.measurement_run_id == record.id
-                )
-            )
-            or 0,
             evidence_present=(
                 record.quality_flag == "valid"
                 and record.id in self._evidence_record_ids([record.id])
@@ -1452,7 +1217,6 @@ class ScientificMeasurementService:
         raw_file_count: int,
         analysis_count: int,
         property_count: int,
-        assertion_count: int,
         evidence_present: bool,
     ) -> MeasurementSummaryRead:
         if record.run_revision_id is None or record.measured_at is None:
@@ -1475,29 +1239,7 @@ class ScientificMeasurementService:
             raw_file_count=raw_file_count,
             analysis_count=analysis_count,
             property_count=property_count,
-            assertion_count=assertion_count,
         )
-
-    def _refresh_sample_actual_state(self, sample: Sample, run_revision_id: UUID) -> None:
-        # Measurements and historical assignments are evidence, not sample-wide verdicts.
-        state = self.db.scalar(
-            select(SampleRevisionState).where(
-                SampleRevisionState.sample_id == sample.id,
-                SampleRevisionState.run_revision_id == run_revision_id,
-            )
-        )
-        if state is None:
-            state = SampleRevisionState(sample_id=sample.id, run_revision_id=run_revision_id)
-            self.db.add(state)
-        state.growth_state = "unknown"
-        state.identity_state = "unknown"
-        state.material_summary = None
-        state.evidence_assertion_ids = []
-        run = self.db.get(ExperimentRun, sample.experiment_run_id)
-        if run is not None and run.current_revision_id == run_revision_id:
-            sample.actual_state = "unknown"
-            sample.identity_state = "unknown"
-            sample.actual_material_summary = None
 
     @staticmethod
     def _cursor_query_sha256(

@@ -181,7 +181,6 @@ class ScientificSampleService:
                 run_revision_id=None,
                 role=SampleRole.DERIVED.value,
                 parent_sample_id=inputs[0].id if len(inputs) == 1 else None,
-                actual_state="unknown",
                 current_carrier=output.current_carrier,
                 sample_region=output.sample_region,
                 dimensions_json=output.dimensions,
@@ -323,8 +322,6 @@ class ScientificSampleService:
                     experiment_run_id=item.experiment_run_id,
                     sample_code=item.sample_code,
                     role=item.role,
-                    actual_state=item.actual_state,
-                    actual_material_summary=item.actual_material_summary,
                     lifecycle_state=item.lifecycle_state,
                     deleted_at=item.deleted_at,
                 )

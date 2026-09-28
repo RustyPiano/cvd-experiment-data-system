@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated, NoReturn
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -18,16 +18,10 @@ from app.schemas.generated.v2_module_payload import (
     SetupVersionPayload,
 )
 from app.schemas.scientific import (
-    ContainerInstanceCreate,
-    ContainerInstanceRead,
     CreateCorrectionDraftRequest,
     DatasetQuery,
     DatasetQueryResponse,
-    EquipmentComponentCreate,
-    EquipmentComponentRead,
     InvalidateMeasurementRequest,
-    LifecycleEventCreate,
-    LifecycleEventRead,
     MeasurementBundleCreate,
     MeasurementDetailRead,
     MeasurementListResponse,
@@ -36,14 +30,11 @@ from app.schemas.scientific import (
     RunRevisionListResponse,
     RunRevisionRead,
     SampleLineageRead,
-    SetupComponentBindingCreate,
     TransformationRunCreate,
     TransformationRunRead,
 )
 from app.schemas.user import UserRead
 from app.schemas.v2 import (
-    CharacterizationRecordListResponse,
-    MeasuredProductListResponse,
     V2EntityListResponse,
     V2EntityRead,
     V2EntityVersionListResponse,
@@ -55,18 +46,15 @@ from app.schemas.v2 import (
     V2ModulePayloadRead,
     V2ModulePayloadUpsert,
     V2NotCharacterizedRequest,
-    V2ResultListResponse,
     V2RunAuditEventListResponse,
     V2SetupReferenceRequest,
 )
 from app.services.dataset_query_service import DatasetQueryService
-from app.services.reference_data_service import ReferenceDataService
 from app.services.scientific_measurement_service import ScientificMeasurementService
 from app.services.scientific_sample_service import ScientificSampleService
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_experiment_service import V2ExperimentService
 from app.services.v2_reporting_service import V2ReportingService
-from app.services.v2_results_service import V2ResultsService
 
 router = APIRouter(prefix="/api/v1", tags=["v2"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -77,102 +65,6 @@ CurrentAdmin = Annotated[User, Depends(get_current_admin_user)]
 @router.get("/contributors", response_model=list[UserRead])
 def list_contributors(db: DbSession, _current_user: CurrentUser) -> list[User]:
     return list(db.scalars(select(User).where(User.is_active.is_(True)).order_by(User.name)))
-
-
-@router.get("/container-instances", response_model=list[ContainerInstanceRead])
-def list_container_instances(
-    db: DbSession,
-    _current_user: CurrentUser,
-    material_lot_id: UUID | None = None,
-) -> list[ContainerInstanceRead]:
-    return ReferenceDataService(db).list_containers(material_lot_id)
-
-
-@router.post(
-    "/container-instances",
-    response_model=ContainerInstanceRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_container_instance(
-    payload: ContainerInstanceCreate,
-    db: DbSession,
-    current_user: CurrentAdmin,
-) -> ContainerInstanceRead:
-    return ReferenceDataService(db).create_container(payload, current_user)
-
-
-@router.get("/equipment-components", response_model=list[EquipmentComponentRead])
-def list_equipment_components(
-    db: DbSession,
-    _current_user: CurrentUser,
-) -> list[EquipmentComponentRead]:
-    return ReferenceDataService(db).list_components()
-
-
-@router.post(
-    "/equipment-components",
-    response_model=EquipmentComponentRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_equipment_component(
-    payload: EquipmentComponentCreate,
-    db: DbSession,
-    current_user: CurrentAdmin,
-) -> EquipmentComponentRead:
-    return ReferenceDataService(db).create_component(payload, current_user)
-
-
-@router.post(
-    "/setup-versions/{setup_version_id}/components",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-def bind_setup_component(
-    setup_version_id: UUID,
-    payload: SetupComponentBindingCreate,
-    db: DbSession,
-    current_user: CurrentAdmin,
-) -> None:
-    ReferenceDataService(db).bind_setup_component(
-        setup_version_id,
-        payload,
-        current_user,
-    )
-
-
-@router.post(
-    "/equipment-components/{component_id}/events",
-    response_model=LifecycleEventRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_equipment_lifecycle_event(
-    component_id: UUID,
-    payload: LifecycleEventCreate,
-    db: DbSession,
-    current_user: CurrentAdmin,
-) -> LifecycleEventRead:
-    return ReferenceDataService(db).create_equipment_event(
-        component_id,
-        payload,
-        current_user,
-    )
-
-
-@router.post(
-    "/instruments/{instrument_id}/events",
-    response_model=LifecycleEventRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_instrument_lifecycle_event(
-    instrument_id: UUID,
-    payload: LifecycleEventCreate,
-    db: DbSession,
-    current_user: CurrentAdmin,
-) -> LifecycleEventRead:
-    return ReferenceDataService(db).create_instrument_event(
-        instrument_id,
-        payload,
-        current_user,
-    )
 
 
 @router.post("/datasets/query", response_model=DatasetQueryResponse)
@@ -462,20 +354,6 @@ def export_run_json(
     )
 
 
-@router.get("/experiments/{run_id}/draft-export")
-def export_draft_run_json(
-    run_id: UUID,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> Response:
-    content, filename = V2ReportingService(db).export_draft_json(run_id, current_user)
-    return Response(
-        content=content,
-        media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
 @router.get("/exports/runs")
 def export_runs_zip(
     db: DbSession,
@@ -609,105 +487,3 @@ def get_v2_module(
     current_user: CurrentUser,
 ) -> V2ModulePayloadRead:
     return V2ExperimentService(db).get_module(run_id, module_key, current_user)
-
-
-@router.get(
-    "/experiments/{run_id}/characterization-records",
-    response_model=CharacterizationRecordListResponse,
-)
-def list_characterization_records(
-    run_id: UUID, db: DbSession, current_user: CurrentUser
-) -> CharacterizationRecordListResponse:
-    return V2ResultsService(db).list_characterization_records(run_id, current_user)
-
-
-def _legacy_result_write_gone() -> NoReturn:
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="Legacy result writes are retired; use /api/v1/measurements",
-    )
-
-
-@router.post("/experiments/{run_id}/characterization-records", response_model=None)
-def create_characterization_record(
-    run_id: UUID,
-    _current_user: CurrentUser,
-) -> NoReturn:
-    _legacy_result_write_gone()
-
-
-@router.patch("/characterization-records/{record_id}", response_model=None)
-def update_characterization_record(
-    record_id: UUID,
-    _current_user: CurrentUser,
-) -> NoReturn:
-    _legacy_result_write_gone()
-
-
-@router.delete("/characterization-records/{record_id}", response_model=None)
-def delete_characterization_record(
-    record_id: UUID,
-    _current_user: CurrentUser,
-) -> NoReturn:
-    _legacy_result_write_gone()
-
-
-@router.get(
-    "/samples/{sample_id}/measured-products",
-    response_model=MeasuredProductListResponse,
-)
-def list_measured_products(
-    sample_id: UUID, db: DbSession, current_user: CurrentUser
-) -> MeasuredProductListResponse:
-    return V2ResultsService(db).list_measured_products(sample_id, current_user)
-
-
-@router.post("/samples/{sample_id}/measured-products", response_model=None)
-def create_measured_product(
-    sample_id: UUID,
-    _current_user: CurrentUser,
-) -> NoReturn:
-    _legacy_result_write_gone()
-
-
-@router.patch("/measured-products/{product_id}", response_model=None)
-def update_measured_product(
-    product_id: UUID,
-    _current_user: CurrentUser,
-) -> NoReturn:
-    _legacy_result_write_gone()
-
-
-@router.delete("/measured-products/{product_id}", response_model=None)
-def delete_measured_product(product_id: UUID, _current_user: CurrentUser) -> NoReturn:
-    _legacy_result_write_gone()
-
-
-@router.get("/samples/{sample_id}/results", response_model=V2ResultListResponse)
-def list_results(
-    sample_id: UUID,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> V2ResultListResponse:
-    return V2ResultsService(db).list_results(sample_id, current_user)
-
-
-@router.post("/samples/{sample_id}/results", response_model=None)
-def create_result(
-    sample_id: UUID,
-    _current_user: CurrentUser,
-) -> NoReturn:
-    _legacy_result_write_gone()
-
-
-@router.put("/results/{result_id}", response_model=None)
-def update_result(
-    result_id: UUID,
-    _current_user: CurrentUser,
-) -> NoReturn:
-    _legacy_result_write_gone()
-
-
-@router.delete("/results/{result_id}", response_model=None)
-def delete_result(result_id: UUID, _current_user: CurrentUser) -> NoReturn:
-    _legacy_result_write_gone()

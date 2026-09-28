@@ -161,35 +161,6 @@ def _apply_characterization_contract(
 ) -> None:
     """Add the cross-field rules that Pydantic model validators cannot emit."""
     model_schemas = definitions or schema["$defs"]
-    condition_schema = model_schemas["MeasurementConditions"]
-    condition_schema.setdefault("allOf", []).extend(
-        [
-            {
-                "if": {
-                    "required": ["excitation_power_basis"],
-                    "properties": {"excitation_power_basis": {"const": "instrument_percent"}},
-                },
-                "then": {"properties": {"excitation_power_value": {"maximum": 100}}},
-            },
-            {
-                "oneOf": [
-                    {
-                        "properties": {
-                            "excitation_power_value": {"type": "null"},
-                            "excitation_power_basis": {"type": "null"},
-                        }
-                    },
-                    {
-                        "required": ["excitation_power_value", "excitation_power_basis"],
-                        "properties": {
-                            "excitation_power_value": {"type": "number"},
-                            "excitation_power_basis": {"type": "string"},
-                        },
-                    },
-                ]
-            },
-        ]
-    )
     property_schema = model_schemas["PropertyValueWrite"]
     property_schema.setdefault("allOf", []).extend(
         [
@@ -252,7 +223,6 @@ def _apply_characterization_contract(
                         },
                     },
                     {"required": ["properties"], "properties": {"properties": {"minItems": 1}}},
-                    {"required": ["assertions"], "properties": {"assertions": {"minItems": 1}}},
                 ]
             },
         ]
@@ -260,7 +230,6 @@ def _apply_characterization_contract(
     model_schemas["MeasurementRunCreate"]["properties"]["raw_file_ids"]["uniqueItems"] = True
     _apply_sample_region_contract(model_schemas["SampleRegion"])
     _apply_analysis_contract(model_schemas["AnalysisRunCreate"])
-    _apply_assertion_contract(model_schemas["MaterialAssertionWrite"])
 
 
 def apply_characterization_openapi_contract(
@@ -407,88 +376,6 @@ def _apply_sample_region_contract(schema: dict[str, Any]) -> None:
 def _apply_analysis_contract(schema: dict[str, Any]) -> None:
     schema["properties"]["input_file_ids"]["uniqueItems"] = True
     schema["properties"]["output_file_ids"]["uniqueItems"] = True
-
-
-def _assertion_value_schema(
-    assertion_type: str,
-    key: str,
-    value_schema: dict[str, Any],
-) -> dict[str, Any]:
-    return {
-        "required": ["assertion_type", "value"],
-        "properties": {
-            "assertion_type": {"const": assertion_type},
-            "value": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {key: value_schema},
-                "required": [key],
-            },
-        },
-    }
-
-
-def _apply_assertion_contract(schema: dict[str, Any]) -> None:
-    text_value = {"type": "string", "pattern": r"\S", "maxLength": 256}
-    schema.setdefault("allOf", []).append(
-        {
-            "oneOf": [
-                _assertion_value_schema(
-                    "growth_presence",
-                    "state",
-                    {"enum": ["present", "absent", "uncertain"]},
-                ),
-                _assertion_value_schema("phase_identity", "phase", text_value),
-                _assertion_value_schema("polytype", "polytype", text_value),
-                _assertion_value_schema("stacking_order", "stacking_order", text_value),
-                _assertion_value_schema(
-                    "orientation_relationship", "orientation_relationship", text_value
-                ),
-                _assertion_value_schema("layer_count", "count", {"type": "integer", "minimum": 0}),
-                {
-                    "required": ["assertion_type", "value"],
-                    "properties": {
-                        "assertion_type": {"const": "composition"},
-                        "value": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "properties": {
-                                "basis": {
-                                    "enum": [
-                                        "site_fraction",
-                                        "atomic_fraction",
-                                        "mass_fraction",
-                                    ]
-                                },
-                                "components": {
-                                    "type": "array",
-                                    "minItems": 1,
-                                    "items": {
-                                        "type": "object",
-                                        "additionalProperties": False,
-                                        "properties": {
-                                            "species": {
-                                                "type": "string",
-                                                "pattern": r"\S",
-                                                "maxLength": 128,
-                                            },
-                                            "fraction": {
-                                                "type": "number",
-                                                "minimum": 0,
-                                                "maximum": 1,
-                                            },
-                                        },
-                                        "required": ["species", "fraction"],
-                                    },
-                                },
-                            },
-                            "required": ["basis", "components"],
-                        },
-                    },
-                },
-            ]
-        }
-    )
 
 
 def _property_value_schema(
@@ -661,7 +548,6 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
         }
 
     allowed_properties = profile["allowed_property_codes"]
-    allowed_assertions = profile["allowed_assertion_types"]
     result = {
         "properties": {
             "measurement": {
@@ -672,11 +558,6 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
             "properties": (
                 {"items": {"properties": {"property_code": {"enum": allowed_properties}}}}
                 if allowed_properties
-                else {"maxItems": 0}
-            ),
-            "assertions": (
-                {"items": {"properties": {"assertion_type": {"enum": allowed_assertions}}}}
-                if allowed_assertions
                 else {"maxItems": 0}
             ),
         }
@@ -966,35 +847,6 @@ def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str,
                 },
             }
         )
-    for property_code, required_keys in {
-        "image_object_size_um": ["image_object_type", "image_size_metric"],
-        "image_object_density_cm2": ["image_object_type"],
-    }.items():
-        if property_code in allowed_properties:
-            constraints.append(
-                {
-                    "if": {
-                        "required": ["properties"],
-                        "properties": {
-                            "properties": {
-                                "contains": {
-                                    "required": ["property_code"],
-                                    "properties": {"property_code": {"const": property_code}},
-                                }
-                            },
-                        },
-                    },
-                    "then": {
-                        "properties": {
-                            "measurement": {
-                                "properties": {
-                                    "typed_conditions": {"required": required_keys},
-                                }
-                            }
-                        }
-                    },
-                }
-            )
     if "spectral_peaks" in allowed_properties:
         peak_properties = {"position_unit": {"enum": profile["peak_position_units"]}}
         if code != "XRD":

@@ -10,7 +10,6 @@ from app.models.module_payload import ExperimentModulePayload
 from app.models.sample import Sample, SampleRole
 from app.models.scientific import RunRevision
 from app.models.v2_entities import MaterialLot, MaterialLotVersion
-from app.models.v2_results import MeasuredProduct
 from app.services.v2_field_source import experiment_fields, load_field_source
 from app.services.v2_r0_service import build_run_report
 
@@ -118,7 +117,6 @@ def _scientific_payloads(run: ExperimentRun) -> dict[str, dict]:
             ]
         },
         "process_steps": {
-            "segments": [],
             "channels": [
                 {
                     "channel_key": "channel_11111111_1111_4111_8111_111111111111",
@@ -148,6 +146,7 @@ def _scientific_payloads(run: ExperimentRun) -> dict[str, dict]:
                     "series": [{"start_s": 0, "end_s": 3600, "value": 100}],
                 },
             ],
+            "process_duration_min": 60,
             "pressure_regime": "atmospheric",
             "cooling_method": "furnace_cooling",
         },
@@ -232,7 +231,6 @@ def test_check_r0_reports_conditional_required_fields_and_rejects_pvd_as_noncomp
     )
     db_session.add(sample)
     db_session.flush()
-    db_session.add(MeasuredProduct(sample_id=sample.id, observed_phenomena=["不连续覆盖"]))
     _add_payload(
         db_session,
         pvd.id,
@@ -244,21 +242,7 @@ def test_check_r0_reports_conditional_required_fields_and_rejects_pvd_as_noncomp
     reports = build_r0_reports(db_session)
 
     cvd_report = next(report for report in reports if report["run_code"] == "RUN-R0-CVD")
-    assert cvd_report["contract"] == "legacy_v2"
     assert cvd_report["status"] == "non_compliant"
-    missing_keys = {
-        item["key"] for item in cvd_report["items"] if item["applicable"] and not item["passed"]
-    }
-    assert {
-        "material_lot_id",
-        "material_lot_version",
-        "channels",
-        "pressure_regime",
-        "cooling_method",
-        "zone_count",
-        "orientation",
-    }.issubset(missing_keys)
-    assert "components" not in missing_keys
 
     pvd_report = next(report for report in reports if report["run_code"] == "RUN-R0-PVD")
     assert pvd_report["status"] == "non_compliant"
@@ -277,7 +261,6 @@ def test_target_architecture_and_composition_relations_are_part_of_r0() -> None:
 def test_scientific_r0_accepts_minimal_current_contract_without_optional_phases() -> None:
     run = _scientific_run()
     payloads = _scientific_payloads(run)
-    assert payloads["process_steps"]["segments"] == []
     assert "preparation_operations" not in payloads["process_steps"]
     assert "dimensional_form" not in payloads["target_product"]
     run.module_payloads = [
@@ -291,7 +274,6 @@ def test_scientific_r0_accepts_minimal_current_contract_without_optional_phases(
     ]
     report = build_run_report(run)
 
-    assert report["contract"] == "scientific_v4"
     assert report["status"] == "compliant"
     assert report["items"]
     assert all(item["passed"] for item in report["items"] if item["applicable"])
@@ -335,9 +317,8 @@ def test_scientific_r0_requires_physical_cylinders_for_new_gas_exchange() -> Non
     payloads["process_steps"]["preparation_operations"] = [
         {
             "operation_type": "gas_exchange",
-            "duration_min": 5,
+            "exchange_mode": "evacuation_backfill",
             "cycle_count": 2,
-            "gases": ["CO2"],
         }
     ]
 
@@ -376,7 +357,14 @@ def test_scientific_r0_rejects_nonexistent_material_lot_versions(db_session) -> 
             "SUB-01",
             {"substrate_material": "sapphire_al2o3"},
         ),
-        (gas_id, "gas_cylinder", "Ar", "Ar", "GAS-01", {"purity": 99.999}),
+        (
+            gas_id,
+            "gas_cylinder",
+            "Ar",
+            "Ar",
+            "GAS-01",
+            {"gas_components": [{"species": "Ar", "volume_percent": 100.0}]},
+        ),
     ]
     for lot_id, category, name, formula, batch, attrs in lots:
         lot_uuid = UUID(lot_id)
@@ -435,14 +423,13 @@ def test_locked_scientific_r0_reads_immutable_revision_not_mutable_modules() -> 
         ExperimentModulePayload(
             module_key="process_steps",
             schema_version="cvd_v2",
-            payload_json={"segments": [], "channels": []},
+            payload_json={"channels": []},
         )
     ]
 
     report = build_run_report(run)
 
     assert report["schema_version"] == "v4.0-alpha.17"
-    assert report["contract"] == "scientific_v4"
     assert report["status"] == "compliant"
     immutable = next(
         item for item in report["items"] if item["key"] == "immutable_revision_content"
@@ -451,26 +438,3 @@ def test_locked_scientific_r0_reads_immutable_revision_not_mutable_modules() -> 
 
     revision.content_sha256 = "f" * 64
     assert build_run_report(run)["status"] == "non_compliant"
-
-    historical = deepcopy(payloads)
-    historical_load = historical["precursors"]["items"][0]
-    historical_load["loading_method"] = "substrate_surface"
-    historical_load["ingredients"][0]["function_role"] = "metal_source"
-    revision.schema_version = "v4.0-alpha.15"
-    revision.content_json["modules"] = historical
-    revision.content_sha256 = hashlib.sha256(
-        json.dumps(
-            revision.content_json,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode()
-    ).hexdigest()
-
-    historical_report = build_run_report(run)
-
-    assert historical_report["status"] == "compliant"
-    source_link = next(
-        item for item in historical_report["items"] if item["key"] == "substrate_source_references"
-    )
-    assert source_link["applicable"] is False

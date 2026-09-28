@@ -53,7 +53,7 @@ function matchesQuery(
   return [
     item.sample.run_code,
     item.sample.sample_code,
-    item.sample.material_system,
+    item.sample.target_material_system,
     ...item.measurements.map((measurement) =>
       measurementMethodLabel(measurement.method_profile, language),
     ),

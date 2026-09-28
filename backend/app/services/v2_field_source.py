@@ -24,18 +24,6 @@ PAYLOAD_MODULE_KEYS = (
     "process_events",
 )
 ARRAY_MODULE_KEYS = {"precursors", "substrates", "process_steps", "process_events"}
-RESULT_MODULE_KEYS = {"characterization", "measured_products"}
-STRUCTURED_CONTROLLED_KEYS = {
-    "field_type",
-    "material",
-    "measurement_source",
-    "method",
-    "operation_type",
-    "placement",
-    "shape",
-    "species",
-    "type",
-}
 ELEMENT_SYMBOLS = frozenset(
     "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn "
     "Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce "
@@ -89,7 +77,7 @@ def characterization_property_units(
 
 def canonical_gas_species(value: str, doc: dict[str, Any] | None = None) -> str:
     source = doc or load_field_source()
-    normalized = str(canonical_option_value(value.strip(), source)).casefold()
+    normalized = value.strip().casefold()
     for code, definition in source["gas_species"].items():
         if normalized in {str(alias).strip().casefold() for alias in definition["aliases"]}:
             return str(code)
@@ -109,13 +97,9 @@ def normalize_atmosphere(
     if not isinstance(value, str):
         raise ValueError("atmosphere must be a string")
     custom = other_name.strip() if isinstance(other_name, str) else ""
-    raw = value.strip()
-    canonical = str(canonical_option_value(raw, source))
-    if canonical not in {"air", "vacuum", "other"}:
-        try:
-            canonical = canonical_gas_species(canonical, source)
-        except ValueError:
-            canonical, custom = "other", custom or raw
+    canonical = value.strip()
+    if canonical not in {"air", "vacuum", "other", *source["gas_species"]}:
+        raise ValueError("unsupported atmosphere")
     if canonical == "other":
         if not custom:
             raise ValueError("other atmosphere requires atmosphere_other")
@@ -280,44 +264,6 @@ def field_option_values(
     }
 
 
-def canonicalize_controlled_values(
-    value: Any,
-    doc: dict[str, Any] | None = None,
-    *,
-    key: str | None = None,
-) -> Any:
-    """Canonicalize legacy controlled labels without rewriting narrative text."""
-    source = doc or load_field_source()
-    controlled_keys = {
-        field["key"]
-        for field in [*experiment_fields(source), *entity_fields(source)]
-        if any(token in str(field.get("input") or "") for token in ("下拉", "多选", "多条"))
-    } | {
-        "role",
-        "option",
-        "file_kind",
-        "observed_phenomenon",
-        *STRUCTURED_CONTROLLED_KEYS,
-    }
-    if isinstance(value, dict):
-        return {
-            item_key: canonicalize_controlled_values(
-                item,
-                source,
-                key=item_key,
-            )
-            for item_key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [canonicalize_controlled_values(item, source, key=key) for item in value]
-    if not isinstance(value, str) or key is None:
-        return value
-    normalized_key = key.removeprefix("source_").removesuffix("_snapshot")
-    if normalized_key in controlled_keys:
-        return canonical_option_value(value, source, field_key=normalized_key)
-    return value
-
-
 def module_key_for_field(field: dict[str, Any], doc: dict[str, Any] | None = None) -> str:
     source = doc or load_field_source()
     module = field["module"]
@@ -342,20 +288,6 @@ def entity_fields_by_key(doc: dict[str, Any] | None = None) -> dict[str, list[di
     for field in entity_fields(source):
         grouped[module_key_for_field(field, source)].append(field)
     return grouped
-
-
-def stage_type_names(doc: dict[str, Any] | None = None) -> list[str]:
-    source = doc or load_field_source()
-    return [canonical_option_value(item["name"], source) for item in source["stage_types"]["types"]]
-
-
-def stage_types_with_group(group: str, doc: dict[str, Any] | None = None) -> set[str]:
-    source = doc or load_field_source()
-    return {
-        canonical_option_value(item["name"], source)
-        for item in source["stage_types"]["types"]
-        if group in item.get("shows", [])
-    }
 
 
 def missing(value: Any) -> bool:
@@ -408,7 +340,6 @@ def condition_matches(condition: dict[str, Any], value: Any) -> bool:
         return False
     op = condition.get("op")
     expected = canonical_option_value(condition.get("value"))
-    value = canonical_option_value(value)
     if isinstance(value, list):
         if op == "eq":
             return expected in value
@@ -427,17 +358,14 @@ def condition_matches(condition: dict[str, Any], value: Any) -> bool:
 
 
 def additional_capability_names(attrs: dict[str, Any]) -> list[str]:
-    names = attrs.get("field_device_other_names")
-    if isinstance(names, list):
-        return [name.strip() for name in names if isinstance(name, str) and name.strip()]
-    legacy = attrs.get("field_device_other_name")
-    return [legacy.strip()] if isinstance(legacy, str) and legacy.strip() else []
+    names = attrs.get("field_device_other_names") or []
+    return [name.strip() for name in names if isinstance(name, str) and name.strip()]
 
 
 def additional_capability_is_available(field: dict[str, Any], attrs: dict[str, Any]) -> bool:
     devices = attrs.get("field_devices") or []
-    kind = canonical_option_value(field.get("field_type"), field_key="field_type")
-    if kind not in {canonical_option_value(item, field_key="field_devices") for item in devices}:
+    kind = field.get("field_type")
+    if kind not in devices:
         return False
     name = field.get("capability_name")
     if kind != "other":
