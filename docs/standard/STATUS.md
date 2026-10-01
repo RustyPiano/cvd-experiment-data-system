@@ -5,7 +5,7 @@
 ## 0. 速览
 
 - **CVD 二维材料实验数据采集系统**，v2 单轨：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`。单轨化计划与执行记录见 [`v2-single-track-plan.md`](../engineering/v2-single-track-plan.md)（批0–批8）。
-- **香港生产**：`f7d30ef / v4.0-alpha.50`，Alembic `20260928_0018 (head)`。2026-07-24 切换到 v2，2026-08-07 经用户授权清空测试数据。旧 v1 库离线归档为 `cvd_v1_archive_20260724`。发布证据见 [`production-deployment-report-2026-07-24.md`](../operations/production-deployment-report-2026-07-24.md)。
+- **香港生产**：`89e17a5`（字段源 `v4.0-alpha.50`），Alembic `20260928_0018 (head)`。2026-07-24 切换到 v2，2026-08-07 经用户授权清空测试数据。旧 v1 库离线归档为 `cvd_v1_archive_20260724`。发布证据见 [`production-deployment-report-2026-07-24.md`](../operations/production-deployment-report-2026-07-24.md)。
 - **仓库**：`v4.0-alpha.50 / INTERNAL_VALIDATION`，与生产一致。alpha.44–48 为表征仪器配置整改：[OM](../reviews/2026-09-10-om-implementation.md)、[Raman](../reviews/2026-09-11-raman-implementation.md)、[PL](../reviews/2026-09-11-pl-implementation.md)、[SHG](../reviews/2026-09-13-shg-implementation.md)。
 - **字段**：100 个实验字段（89 个进入前端/JSON 契约）、3 张一等实体表 64 个字段（53 个进入前端元数据）、26 个 R0 标记。`字段草案-v3.xlsx` 已按 alpha.50 重生成。
 - **评审输入**：2026-07-07 导师书面批注（已纳入 v3.4）；2026-07-24 线上走查 M/A/F；发布后试填与终审 U-01—U-32。计划见 [`2026-07-24-meeting-remediation-plan.md`](../product/2026-07-24-meeting-remediation-plan.md)，逐项状态见 [`2026-07-24-teacher-meeting-remediation.md`](../reviews/2026-07-24-teacher-meeting-remediation.md)。
@@ -100,7 +100,7 @@
 | 09-28 | 收尾复核：后端 447、前端 407 测试与全部生成物漂移检查通过，PostgreSQL 上 `0016 → 0018` 升降级往返与冒烟通过；清除字段源与文档中已删模型的残留描述 |
 | 09-28 | alpha.50 经 PR #8 合并并发布（`f7d30ef`），生产 Alembic 前滚至 `0018`；详见[部署报告](../operations/production-deployment-report-2026-07-24.md) |
 | 09-29 | 交接：新增 [`HANDOVER.md`](../HANDOVER.md)（访问、运维、回滚、待办） |
-| 10-01 | 表征峰参数修复：首次选择强度单位不再清空已填峰高；保存清单中 `intensityRequired`/`extractionRequired` 显示中文提示（字段源仍为 alpha.50） |
+| 10-01 | 表征峰参数修复：首次选择强度单位不再清空已填峰高；保存清单中 `intensityRequired`/`extractionRequired` 显示中文提示（字段源仍为 alpha.50）；经 PR #11 发布（`89e17a5`） |
 
 ## 6. 已归档
 

@@ -152,6 +152,13 @@
 - 自动备份 `backups/20260928_212500`：`database.sql` 与 `storage.tar.gz` SHA-256 校验和 tar 可读性通过，目录 0700、文件 0600。
 - 生产 Alembic `20260928_0018 (head)`；backend/frontend running + healthy，近 10 分钟后端日志无 ERROR/Traceback/FATAL/panic；公网 `/health`、首页、`runtime-config.js` 为 200，匿名 `/api/v1/auth/me` 为 401。
 
+## 2026-10-01 表征峰参数修复发布
+
+- 经用户授权，PR #11 五项 CI 全绿后合并；普通 `./deploy.sh` 从 `f7d30ef` 发布至 `89e17a5`，仅前端改动，字段源 alpha.50、Alembic `20260928_0018` 不变。旧镜像保留为 `rollback-alpha50-20261001` 标签。
+- 修复：首次选择峰强度单位不再清空已填峰高；保存清单 `intensityRequired`/`extractionRequired` 显示中文提示。前端 409 项测试通过，本地浏览器复现与修复验证通过。
+- 自动备份 `backups/20261001_141932`：SHA-256 校验与 tar 可读性通过，目录 0700、文件 0600。
+- backend/frontend running + healthy，近 10 分钟后端日志无 ERROR/Traceback/FATAL/panic；公网 `/health`、首页、`runtime-config.js` 为 200，匿名 `/api/v1/auth/me` 为 401。线上 `simple-characterization-workspace-BkxBcGfS.js` 已含新提示键映射；未写入验收数据。
+
 ## 尚待真实数据验收
 
 没有为验收伪造生产实验。第一条真实炉次需要由实际实验人按真实条件完成：
