@@ -1,6 +1,6 @@
 # 交接说明
 
-交接日期：2026-09-29。生产与仓库版本 `v4.0-alpha.50`，Alembic `20260928_0018 (head)`。项目背景、已定决策和进展以 [`standard/STATUS.md`](standard/STATUS.md) 为准。
+交接日期：2026-09-29。生产与仓库字段源版本 `v4.0-alpha.50`（生产代码 `89e17a5`），Alembic `20260928_0018 (head)`。项目背景、已定决策和进展以 [`standard/STATUS.md`](standard/STATUS.md) 为准。
 
 ## 1. 系统
 
