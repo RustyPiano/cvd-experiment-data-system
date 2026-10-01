@@ -55,6 +55,12 @@ export function emptyPeakSeries(
   }
 }
 
+// Two issue messages live under the shared raman namespace.
+export const peakIssueKey = (issue: string) =>
+  issue === 'intensityRequired' || issue === 'extractionRequired'
+    ? `raman.${issue}`
+    : `characterizations.workspace.peaks.${issue}`
+
 export function peakSeriesIssue(
   value: PeakSeriesDraft,
   rawIndexes: number[],
@@ -485,6 +491,11 @@ export function SpectralPeaksEditor({
               value={value.intensityUnit}
               disabled={disabled}
               onValueChange={(unit) => {
+                // First unit choice labels the numbers already typed; only a change clears them.
+                if (!value.intensityUnit) {
+                  onChange({ ...value, intensityUnit: unit })
+                  return
+                }
                 if (
                   value.peaks.some((peak) => peak.height || peak.area) &&
                   !window.confirm(tr('changeIntensityUnit'))
@@ -523,11 +534,7 @@ export function SpectralPeaksEditor({
       ) : null}
       {issue ? (
         <p role="alert" className="text-sm text-destructive">
-          {issue === 'intensityRequired'
-            ? t('raman.intensityRequired')
-            : issue === 'extractionRequired'
-              ? t('raman.extractionRequired')
-              : tr(issue)}
+          {t(peakIssueKey(issue), { defaultValue: issue })}
         </p>
       ) : null}
     </fieldset>

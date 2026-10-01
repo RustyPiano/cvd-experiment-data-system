@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import i18n from '@/shared/i18n'
 import {
   emptyPeakSeries,
+  peakIssueKey,
   peakSeriesIssue,
   peakSeriesValue,
   SpectralPeaksEditor,
@@ -154,4 +155,51 @@ it('stores PL width entered in meV as eV without changing the peak position', as
   expect(Number(draft.peaks[0].fwhm)).toBeCloseTo(0.04)
   expect(draft.peaks[0].position).toBe('1.82')
   expect(draft.intensityUnit).toBe('')
+})
+
+it('keeps typed heights when the first intensity unit is chosen', async () => {
+  await i18n.changeLanguage('zh')
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+  function Form() {
+    const [value, setValue] = useState(emptyPeakSeries('cm⁻¹', ''))
+    return (
+      <SpectralPeaksEditor
+        value={value}
+        onChange={setValue}
+        units={['cm⁻¹']}
+        method="Raman"
+        rawFiles={[new File(['raw'], 'spectrum.txt')]}
+        rawIndexes={[0]}
+        disabled={false}
+      />
+    )
+  }
+  const user = userEvent.setup()
+  render(<Form />)
+  await user.click(screen.getByRole('button', { name: '添加峰' }))
+  await user.type(screen.getByLabelText(/峰 1 峰高/), '1450')
+  expect(screen.getByRole('alert')).toHaveTextContent('请选择峰强度单位。')
+  await user.click(screen.getByLabelText('强度单位'))
+  await user.click(screen.getByRole('option', { name: 'counts' }))
+  expect(confirm).not.toHaveBeenCalled()
+  expect(screen.getByLabelText('峰 1 峰高 (counts)')).toHaveValue(1450)
+  await user.click(screen.getByLabelText('强度单位'))
+  await user.click(screen.getByRole('option', { name: 'counts/s' }))
+  expect(confirm).toHaveBeenCalled()
+  expect(screen.getByLabelText('峰 1 峰高 (counts/s)')).toHaveValue(null)
+  confirm.mockRestore()
+})
+
+it('resolves every peak issue code to a translated message', async () => {
+  for (const lang of ['zh', 'en']) {
+    await i18n.changeLanguage(lang)
+    for (const issue of [
+      'intensityRequired',
+      'extractionRequired',
+      'invalidPeak',
+      'peakRequired',
+      'sourceRequired',
+    ])
+      expect(i18n.exists(peakIssueKey(issue))).toBe(true)
+  }
 })
