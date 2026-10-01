@@ -83,6 +83,7 @@ import type { MeasurementPropertyQuality } from './api'
 import { EntityReferenceSelect } from './components/entity-reference-select'
 import {
   emptyPeakSeries,
+  peakIssueKey,
   peakSeriesIssue,
   peakSeriesValue,
   SpectralPeaksEditor,
@@ -1214,11 +1215,7 @@ export function SimpleCharacterizationWorkspace({
     ...(excitationPowerPairIssue ? [excitationPowerPairIssue] : []),
     ...resultIssues,
     ...(spectralIssue
-      ? [
-          t(`characterizations.workspace.peaks.${spectralIssue}`, {
-            defaultValue: spectralIssue,
-          }),
-        ]
+      ? [t(peakIssueKey(spectralIssue), { defaultValue: spectralIssue })]
       : []),
     ...resultMetadataIssues,
     ...fileIssues,
